@@ -46,6 +46,18 @@ jobs:
           console.log(`relay inline JS syntax: PASS (${scripts.length} script block)`);
           NODE
 
+      - name: Relay DOM target contract
+        run: |
+          node <<'NODE'
+          const fs = require("fs");
+          const html = fs.readFileSync("mafia/relay/don_combo_matrix.html", "utf8");
+          const ids = [...html.matchAll(/getElementById\(["']([^"']+)["']\)/g)].map((m) => m[1]);
+          const unique = [...new Set(ids)].sort();
+          const missing = unique.filter((id) => !html.includes('id="' + id + '"') && !html.includes("id='" + id + "'"));
+          if (missing.length) throw new Error("relay JS references missing DOM ids: " + missing.join(", "));
+          console.log("relay DOM target contract: PASS (" + unique.length + " literal ids)");
+          NODE
+
   lint:
     runs-on: ubuntu-latest
     steps:

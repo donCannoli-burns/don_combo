@@ -142,7 +142,7 @@ once observation evidence accumulates?**
 
 ## v0.6 native TypeScript runtime cut
 
-The v0.6 runtime keeps the hot path into the same tested KoLmafia TypeScript/Libram toolchain used by Combo.
+The v0.7 runtime keeps the hot path into the same tested KoLmafia TypeScript/Libram toolchain used by Combo.
 
 Control flow:
 
@@ -216,7 +216,7 @@ ring.
 
 ## ML Lab / frozen experiment artifact
 
-The v0.6 runtime adds an opt-in target-trace stream without changing Combo's authority.
+The v0.7 runtime adds an opt-in target-trace stream without changing Combo's authority.
 
 When `don_combo_ml_trace=true`, Combo asks WaterSheep exactly once for the planned target after the beach layout is known and before any tile is combed. The result is advisory only. The actual comb then records its coordinate plus the Session delta for meat and items into:
 
@@ -247,6 +247,33 @@ The relay's **ML Lab** renders two paper-style SVG plots:
 
 It also renders a per-comb table with front, prediction, actual outcome, actual comb coordinate, loot, and inference latency.
 
-The HTML exporter freezes those plots and tables into `don-combo-html-snapshot/v0.4` and embeds the full v0.6 runtime as inert `application/json`. The artifact is therefore sufficient to answer questions such as “what did WaterSheep say before the driftwood hit?” for events captured after tracing was enabled.
+The HTML exporter freezes those plots and tables into `don-combo-html-snapshot/v0.4` and embeds the full v0.7 runtime as inert `application/json`. The artifact is therefore sufficient to answer questions such as “what did WaterSheep say before the driftwood hit?” for events captured after tracing was enabled.
 
 Older ledger observations remain valid evidence but cannot be retroactively assigned a pre-action prediction.
+
+
+## v0.7 run-control proof
+
+Cooperative interrupt state is now part of the evidence contract rather than console-only context.
+
+The runtime and durable receipt include `don-combo-run-control/v0.1`:
+
+```json
+{
+  "requested_combs": 100,
+  "completed_combs": 27,
+  "status": "interrupted",
+  "end_reason": "user_cooperative_interrupt",
+  "interrupt_consumed": true,
+  "ml_events_before": 110,
+  "ml_events_after": 137,
+  "ml_event_delta": 27,
+  "ml_trace_span_complete": true
+}
+```
+
+The values come from KoLmafia-local preferences written by Combo itself. The state hash includes this envelope, so a receipt changes when the run-control outcome changes even if the candidate pool does not.
+
+Snapshot `don-combo-html-snapshot/v0.5` copies the same fields into visible manifest rows and machine-readable `meta` tags while retaining the complete `run_control` object in inert embedded JSON. This allows one exported artifact to establish that a requested run ended early by cooperative user interrupt, exactly how many combs completed, and whether the ML event span is complete.
+
+The relay interrupt remains control-plane only. It cannot cancel an in-flight KoL request, and WaterSheep remains advisory with no execution authority.

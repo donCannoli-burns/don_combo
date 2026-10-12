@@ -699,11 +699,7 @@ function buildMlLab() {
       items,
       meat: event.meat,
       item_names: itemNames,
-      prediction_status: prediction
-        ? prediction.error
-          ? "error"
-          : "ready"
-        : "untraced",
+      prediction_status: prediction ? (prediction.error ? "error" : "ready") : "untraced",
       prediction: prediction
         ? {
             model_utility: prediction.model_utility ?? null,
@@ -720,8 +716,7 @@ function buildMlLab() {
   const meanLatency =
     predicted.length > 0
       ? round(
-          predicted.reduce((sum, event) => sum + n(event.prediction?.ms), 0) /
-            predicted.length,
+          predicted.reduce((sum, event) => sum + n(event.prediction?.ms), 0) / predicted.length,
           2,
         )
       : null;
@@ -784,8 +779,7 @@ function buildMlLab() {
     receipt_log_file: "don_combo_matrix_receipts.jsonl",
     snapshots_in_artifact: snapshotHistory.length,
     snapshot_history: snapshotHistory,
-    note:
-      "Per-comb target traces are pre-action WaterSheep scores for the actual Combo target. Snapshot history compares model-only baseline rank with final model+policy rank. Neither grants execution authority.",
+    note: "Per-comb target traces are pre-action WaterSheep scores for the actual Combo target. Snapshot history compares model-only baseline rank with final model+policy rank. Neither grants execution authority.",
   };
 }
 

@@ -79,6 +79,21 @@ data/don_combo_matrix_last_receipt.json
 data/don_combo_matrix_receipts.jsonl
 ```
 
+## HTML snapshot export
+
+The relay exposes **Export HTML snapshot** in both the sticky header and the agent-packet section.
+
+The export is intentionally a frozen evidence artifact rather than a browser-dependent page save:
+
+- converts the live 1024 × 1024 Hilbert canvas into an embedded PNG data URL;
+- preserves the currently rendered baseline/shadow comparison, candidate table, selected evidence inspector, readiness metrics, agent packet, and runtime/provenance;
+- removes all executable scripts and disables controls;
+- adds a visible snapshot manifest with export time, runtime generation time, receipt state hash, and `authority: none`;
+- embeds the full runtime object plus selected-candidate index and agent packet as inert `application/json` for downstream machine/LLM inspection;
+- uses a deterministic filename shape: `don_combo-shadow-<runtime-time>-<receipt-prefix>.html`.
+
+The snapshot does not execute KoL requests, KoLmafia commands, or WaterSheep inference when opened.
+
 ## UI lineage
 
 The relay surface uses `es-3581100/math-by-design` at commit

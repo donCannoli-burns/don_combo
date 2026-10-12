@@ -326,19 +326,25 @@ def update_ledger(root,pref,context):
 
 def evidence_for(minute,current,ledger):
     entry=(ledger.get("fronts") or {}).get(str(minute)) or {}
-    symbols=entry.get("symbols") or {}
-    visible=max(1,safe_int(symbols.get("visible"),0))
+    symbols=entry.get("symbols") or {}; outcomes=entry.get("outcomes") or {}
+    visible=max(1,safe_int(symbols.get("visible"),0)); events=safe_int(entry.get("session_events"),0)
     rates={name:round(safe_int(symbols.get(name),0)/visible,6) for name in ("whale","twinkle","rough","combed","other")}
-    seen=entry.get("last_seen_epoch")
-    age=round(max(0,time.time()-float(seen))/3600,3) if seen else None
+    outcome_rates={name:round(safe_int(outcomes.get(name),0)/max(1,events),6) for name in ("whale","rare_target","false_rare_rough","twinkle_fallback","rough_fallback","exhausted_fallback","unknown")}
+    seen=entry.get("last_seen_epoch"); age=round(max(0,time.time()-float(seen))/3600,3) if seen else None
+    sand=safe_int((entry.get("items") or {}).get("grain of sand"),0)
     d=d_for(minute,1,0); x,y=xy_for(d)
     return {
         "minute_fraction":round((minute-1)/9999,6),
         "hilbert_bucket_256":d//4096,
         "distance_from_current":abs(minute-current) if current else None,
         "layout_snapshots":safe_int(entry.get("layout_snapshots"),0),
+        "session_events":events,
+        "observation_count":safe_int(entry.get("layout_snapshots"),0)+events,
         "last_seen_age_hours":age,
+        "last_seen_turn":entry.get("last_seen_turn"),
         "observed_symbol_rates":rates,
+        "observed_outcome_rates":outcome_rates,
+        "sand_per_event":round(sand/max(1,events),4) if events else 0.0,
         "representative":{"d":d,"x":x,"y":y,"row":1,"column":0},
     }
 
@@ -351,10 +357,12 @@ def sample_minutes(pref,ledger,count,exclude=None):
     if current: add(current,"current")
     observed=[]
     for text,entry in (ledger.get("fronts") or {}).items():
-        m=safe_int(text)
-        s=entry.get("symbols") or {}; visible=max(1,safe_int(s.get("visible"),0))
-        signal=(safe_int(s.get("whale"))*4+safe_int(s.get("twinkle"))*2+safe_int(s.get("rough")))/visible
-        observed.append((-signal,-safe_int(entry.get("layout_snapshots")),m))
+        m=safe_int(text); s=entry.get("symbols") or {}; o=entry.get("outcomes") or {}
+        visible=max(1,safe_int(s.get("visible"),0)); events=max(1,safe_int(entry.get("session_events"),0))
+        layout_signal=(safe_int(s.get("whale"))*4+safe_int(s.get("twinkle"))*2+safe_int(s.get("rough")))/visible
+        event_signal=(safe_int(o.get("whale"))*4+safe_int(o.get("rare_target"))*3+safe_int(o.get("twinkle_fallback"))*2+safe_int(o.get("rough_fallback"))*.25)/events
+        observations=safe_int(entry.get("layout_snapshots"))+safe_int(entry.get("session_events"))
+        observed.append((-(layout_signal+event_signal),-observations,m))
     for _,__,m in sorted(observed):
         if len(selected)>=max(1,count//3)+(1 if current else 0): break
         add(m,"observed")
@@ -391,8 +399,11 @@ def ask(endpoint,candidate,pref,timeout):
         "hilbert_bucket_256":evidence["hilbert_bucket_256"],
         "distance_from_current":evidence["distance_from_current"],
         "layout_snapshots":evidence["layout_snapshots"],
+        "session_events":evidence["session_events"],
         "last_seen_age_hours":evidence["last_seen_age_hours"],
         "observed_symbol_rates":evidence["observed_symbol_rates"],
+        "observed_outcome_rates":evidence["observed_outcome_rates"],
+        "sand_per_event":evidence["sand_per_event"],
         "current_layout_if_same_front":pref.get("_beachLayout","") if str(candidate["minute"])==pref.get("_beachMinutes") else "not observed",
         "withheld":"known rare annotations, Combo target/order, and rare count are intentionally withheld",
     }
@@ -421,17 +432,19 @@ def ask(endpoint,candidate,pref,timeout):
     return {k:v/total for k,v in scores.items()},round((time.perf_counter()-started)*1000,1)
 
 def score_candidate(candidate,scores):
-    ev=candidate["evidence"]; rates=ev["observed_symbol_rates"]; n=ev["layout_snapshots"]
+    ev=candidate["evidence"]; rates=ev["observed_symbol_rates"]; outcomes=ev.get("observed_outcome_rates") or {}; n=ev.get("observation_count",0)
     model=sum(scores.get(k,0.0)*WEIGHTS[k] for k in LABELS)
     exploration=.08/math.sqrt(1+n)
-    observed=rates.get("whale",0)*.16+rates.get("twinkle",0)*.08-rates.get("combed",0)*.05
+    observed=(rates.get("whale",0)*.16+rates.get("twinkle",0)*.08-rates.get("combed",0)*.05+
+              outcomes.get("whale",0)*.16+outcomes.get("rare_target",0)*.12+outcomes.get("twinkle_fallback",0)*.08-
+              outcomes.get("rough_fallback",0)*.02-outcomes.get("exhausted_fallback",0)*.05)
     return round(model+exploration+observed,6),{"model":round(model,6),"exploration":round(exploration,6),"observed":round(observed,6)}
 
 def comparison_metrics(candidates,baseline,fronts_recorded):
     scored=[item for item in candidates if item.get("utility") is not None]
     top=scored[0] if scored else None; second=scored[1] if len(scored)>1 else None
     margin=round(top["utility"]-second["utility"],6) if top and second else None
-    observed_candidates=sum(1 for item in scored if safe_int((item.get("evidence") or {}).get("layout_snapshots"),0)>0)
+    observed_candidates=sum(1 for item in scored if safe_int((item.get("evidence") or {}).get("observation_count"),0)>0)
     observed_fraction=round(observed_candidates/max(1,len(scored)),4)
     if observed_candidates==0:
         maturity="COLD_START"
@@ -486,7 +499,7 @@ def emit_receipt(root,result):
         previous={}
     appended=previous.get("state_sha256")!=state_sha
     receipt={
-        "schema":"don-combo-shadow-receipt/v0.3",
+        "schema":"don-combo-shadow-receipt/v0.4",
         "generated_at":result["generated_at"],
         "state_sha256":state_sha,
         "authority":"none",
@@ -507,7 +520,7 @@ def snapshot(root,endpoint,count,timeout,mock):
     points=rare_points(rares,pref)
     context,context_file=load_context(root)
     baseline=combo_baseline(points,pref,context)
-    ledger,ledger_file,ledger_changed=update_ledger(root,pref)
+    ledger,ledger_file,ledger_changed,session_tail=update_ledger(root,pref,context)
     candidates=candidate_frontier(pref,ledger,count,baseline)
     status="mock" if mock else "ready"; error=None
     for candidate in candidates:
@@ -524,14 +537,14 @@ def snapshot(root,endpoint,count,timeout,mock):
     minute=safe_int(pref.get("_beachMinutes"),0)
     comparison=comparison_metrics(candidates,baseline,len(ledger.get("fronts") or {}))
     result={
-        "schema":"don-combo-matrix-runtime/v0.3",
+        "schema":"don-combo-matrix-runtime/v0.4",
         "generated_at":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
         "mode":"shadow-only","authority":"none",
         "claim":"Score Combo's exact next target inside the same blinded WaterSheep pool as dynamic alternatives, without changing KoL state.",
         "note":"WaterSheep score mass is experimental and uncalibrated for KoL beach outcomes. Known rare annotations, candidate source labels, baseline membership, and Combo route identity are withheld from model input. No KoL request or KoLmafia command is executed by this bridge.",
         "matrix":{"order":10,"width":GRID,"height":GRID,"total_cells":GRID*GRID,"real_tile_cells":REAL,"unused_cells":GRID*GRID-REAL,"address_rule":"d=(minute-1)*100+(row-1)*10+column; (x,y)=HilbertPoint(d,10)"},
         "combo":{"rare_tile_records":len(points),"unique_rare_fronts":len({x["minute"] for x in points if not x["false_rare"]}),"false_rare_records":len(false_rares(pref.get("combo_false_rares",""))),"raretiles_file":str(rare_source),"prefs_file":str(pref_file) if pref_file else None,"last_tile_index":safe_int(pref.get("combo_lastTileCombed"),0),"current_minute":minute or None,"current_layout":pref.get("_beachLayout",""),"context":context,"context_file":str(context_file),"baseline_in_pool":baseline is not None},
-        "observations":{"ledger_file":str(ledger_file),"fronts_recorded":len(ledger.get("fronts") or {}),"ledger_updated_this_run":ledger_changed,"rule":"Distinct local _beachLayout snapshots only; repeated identical snapshots are deduplicated."},
+        "observations":{"ledger_file":str(ledger_file),"fronts_recorded":len(ledger.get("fronts") or {}),"ledger_updated_this_run":ledger_changed,"session_tail":session_tail,"rule":"KoLmafia sessions/<player>_<date>.txt is tailed by byte cursor for every beach visit; structured layout markers and live _beachLayout enrich the same deduplicated front ledger."},
         "watersheep":{"endpoint":endpoint,"status":status,"error":error,"options":list(LABELS),"weights":WEIGHTS,"input_policy":"Known rare coordinates/counts, Combo target identity/order, candidate source labels, and baseline membership withheld. Player/day context is read from kol-goblin-docs runtime.tsv when available.","calibration":"UNVALIDATED_FOR_KOL_BEACH"},
         "comparison":comparison,
         "ui":{"design_reference":DESIGN_REFERENCE,"semantic_order":["claim","context","proof","decision","metadata","exit"],"evidence_kinds":["FACT","MODEL","POLICY"]},
@@ -558,7 +571,8 @@ def main():
         write_atomic(root/"relay"/"don_combo_matrix_runtime.js","window.DON_COMBO_MATRIX_RUNTIME="+encoded+";\n")
         top=result["candidates"][0]["minute"] if result["candidates"] else "none"
         comparison=result.get("comparison") or {}
-        print(f"don_combo matrix v0.3: {result['watersheep']['status']} | pool {len(result['candidates'])} | baseline rank {comparison.get('baseline_rank') or 'n/a'} | shadow top {top} | {root}")
+        tail=(result.get("observations") or {}).get("session_tail") or {}
+        print(f"don_combo matrix v0.4: {result['watersheep']['status']} | pool {len(result['candidates'])} | baseline rank {comparison.get('baseline_rank') or 'n/a'} | shadow top {top} | session +{tail.get('events_added',0)} | {root}")
         if result["watersheep"]["error"]: print("WaterSheep:",result["watersheep"]["error"])
         if args.watch<=0: return 0
         time.sleep(max(1.0,args.watch))

@@ -3,10 +3,8 @@ import {
   appendBufferToFile,
   bufferToFile,
   fileToBuffer,
-  fileToMap,
   gamedayToInt,
   getProperty,
-  mapToFile,
   myId,
   print,
   sessionLogs,
@@ -59,6 +57,49 @@ const TYPE_REFERENCE = {
   repository: "together-science/symtype",
   use: "explicit properties, relations, and indeterminate truth as TypeScript design inspiration only",
 };
+
+function unescapeAshField(value: string): string {
+  let output = "";
+  let escaped = false;
+  for (const ch of value) {
+    if (!escaped) {
+      if (ch === "\\") escaped = true;
+      else output += ch;
+      continue;
+    }
+    if (ch === "n") output += "\n";
+    else if (ch === "t") output += "\t";
+    else output += ch;
+    escaped = false;
+  }
+  if (escaped) output += "\\";
+  return output;
+}
+
+function escapeAshField(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/\t/g, "\\t");
+}
+
+function readFlatAshMap(path: string): Record<string, string> {
+  const raw = String(fileToBuffer(path) || "");
+  const result: Record<string, string> = {};
+  for (const line of raw.split(/\r?\n/)) {
+    if (!line) continue;
+    const tab = line.indexOf("\t");
+    if (tab < 0) continue;
+    const key = unescapeAshField(line.substring(0, tab));
+    const value = unescapeAshField(line.substring(tab + 1));
+    result[key] = value;
+  }
+  return result;
+}
+
+function writeFlatAshMap(path: string, values: Record<string, string>): void {
+  const lines = Object.keys(values)
+    .sort()
+    .map((key) => `${escapeAshField(key)}\t${escapeAshField(values[key])}`);
+  bufferToFile(`${lines.join("\n")}\n`, path);
+}
 
 function n(value: unknown, fallback = 0): number {
   const parsed = Number(value);
@@ -177,8 +218,8 @@ function comboBaseline(points: RarePoint[]) {
 }
 
 function loadContext(): { context: Record<string, unknown>; file: string } {
-  const map: Record<string, string> = {};
-  if (fileToMap("kol-goblin-docs/runtime.tsv", map) && map.player_id && map.gameday) {
+  const map = readFlatAshMap("kol-goblin-docs/runtime.tsv");
+  if (map.player_id && map.gameday) {
     return {
       context: {
         player: n(map.player_id),
@@ -760,8 +801,8 @@ function writeRuntime(result: Record<string, any>): void {
 }
 
 function readRequest(path: string): RuntimeRequestV1 {
-  const raw: Record<string, string> = {};
-  if (!fileToMap(path, raw)) throw new Error("unable to read runtime request map: " + path);
+  const raw = readFlatAshMap(path);
+  if (!raw.schema) throw new Error("unable to read runtime request map: " + path);
   return decodeRuntimeRequest(raw);
 }
 
@@ -779,7 +820,7 @@ function writeResponse(request: RuntimeRequestV1, response: RuntimeResponseV1): 
     wire.shadow_top_minute = String(response.shadow_top_minute);
   }
   if (response.baseline_rank != null) wire.baseline_rank = String(response.baseline_rank);
-  mapToFile(wire, `agent-runtime/outbox/${request.id}.txt`);
+  writeFlatAshMap(`agent-runtime/outbox/${request.id}.txt`, wire);
 }
 
 function processRequest(path: string): void {
@@ -864,7 +905,7 @@ export function main(args?: string): void {
       meta: request.meta || "",
       page: request.page || "",
     };
-    mapToFile(wire, `agent-runtime/inbox/${request.id}.txt`);
+    writeFlatAshMap(`agent-runtime/inbox/${request.id}.txt`, wire);
     processRequest(`agent-runtime/inbox/${request.id}.txt`);
     return;
   }

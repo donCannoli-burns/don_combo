@@ -11,7 +11,7 @@
 </style>
 </head>
 <body>
-<header class="top"><div class="topin"><div class="brand"><b>don_combo · Shadow Route Lab</b><span>dense memory · sparse inference · no model authority</span></div><nav class="nav"><a href="#overview">Overview</a><a href="#matrix">Matrix</a><a href="#candidates">Candidates</a><a href="#evidence">Evidence</a><a href="#packet">Agent packet</a><a href="#runtime">Runtime</a></nav><div><span id="status" class="status">loading</span> <button class="btn" onclick="location.reload()">Refresh</button></div></div></header>
+<header class="top"><div class="topin"><div class="brand"><b>don_combo · Shadow Route Lab</b><span>dense memory · sparse inference · no model authority</span></div><nav class="nav"><a href="#overview">Overview</a><a href="#matrix">Matrix</a><a href="#candidates">Candidates</a><a href="#evidence">Evidence</a><a href="#packet">Agent packet</a><a href="#runtime">Runtime</a></nav><div><span id="status" class="status">loading</span> <button id="exportSnapshot" class="btn">Export HTML snapshot</button> <button class="btn" onclick="location.reload()">Refresh</button></div></div></header>
 
 <main class="shell">
 <section id="overview" class="hero">
@@ -46,7 +46,7 @@
 
 <section id="packet" class="section">
 <div class="sectionhead"><div><div class="eyebrow">Metadata / agent handoff</div><h2>Agent-readable comparison packet</h2></div><p>A compact evidence packet for another model or developer. It names authority boundaries instead of making them infer the UI.</p></div>
-<article class="card"><button id="copyPacket" class="btn">Copy packet</button><pre id="packetText">No runtime snapshot.</pre></article>
+<article class="card"><button id="copyPacket" class="btn">Copy packet</button> <button id="exportSnapshotPacket" class="btn">Export HTML snapshot</button><pre id="packetText">No runtime snapshot.</pre></article>
 </section>
 
 <section id="runtime" class="section" data-role="metadata">
@@ -125,6 +125,63 @@ function render(){
  if(cands.length){selected=Math.min(selected,cands.length-1);selectCandidate(selected)}else draw()
 }
 document.getElementById("copyPacket").addEventListener("click",function(){var text=document.getElementById("packetText").textContent;navigator.clipboard.writeText(text).then(function(){document.getElementById("copyPacket").textContent="Copied";setTimeout(function(){document.getElementById("copyPacket").textContent="Copy packet"},1200)}).catch(function(){})});
+
+function snapshotFilename(){
+ var generated=(R&&R.generated_at?R.generated_at:new Date().toISOString()).replace(/[:.]/g,"-");
+ var state=((R&&R.receipt&&R.receipt.state_sha256)||"no-receipt").slice(0,12);
+ return "don_combo-shadow-"+generated+"-"+state+".html"
+}
+function safeSnapshotJson(value){
+ return JSON.stringify(value,null,2).replace(/</g,"\\u003c").replace(/-->/g,"--\\u003e")
+}
+function exportHtmlSnapshot(){
+ if(!R)return;
+ buildPacket();
+ var clone=document.documentElement.cloneNode(true),head=clone.querySelector("head"),body=clone.querySelector("body");
+ var exportedAt=new Date().toISOString(),receipt=(R.receipt||{}),runtimeGenerated=R.generated_at||null;
+ var originalCanvas=document.getElementById("map"),cloneCanvas=clone.querySelector("#map");
+ if(originalCanvas&&cloneCanvas){
+   var image=document.createElement("img");
+   image.setAttribute("alt","Frozen Hilbert beach intelligence field");
+   image.setAttribute("src",originalCanvas.toDataURL("image/png"));
+   image.setAttribute("width","1024");image.setAttribute("height","1024");
+   image.setAttribute("style","width:100%;height:100%;display:block;image-rendering:pixelated");
+   cloneCanvas.parentNode.replaceChild(image,cloneCanvas)
+ }
+ clone.querySelectorAll("script").forEach(function(node){node.parentNode.removeChild(node)});
+ clone.querySelectorAll("button").forEach(function(button){
+   button.removeAttribute("onclick");button.setAttribute("disabled","disabled");
+   button.setAttribute("title","Static snapshot: controls disabled")
+ });
+ var meta=[
+   ["don-combo-snapshot-schema","don-combo-html-snapshot/v0.3"],
+   ["don-combo-snapshot-exported-at",exportedAt],
+   ["don-combo-runtime-schema",R.schema||""],
+   ["don-combo-runtime-generated-at",runtimeGenerated||""],
+   ["don-combo-receipt-state-sha256",receipt.state_sha256||""]
+ ];
+ meta.forEach(function(pair){var node=document.createElement("meta");node.setAttribute("name",pair[0]);node.setAttribute("content",pair[1]);head.appendChild(node)});
+ var banner=document.createElement("section");
+ banner.setAttribute("class","card");
+ banner.setAttribute("data-role","snapshot-manifest");
+ banner.setAttribute("style","max-width:1500px;margin:14px auto 0");
+ banner.innerHTML="<div class='eyebrow'>Frozen HTML snapshot</div><div class='lineage' style='margin-top:8px'><dt>Snapshot schema</dt><dd>don-combo-html-snapshot/v0.3</dd><dt>Exported</dt><dd>"+esc(exportedAt)+"</dd><dt>Runtime generated</dt><dd>"+esc(runtimeGenerated||"—")+"</dd><dt>Receipt state</dt><dd>"+esc(receipt.state_sha256||"—")+"</dd><dt>Authority</dt><dd>none · static evidence only</dd></div>";
+ var top=clone.querySelector(".top");if(top&&top.nextSibling)top.parentNode.insertBefore(banner,top.nextSibling);else body.insertBefore(banner,body.firstChild);
+ var machine=document.createElement("script");
+ machine.setAttribute("type","application/json");
+ machine.setAttribute("id","don-combo-snapshot-runtime");
+ machine.textContent=safeSnapshotJson({schema:"don-combo-html-snapshot/v0.3",exported_at:exportedAt,runtime:R,selected_candidate_index:selected,agent_packet:JSON.parse(document.getElementById("packetText").textContent||"{}")});
+ body.appendChild(machine);
+ var note=document.createComment(" don_combo frozen snapshot: scripts disabled; embedded runtime is inert application/json ");
+ body.appendChild(note);
+ var html="<!doctype html>\n"+clone.outerHTML+"\n";
+ var blob=new Blob([html],{type:"text/html;charset=utf-8"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+ a.href=url;a.download=snapshotFilename();document.body.appendChild(a);a.click();a.remove();
+ setTimeout(function(){URL.revokeObjectURL(url)},1000)
+}
+document.getElementById("exportSnapshot").addEventListener("click",exportHtmlSnapshot);
+document.getElementById("exportSnapshotPacket").addEventListener("click",exportHtmlSnapshot);
+
 function pollRuntime(){
  fetch("don_combo_matrix_runtime.js?ts="+Date.now(),{cache:"no-store"}).then(function(response){return response.text()}).then(function(text){
    var prefix="window.DON_COMBO_MATRIX_RUNTIME=",body=text.trim();if(body.indexOf(prefix)!==0)return;body=body.slice(prefix.length);if(body.slice(-1)===";")body=body.slice(0,-1);

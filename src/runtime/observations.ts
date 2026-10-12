@@ -69,7 +69,7 @@ export function loadObservationLedger(): ObservationLedger {
 }
 
 export function loadMlTraceEvents(limit = 500): MlTraceLog {
-  let raw = "";
+  let raw: string;
   try {
     raw = String(fileToBuffer(ML_EVENT_FILE) || "");
   } catch {
@@ -178,7 +178,7 @@ export function recordBeachObservation(
   const event: MlTraceEvent = {
     schema: "don-combo-ml-event/v0.1",
     event_id:
-      `${now.getTime()}-${turnsPlayed()}-${minute}-${actual ? actual.row + "-" + actual.column : "na"}`,
+      `${now.getTime()}-${turnsPlayed()}-${minute}-${actual ? `${actual.row}-${actual.column}` : "na"}`,
     observed_at: now.toISOString(),
     turn: turnsPlayed(),
     minute,

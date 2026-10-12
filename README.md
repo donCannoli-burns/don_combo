@@ -22,9 +22,9 @@ Normal Combo behavior is unchanged. Run `combo N` in the KoLmafia CLI, where `N`
 
 ## WaterSheep matrix prototype
 
-The downstream release adds a relay-browser entry named `DonComboMatrix`. It displays the complete 1,000,000-tile beach address space inside a 1024 x 1024 order-10 Hilbert matrix, overlays known rare positions and the currently observed beach front, and shows WaterSheep probability reports for a small deterministic candidate frontier.
+The downstream release adds a relay-browser entry named `DonComboMatrix`. It displays the complete 1,000,000-tile beach address space inside a 1024 x 1024 order-10 Hilbert matrix, overlays known rare positions and the currently observed beach front, and shows WaterSheep score-mass reports for a small mixed candidate frontier drawn from current, observed, and deterministic exploration fronts.
 
-WaterSheep remains advisory only. The bridge reads local Combo/KoLmafia files and writes local visualization data; it never sends a KoL request and never executes a KoLmafia command.
+WaterSheep remains advisory only. Known rare coordinates and Combo's route are withheld from model input, and its score mass is explicitly uncalibrated for KoL beach outcomes. The bridge reads local Combo/KoLmafia files, maintains a deduplicated local observation ledger, and writes visualization data; it never sends a KoL request and never executes a KoLmafia command.
 
 Start a local WaterSheep server, then run the installed bridge from your KoLmafia root:
 

@@ -1459,6 +1459,128 @@ var Session = /*#__PURE__*/function () {
   }]);
 }();
 
+var LEDGER_FILE = "don_combo_matrix_ledger.json";
+function blankLedger() {
+  return {
+    schema: "don-combo-observation-ledger/v0.5",
+    fronts: {},
+    updated_at: null
+  };
+}
+function loadObservationLedger() {
+  var raw = String(kolmafia.fileToBuffer(LEDGER_FILE) || "").trim();
+  if (!raw) return blankLedger();
+  try {
+    var parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || typeof parsed.fronts !== "object") {
+      return blankLedger();
+    }
+    parsed.schema = "don-combo-observation-ledger/v0.5";
+    return parsed;
+  } catch (_unused) {
+    return blankLedger();
+  }
+}
+function ensureEntry(ledger, minute) {
+  var key = String(minute);
+  if (!ledger.fronts[key]) {
+    ledger.fronts[key] = {
+      layout_snapshots: 0,
+      session_events: 0,
+      symbols: {
+        whale: 0,
+        twinkle: 0,
+        rough: 0,
+        combed: 0,
+        other: 0,
+        visible: 0
+      },
+      outcomes: {},
+      items: {},
+      last_seen_epoch: null,
+      last_seen_turn: null,
+      sources: [],
+      last_layout: null
+    };
+  }
+  var entry = ledger.fronts[key];
+  entry.symbols ?? (entry.symbols = {
+    whale: 0,
+    twinkle: 0,
+    rough: 0,
+    combed: 0,
+    other: 0,
+    visible: 0
+  });
+  entry.outcomes ?? (entry.outcomes = {});
+  entry.items ?? (entry.items = {});
+  entry.sources ?? (entry.sources = []);
+  return entry;
+}
+function add(map, key) {
+  var amount = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 1;
+  map[key] = (map[key] || 0) + amount;
+}
+function countLayout(layout) {
+  var counts = {
+    whale: 0,
+    twinkle: 0,
+    rough: 0,
+    combed: 0,
+    other: 0,
+    visible: 0
+  };
+  var _iterator = _createForOfIteratorHelper(String(layout || "").split(",")),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var part = _step.value;
+      var split = part.indexOf(":");
+      if (split < 0) continue;
+      var symbols = part.substring(split + 1).slice(0, 10);
+      var _iterator2 = _createForOfIteratorHelper(symbols),
+        _step2;
+      try {
+        for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+          var symbol = _step2.value;
+          counts.visible++;
+          if (symbol === "W") counts.whale++;else if (symbol === "t") counts.twinkle++;else if (symbol === "r") counts.rough++;else if (symbol === "c") counts.combed++;else counts.other++;
+        }
+      } catch (err) {
+        _iterator2.e(err);
+      } finally {
+        _iterator2.f();
+      }
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  return counts;
+}
+function recordBeachObservation(minute, layout, outcome) {
+  if (!Number.isInteger(minute) || minute < 1 || minute > 10000 || !layout) return;
+  var ledger = loadObservationLedger();
+  var entry = ensureEntry(ledger, minute);
+  entry.session_events = (entry.session_events || 0) + 1;
+  entry.layout_snapshots = (entry.layout_snapshots || 0) + 1;
+  var counts = countLayout(layout);
+  for (var _i = 0, _Object$entries = Object.entries(counts); _i < _Object$entries.length; _i++) {
+    var _Object$entries$_i = _slicedToArray(_Object$entries[_i], 2),
+      name = _Object$entries$_i[0],
+      amount = _Object$entries$_i[1];
+    add(entry.symbols, name, amount);
+  }
+  add(entry.outcomes, outcome);
+  if (!entry.sources.includes("combo-native")) entry.sources.push("combo-native");
+  entry.last_seen_epoch = Math.floor(Date.now() / 1000);
+  entry.last_seen_turn = kolmafia.turnsPlayed();
+  entry.last_layout = layout;
+  ledger.updated_at = new Date().toISOString();
+  kolmafia.bufferToFile("".concat(JSON.stringify(ledger, null, 2), "\n"), LEDGER_FILE);
+}
+
 var _templateObject;
 
 // Gotta print in a legible colour.
@@ -1538,6 +1660,7 @@ function _comb(tile) {
   // TypeScript doesn't know that! the "as" called a "Type Assertion", which is exactly what it sounds like
   // This way, our compiler and our IDE don't start shouting at us for things that we, the reader, know are fine.
   .map(rowLayout => [parseInt(rowLayout[0]), rowLayout[1].split("")]));
+  var finishObservation = outcome => recordBeachObservation(minute, layoutString, outcome);
 
   // the Array.find() method returnns either an element of the array that fits, or undefined
   // We convert our Map to an Array here to use the .find() method
@@ -1549,18 +1672,21 @@ function _comb(tile) {
     var whaleColumn = whaleRow[1].findIndex(x => x === "W");
     kolmafia.print("We found a whale. To hey deze's heart, we'll stab at it.", "red");
     kolmafia.cliExecute("beach comb ".concat(whaleRow[0], " ").concat(whaleColumn));
+    finishObservation("whale");
     // By returning partway through, we avoid needing to use "else"
     // With the exception of try...finally shenanigans, using the return keyword will just immediately terminate the function
     return;
   }
   var rareRow = layout.get(row);
   if (rareRow) {
+    var falseRareRough = false;
     // Here we make sure that the tile we were going to comb wasn't actually rough sand
     // This uses `hasTwinkleVision` which was added in r27618, but this is not required.
     if (get("hasTwinkleVision", false) && rareRow[column] === "r") {
       kolmafia.print("Although our rare tile was uncombed, it is actually rough sand. Lets avoid this tile in the future.", HIGHLIGHT);
       // Note that it is not a rare tile, then invoke a function to add it to the false rares
       addFalseRare(tile);
+      falseRareRough = true;
     }
 
     // Here we make sure that the tile we were going to comb wasn't already combed
@@ -1578,6 +1704,7 @@ function _comb(tile) {
       if (hasCommonItem) {
         addFalseRare(tile);
       }
+      finishObservation(falseRareRough ? "false_rare_rough" : "rare_target");
       return;
     }
   }
@@ -1586,6 +1713,7 @@ function _comb(tile) {
     kolmafia.print("Our rare tile is combed, but we found a twinkle!", HIGHLIGHT);
     var twinkleColumn = firstTwinkleRow[1].findIndex(x => x === "t");
     kolmafia.cliExecute("beach comb ".concat(firstTwinkleRow[0], " ").concat(twinkleColumn));
+    finishObservation("twinkle_fallback");
     return;
   }
   var firstRoughRow = Array.from(layout.entries()).find(rowLayout => rowLayout[1].includes("r"));
@@ -1593,10 +1721,12 @@ function _comb(tile) {
     kolmafia.print("Our rare tile is combed, but we found some rough sand. So I guess there's that.", HIGHLIGHT);
     var roughcolumn = firstRoughRow[1].findIndex(x => x === "r");
     kolmafia.cliExecute("beach comb ".concat(firstRoughRow[0], " ").concat(roughcolumn));
+    finishObservation("rough_fallback");
     return;
   }
   kolmafia.print("We've exhausted all other options, so we're combing an already-combed tile.", HIGHLIGHT);
   kolmafia.cliExecute("beach comb ".concat(row, " ").concat(column));
+  finishObservation("exhausted_fallback");
 }
 
 // Alright now this is pretty cool
@@ -1731,13 +1861,6 @@ function main(args) {
   printSession(final);
   var lifetime = Session.add(final, Session.fromFile("combo_results.json"));
   lifetime.toFile("combo_results.json");
-
-  // Downstream shadow-lab integration: if kol-goblin-docs has been initialized,
-  // ask it to queue one one-shot matrix refresh. KoLmafia remains the caller;
-  // the local worker performs advisory WaterSheep scoring only after the run.
-  if (kolmafia.getProperty("kolGoblinDocsLastRefresh") !== "") {
-    kolmafia.cliExecute("call kol-goblin-docs.ash refresh combo-finished");
-  }
 }
 
 exports.main = main;

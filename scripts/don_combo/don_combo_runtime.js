@@ -1,0 +1,979 @@
+'use strict';
+
+var kolmafia = require('kolmafia');
+
+function _arrayLikeToArray(r, a) {
+  (null == a || a > r.length) && (a = r.length);
+  for (var e = 0, n = Array(a); e < a; e++) n[e] = r[e];
+  return n;
+}
+function _arrayWithHoles(r) {
+  if (Array.isArray(r)) return r;
+}
+function _arrayWithoutHoles(r) {
+  if (Array.isArray(r)) return _arrayLikeToArray(r);
+}
+function _createForOfIteratorHelper(r, e) {
+  var t = "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"];
+  if (!t) {
+    if (Array.isArray(r) || (t = _unsupportedIterableToArray(r)) || e) {
+      t && (r = t);
+      var n = 0,
+        F = function () {};
+      return {
+        s: F,
+        n: function () {
+          return n >= r.length ? {
+            done: true
+          } : {
+            done: false,
+            value: r[n++]
+          };
+        },
+        e: function (r) {
+          throw r;
+        },
+        f: F
+      };
+    }
+    throw new TypeError("Invalid attempt to iterate non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+  }
+  var o,
+    a = true,
+    u = false;
+  return {
+    s: function () {
+      t = t.call(r);
+    },
+    n: function () {
+      var r = t.next();
+      return a = r.done, r;
+    },
+    e: function (r) {
+      u = true, o = r;
+    },
+    f: function () {
+      try {
+        a || null == t.return || t.return();
+      } finally {
+        if (u) throw o;
+      }
+    }
+  };
+}
+function _defineProperty(e, r, t) {
+  return (r = _toPropertyKey(r)) in e ? Object.defineProperty(e, r, {
+    value: t,
+    enumerable: true,
+    configurable: true,
+    writable: true
+  }) : e[r] = t, e;
+}
+function _iterableToArray(r) {
+  if ("undefined" != typeof Symbol && null != r[Symbol.iterator] || null != r["@@iterator"]) return Array.from(r);
+}
+function _iterableToArrayLimit(r, l) {
+  var t = null == r ? null : "undefined" != typeof Symbol && r[Symbol.iterator] || r["@@iterator"];
+  if (null != t) {
+    var e,
+      n,
+      i,
+      u,
+      a = [],
+      f = true,
+      o = false;
+    try {
+      if (i = (t = t.call(r)).next, 0 === l) ; else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0);
+    } catch (r) {
+      o = true, n = r;
+    } finally {
+      try {
+        if (!f && null != t.return && (u = t.return(), Object(u) !== u)) return;
+      } finally {
+        if (o) throw n;
+      }
+    }
+    return a;
+  }
+}
+function _nonIterableRest() {
+  throw new TypeError("Invalid attempt to destructure non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+function _nonIterableSpread() {
+  throw new TypeError("Invalid attempt to spread non-iterable instance.\nIn order to be iterable, non-array objects must have a [Symbol.iterator]() method.");
+}
+function ownKeys(e, r) {
+  var t = Object.keys(e);
+  if (Object.getOwnPropertySymbols) {
+    var o = Object.getOwnPropertySymbols(e);
+    r && (o = o.filter(function (r) {
+      return Object.getOwnPropertyDescriptor(e, r).enumerable;
+    })), t.push.apply(t, o);
+  }
+  return t;
+}
+function _objectSpread2(e) {
+  for (var r = 1; r < arguments.length; r++) {
+    var t = null != arguments[r] ? arguments[r] : {};
+    r % 2 ? ownKeys(Object(t), true).forEach(function (r) {
+      _defineProperty(e, r, t[r]);
+    }) : Object.getOwnPropertyDescriptors ? Object.defineProperties(e, Object.getOwnPropertyDescriptors(t)) : ownKeys(Object(t)).forEach(function (r) {
+      Object.defineProperty(e, r, Object.getOwnPropertyDescriptor(t, r));
+    });
+  }
+  return e;
+}
+function _slicedToArray(r, e) {
+  return _arrayWithHoles(r) || _iterableToArrayLimit(r, e) || _unsupportedIterableToArray(r, e) || _nonIterableRest();
+}
+function _toConsumableArray(r) {
+  return _arrayWithoutHoles(r) || _iterableToArray(r) || _unsupportedIterableToArray(r) || _nonIterableSpread();
+}
+function _toPrimitive(t, r) {
+  if ("object" != typeof t || !t) return t;
+  var e = t[Symbol.toPrimitive];
+  if (void 0 !== e) {
+    var i = e.call(t, r);
+    if ("object" != typeof i) return i;
+    throw new TypeError("@@toPrimitive must return a primitive value.");
+  }
+  return ("string" === r ? String : Number)(t);
+}
+function _toPropertyKey(t) {
+  var i = _toPrimitive(t, "string");
+  return "symbol" == typeof i ? i : i + "";
+}
+function _unsupportedIterableToArray(r, a) {
+  if (r) {
+    if ("string" == typeof r) return _arrayLikeToArray(r, a);
+    var t = {}.toString.call(r).slice(8, -1);
+    return "Object" === t && r.constructor && (t = r.constructor.name), "Map" === t || "Set" === t ? Array.from(r) : "Arguments" === t || /^(?:Ui|I)nt(?:8|16|32)(?:Clamped)?Array$/.test(t) ? _arrayLikeToArray(r, a) : void 0;
+  }
+}
+
+function fact(kind, name, state, value, source) {
+  return {
+    kind,
+    name,
+    state,
+    value,
+    source
+  };
+}
+function relation(relationName, left, right, truth, basis) {
+  return {
+    relation: relationName,
+    left,
+    right,
+    truth,
+    basis
+  };
+}
+function decodeRuntimeRequest(raw) {
+  if (raw.schema !== "kol-runtime-request/v1") throw new Error("unsupported runtime request schema");
+  if (!raw.id) throw new Error("runtime request id is required");
+  if (raw.capability !== "don-combo-matrix" && raw.capability !== "excavator-smoke") {
+    throw new Error("unsupported runtime capability");
+  }
+  if (raw.action !== "refresh" && raw.action !== "smoke") {
+    throw new Error("unsupported runtime action");
+  }
+  if ((raw.authority || "none") !== "none") throw new Error("runtime request must be advisory");
+  return {
+    schema: "kol-runtime-request/v1",
+    id: raw.id,
+    capability: raw.capability,
+    action: raw.action,
+    reason: raw.reason || "manual",
+    authority: "none",
+    event: raw.event,
+    meta: raw.meta,
+    page: raw.page
+  };
+}
+
+var LEDGER_FILE = "don_combo_matrix_ledger.json";
+function blankLedger() {
+  return {
+    schema: "don-combo-observation-ledger/v0.5",
+    fronts: {},
+    updated_at: null
+  };
+}
+function loadObservationLedger() {
+  var raw = String(kolmafia.fileToBuffer(LEDGER_FILE) || "").trim();
+  if (!raw) return blankLedger();
+  try {
+    var parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || typeof parsed.fronts !== "object") {
+      return blankLedger();
+    }
+    parsed.schema = "don-combo-observation-ledger/v0.5";
+    return parsed;
+  } catch (_unused) {
+    return blankLedger();
+  }
+}
+
+var GRID = 1024;
+var REAL = 1_000_000;
+var LABELS = ["rare", "whale", "sandcastle", "twinkle", "regular", "scratched"];
+var MODEL_KEYS = {
+  A: "rare",
+  B: "whale",
+  C: "sandcastle",
+  D: "twinkle",
+  E: "regular",
+  F: "scratched"
+};
+var WEIGHTS = {
+  rare: 1,
+  whale: 0.86,
+  sandcastle: 0.66,
+  twinkle: 0.38,
+  regular: 0.1,
+  scratched: 0
+};
+var ENDPOINT = "http://127.0.0.1:8766/v1/kolmafia";
+var DESIGN_REFERENCE = {
+  repository: "es-3581100/math-by-design",
+  commit: "4f3cfebc0bc8f2f243080d9c758290323eeaf595",
+  use: "hierarchy, evidence/provenance separation, semantic handoff; reference not template"
+};
+var TYPE_REFERENCE = {
+  repository: "together-science/symtype",
+  use: "explicit properties, relations, and indeterminate truth as TypeScript design inspiration only"
+};
+function n(value) {
+  var fallback = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
+  var parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+function round(value) {
+  var places = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 6;
+  var scale = Math.pow(10, places);
+  return Math.round(value * scale) / scale;
+}
+function dFor(minute, row, column) {
+  return (minute - 1) * 100 + (row - 1) * 10 + column;
+}
+function xyFor(d) {
+  var x = 0;
+  var y = 0;
+  var t = d;
+  var s = 1;
+  while (s < GRID) {
+    var rx = t >> 1 & 1;
+    var ry = (t ^ rx) & 1;
+    if (ry === 0) {
+      if (rx === 1) {
+        x = s - 1 - x;
+        y = s - 1 - y;
+      }
+      var temp = x;
+      x = y;
+      y = temp;
+    }
+    x += s * rx;
+    y += s * ry;
+    t >>= 2;
+    s <<= 1;
+  }
+  return [x, y];
+}
+function parseFalseRares() {
+  var result = new Set();
+  var _iterator = _createForOfIteratorHelper(String(kolmafia.getProperty("combo_false_rares") || "").split(";")),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var raw = _step.value;
+      if (/^\d+,\d+,\d+$/.test(raw)) result.add(raw);
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  return result;
+}
+function loadRarePoints() {
+  var parsed = JSON.parse(String(kolmafia.fileToBuffer("raretiles.json") || "[]"));
+  var falseRares = parseFalseRares();
+  return parsed.filter(tile => Number.isInteger(tile.minute) && Number.isInteger(tile.row) && Number.isInteger(tile.column) && tile.minute >= 1 && tile.minute <= 10000 && tile.row >= 1 && tile.row <= 10 && tile.column >= 0 && tile.column <= 9).map(tile => {
+    var d = dFor(tile.minute, tile.row, tile.column);
+    var _xyFor = xyFor(d),
+      _xyFor2 = _slicedToArray(_xyFor, 2),
+      x = _xyFor2[0],
+      y = _xyFor2[1];
+    return _objectSpread2(_objectSpread2({}, tile), {}, {
+      d,
+      x,
+      y,
+      false_rare: falseRares.has("".concat(tile.minute, ",").concat(tile.row, ",").concat(tile.column))
+    });
+  });
+}
+function comboShuffle(points, player) {
+  var work = points.slice();
+  var output = [];
+  var seed = player;
+  while (work.length) {
+    seed++;
+    var index = Math.floor(Math.sin(seed) * work.length);
+    output.push.apply(output, _toConsumableArray(work.splice(index)));
+  }
+  return output;
+}
+function comboBaseline(points) {
+  if (!points.length) return null;
+  var shuffled = comboShuffle(points, n(kolmafia.myId()));
+  var day = 1 + kolmafia.gamedayToInt() % 8;
+  var rowsHidden = 4 - Math.abs(4 - day);
+  var last = n(kolmafia.getProperty("combo_lastTileCombed"), 0);
+  for (var step = 1; step <= shuffled.length; step++) {
+    var index = (last + step) % shuffled.length;
+    var tile = shuffled[index];
+    if (tile.row > rowsHidden && !tile.false_rare) {
+      return {
+        minute: tile.minute,
+        row: tile.row,
+        column: tile.column,
+        d: tile.d,
+        x: tile.x,
+        y: tile.y,
+        shuffled_index: index,
+        skipped_inaccessible: step - 1,
+        rows_hidden: rowsHidden,
+        player: n(kolmafia.myId()),
+        gameday: kolmafia.gamedayToInt()
+      };
+    }
+  }
+  return null;
+}
+function loadContext() {
+  var map = {};
+  if (kolmafia.fileToMap("kol-goblin-docs/runtime.tsv", map) && map.player_id && map.gameday) {
+    return {
+      context: {
+        player: n(map.player_id),
+        player_name: map.player || null,
+        gameday: n(map.gameday),
+        captured_at: map.generated_at || null,
+        source: "kol-goblin-docs"
+      },
+      file: "kol-goblin-docs/runtime.tsv"
+    };
+  }
+  return {
+    context: {
+      player: n(kolmafia.myId()),
+      gameday: kolmafia.gamedayToInt(),
+      captured_at: null,
+      source: "kolmafia-native"
+    },
+    file: "KoLmafia native functions"
+  };
+}
+function symbolRates(entry) {
+  var symbols = entry.symbols || {};
+  var visible = Math.max(1, n(symbols.visible));
+  var result = {};
+  for (var _i = 0, _arr = ["whale", "twinkle", "rough", "combed", "other"]; _i < _arr.length; _i++) {
+    var key = _arr[_i];
+    result[key] = round(n(symbols[key]) / visible);
+  }
+  return result;
+}
+function outcomeRates(entry) {
+  var outcomes = entry.outcomes || {};
+  var events = Math.max(1, n(entry.session_events));
+  var result = {};
+  for (var _i2 = 0, _arr2 = ["whale", "rare_target", "false_rare_rough", "twinkle_fallback", "rough_fallback", "exhausted_fallback", "unknown"]; _i2 < _arr2.length; _i2++) {
+    var key = _arr2[_i2];
+    result[key] = round(n(outcomes[key]) / events);
+  }
+  return result;
+}
+function evidenceFor(minute, current, ledger) {
+  var entry = ledger.fronts[String(minute)] || {};
+  var layouts = n(entry.layout_snapshots);
+  var events = n(entry.session_events);
+  var seen = n(entry.last_seen_epoch, 0);
+  var d = dFor(minute, 1, 0);
+  var _xyFor3 = xyFor(d),
+    _xyFor4 = _slicedToArray(_xyFor3, 2),
+    x = _xyFor4[0],
+    y = _xyFor4[1];
+  return {
+    minute_fraction: round((minute - 1) / 9999),
+    hilbert_bucket_256: Math.floor(d / 4096),
+    distance_from_current: current ? Math.abs(minute - current) : null,
+    layout_snapshots: layouts,
+    session_events: events,
+    observation_count: layouts + events,
+    last_seen_age_hours: seen ? round(Math.max(0, Date.now() / 1000 - seen) / 3600, 3) : null,
+    last_seen_turn: entry.last_seen_turn == null ? null : n(entry.last_seen_turn),
+    observed_symbol_rates: symbolRates(entry),
+    observed_outcome_rates: outcomeRates(entry),
+    sand_per_event: events ? round(n((entry.items || {})["grain of sand"]) / events, 4) : 0,
+    representative: {
+      d,
+      x,
+      y,
+      row: 1,
+      column: 0
+    }
+  };
+}
+function sampleMinutes(ledger, count, current, exclude) {
+  var selected = [];
+  var sources = {};
+  var add = (minute, source) => {
+    if (minute >= 1 && minute <= 10000 && !exclude.has(minute) && !sources[String(minute)]) {
+      selected.push(minute);
+      sources[String(minute)] = source;
+    }
+  };
+  if (current) add(current, "current");
+  var observed = Object.entries(ledger.fronts).map(_ref => {
+    var _ref2 = _slicedToArray(_ref, 2),
+      minuteText = _ref2[0],
+      raw = _ref2[1];
+    var entry = raw;
+    var symbols = entry.symbols || {};
+    var outcomes = entry.outcomes || {};
+    var visible = Math.max(1, n(symbols.visible));
+    var events = Math.max(1, n(entry.session_events));
+    var layoutSignal = (n(symbols.whale) * 4 + n(symbols.twinkle) * 2 + n(symbols.rough)) / visible;
+    var eventSignal = (n(outcomes.whale) * 4 + n(outcomes.rare_target) * 3 + n(outcomes.twinkle_fallback) * 2 + n(outcomes.rough_fallback) * 0.25) / events;
+    return {
+      minute: n(minuteText),
+      signal: layoutSignal + eventSignal,
+      observations: n(entry.layout_snapshots) + n(entry.session_events)
+    };
+  });
+  observed.sort((a, b) => b.signal - a.signal || b.observations - a.observations || a.minute - b.minute);
+  var observedTarget = Math.max(1, Math.floor(count / 3)) + (current ? 1 : 0);
+  var _iterator2 = _createForOfIteratorHelper(observed),
+    _step2;
+  try {
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      var item = _step2.value;
+      if (selected.length >= observedTarget) break;
+      add(item.minute, "observed");
+    }
+  } catch (err) {
+    _iterator2.e(err);
+  } finally {
+    _iterator2.f();
+  }
+  var seed = n(kolmafia.getProperty("combo_lastTileCombed")) * 2654435761 + current * 2246822519 + Object.keys(ledger.fronts).length * 3266489917 + count >>> 0;
+  while (selected.length < count) {
+    seed = Math.imul(1664525, seed) + 1013904223 >>> 0;
+    add(1 + seed % 10000, "explore");
+  }
+  return selected.slice(0, count).map(minute => [minute, sources[String(minute)]]);
+}
+function candidateFrontier(ledger, baseline) {
+  var count = arguments.length > 2 && arguments[2] !== undefined ? arguments[2] : 6;
+  var current = n(kolmafia.getProperty("_beachMinutes"));
+  var result = [];
+  if (baseline) {
+    var evidence = evidenceFor(baseline.minute, current, ledger);
+    result.push({
+      minute: baseline.minute,
+      source: "combo-baseline",
+      is_combo_baseline: true,
+      evidence,
+      representative: {
+        d: baseline.d,
+        x: baseline.x,
+        y: baseline.y,
+        row: baseline.row,
+        column: baseline.column
+      },
+      utility: null,
+      utility_components: null,
+      watersheep: null
+    });
+  }
+  var exclude = new Set(baseline ? [baseline.minute] : []);
+  var _iterator3 = _createForOfIteratorHelper(sampleMinutes(ledger, count, current, exclude)),
+    _step3;
+  try {
+    for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+      var _step3$value = _slicedToArray(_step3.value, 2),
+        minute = _step3$value[0],
+        source = _step3$value[1];
+      var _evidence = evidenceFor(minute, current, ledger);
+      result.push({
+        minute,
+        source,
+        is_combo_baseline: false,
+        evidence: _evidence,
+        representative: _evidence.representative,
+        utility: null,
+        utility_components: null,
+        watersheep: null
+      });
+    }
+  } catch (err) {
+    _iterator3.e(err);
+  } finally {
+    _iterator3.f();
+  }
+  return result;
+}
+function waterSheepPayload(candidate) {
+  var evidence = candidate.evidence;
+  return {
+    state: {
+      mode: "shadow-only; no action authorized",
+      beach_minute: candidate.minute,
+      minute_fraction: evidence.minute_fraction,
+      hilbert_bucket_256: evidence.hilbert_bucket_256,
+      distance_from_current: evidence.distance_from_current,
+      layout_snapshots: evidence.layout_snapshots,
+      session_events: evidence.session_events,
+      last_seen_age_hours: evidence.last_seen_age_hours,
+      observed_symbol_rates: evidence.observed_symbol_rates,
+      observed_outcome_rates: evidence.observed_outcome_rates,
+      sand_per_event: evidence.sand_per_event,
+      current_layout_if_same_front: candidate.minute === n(kolmafia.getProperty("_beachMinutes")) ? kolmafia.getProperty("_beachLayout") : "not observed",
+      withheld: "known rare annotations, Combo target/order, candidate source labels, baseline membership, and rare count are intentionally withheld"
+    },
+    questions: {
+      tile_class: {
+        type: "choice",
+        instructions: "Experimental shadow scoring only. Assign relative score mass to six neutral outcome classes from the supplied weak evidence. Do not choose an action. The class keys are intentionally neutral.",
+        criteria: {
+          A: "rare tile opportunity",
+          B: "whale opportunity",
+          C: "sandcastle opportunity",
+          D: "twinkle or uncommon opportunity",
+          E: "ordinary regular beach opportunity",
+          F: "already exhausted, combed, or low-value opportunity"
+        }
+      }
+    }
+  };
+}
+function askWaterSheep(candidate) {
+  var _parsed$answers;
+  var payload = waterSheepPayload(candidate);
+  var started = Date.now();
+  var url = ENDPOINT + "?request=" + encodeURIComponent(JSON.stringify(payload));
+  var raw = String(kolmafia.visitUrl(url, false) || "");
+  var parsed = JSON.parse(raw);
+  if (parsed.error) throw new Error(parsed.error);
+  var probabilities = ((_parsed$answers = parsed.answers) === null || _parsed$answers === void 0 || (_parsed$answers = _parsed$answers.tile_class) === null || _parsed$answers === void 0 ? void 0 : _parsed$answers.probabilities) || {};
+  var scores = {};
+  for (var _i3 = 0, _Object$entries = Object.entries(MODEL_KEYS); _i3 < _Object$entries.length; _i3++) {
+    var _Object$entries$_i = _slicedToArray(_Object$entries[_i3], 2),
+      key = _Object$entries$_i[0],
+      label = _Object$entries$_i[1];
+    scores[label] = n(probabilities[key]);
+  }
+  var total = Object.values(scores).reduce((sum, value) => sum + value, 0);
+  if (total <= 0) {
+    var _iterator4 = _createForOfIteratorHelper(LABELS),
+      _step4;
+    try {
+      for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+        var _label = _step4.value;
+        scores[_label] = n(probabilities[_label]);
+      }
+    } catch (err) {
+      _iterator4.e(err);
+    } finally {
+      _iterator4.f();
+    }
+    total = Object.values(scores).reduce((sum, value) => sum + value, 0);
+  }
+  if (total <= 0) throw new Error("WaterSheep returned no tile_class score mass");
+  var _iterator5 = _createForOfIteratorHelper(LABELS),
+    _step5;
+  try {
+    for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+      var _label2 = _step5.value;
+      scores[_label2] = scores[_label2] / total;
+    }
+  } catch (err) {
+    _iterator5.e(err);
+  } finally {
+    _iterator5.f();
+  }
+  return {
+    scores,
+    ms: Date.now() - started
+  };
+}
+function scoreCandidate(candidate, scores) {
+  var evidence = candidate.evidence;
+  var rates = evidence.observed_symbol_rates;
+  var outcomes = evidence.observed_outcome_rates;
+  var model = LABELS.reduce((sum, label) => sum + n(scores[label]) * WEIGHTS[label], 0);
+  var exploration = 0.08 / Math.sqrt(1 + evidence.observation_count);
+  var observed = n(rates.whale) * 0.16 + n(rates.twinkle) * 0.08 - n(rates.combed) * 0.05 + n(outcomes.whale) * 0.16 + n(outcomes.rare_target) * 0.12 + n(outcomes.twinkle_fallback) * 0.08 - n(outcomes.rough_fallback) * 0.02 - n(outcomes.exhausted_fallback) * 0.05;
+  return {
+    utility: round(model + exploration + observed),
+    components: {
+      model: round(model),
+      exploration: round(exploration),
+      observed: round(observed)
+    }
+  };
+}
+function comparison(candidates, baseline, fronts) {
+  var scored = candidates.filter(candidate => candidate.utility != null);
+  var top = scored[0];
+  var second = scored[1];
+  var margin = top && second ? round(top.utility - second.utility) : null;
+  var observedCandidates = scored.filter(candidate => candidate.evidence.observation_count > 0).length;
+  var fraction = round(observedCandidates / Math.max(1, scored.length), 4);
+  var maturity = observedCandidates === 0 ? "COLD_START" : fraction < 0.5 || fronts < 10 ? "WARMING" : "EVIDENCE_RICH";
+  var separation = margin == null || margin < 0.01 ? "LOW" : margin < 0.03 ? "MEDIUM" : "HIGH";
+  var baselineIndex = scored.findIndex(candidate => candidate.is_combo_baseline);
+  var baselineCandidate = baselineIndex >= 0 ? scored[baselineIndex] : null;
+  return {
+    combo_baseline: baseline,
+    baseline_rank: baselineIndex >= 0 ? baselineIndex + 1 : null,
+    pool_size: scored.length,
+    shadow_top_minute: (top === null || top === void 0 ? void 0 : top.minute) ?? null,
+    shadow_top_source: (top === null || top === void 0 ? void 0 : top.source) ?? null,
+    agreement: Boolean(top === null || top === void 0 ? void 0 : top.is_combo_baseline),
+    top_vs_second_margin: margin,
+    top_vs_baseline_delta: top && baselineCandidate ? round(top.utility - baselineCandidate.utility) : null,
+    observed_candidates: observedCandidates,
+    observed_candidate_fraction: fraction,
+    evidence_maturity: maturity,
+    ranking_separation: separation,
+    readiness_note: "Ranking separation is descriptive, not calibrated confidence."
+  };
+}
+function layoutCells(minute, raw) {
+  if (!minute) return [];
+  var result = [];
+  var _iterator6 = _createForOfIteratorHelper(String(raw || "").split(",")),
+    _step6;
+  try {
+    for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
+      var part = _step6.value;
+      var split = part.indexOf(":");
+      if (split < 0) continue;
+      var row = n(part.substring(0, split));
+      if (row < 1 || row > 10) continue;
+      var symbols = part.substring(split + 1).slice(0, 10);
+      for (var column = 0; column < symbols.length; column++) {
+        var d = dFor(minute, row, column);
+        var _xyFor5 = xyFor(d),
+          _xyFor6 = _slicedToArray(_xyFor5, 2),
+          x = _xyFor6[0],
+          y = _xyFor6[1];
+        result.push({
+          d,
+          x,
+          y,
+          row,
+          column,
+          symbol: symbols[column]
+        });
+      }
+    }
+  } catch (err) {
+    _iterator6.e(err);
+  } finally {
+    _iterator6.f();
+  }
+  return result;
+}
+function sha256(text) {
+  var rightRotate = (value, amount) => value >>> amount | value << 32 - amount;
+  var ascii = unescape(encodeURIComponent(text));
+  var maxWord = Math.pow(2, 32);
+  var words = [];
+  var hash = [];
+  var k = [];
+  var primeCounter = 0;
+  var isComposite = {};
+  for (var candidate = 2; primeCounter < 64; candidate++) {
+    if (!isComposite[candidate]) {
+      for (var i = 0; i < 313; i += candidate) isComposite[i] = true;
+      hash[primeCounter] = Math.pow(candidate, 0.5) * maxWord | 0;
+      k[primeCounter++] = Math.pow(candidate, 1 / 3) * maxWord | 0;
+    }
+  }
+  ascii += "\x80";
+  while (ascii.length % 64 - 56) ascii += "\x00";
+  for (var _i4 = 0; _i4 < ascii.length; _i4++) {
+    var code = ascii.charCodeAt(_i4);
+    words[_i4 >> 2] |= code << (3 - _i4) % 4 * 8;
+  }
+  words[words.length] = text.length * 8 / maxWord | 0;
+  words[words.length] = text.length * 8;
+  for (var j = 0; j < words.length;) {
+    var w = words.slice(j, j += 16);
+    var oldHash = hash.slice(0, 8);
+    for (var _i5 = 0; _i5 < 64; _i5++) {
+      var w15 = w[_i5 - 15];
+      var w2 = w[_i5 - 2];
+      var a = hash[0];
+      var e = hash[4];
+      var temp1 = hash[7] + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) + (e & hash[5] ^ ~e & hash[6]) + k[_i5] + (w[_i5] = _i5 < 16 ? w[_i5] : w[_i5 - 16] + (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ w15 >>> 3) + w[_i5 - 7] + (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ w2 >>> 10) | 0);
+      var temp2 = (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) + (a & hash[1] ^ a & hash[2] ^ hash[1] & hash[2]);
+      hash.unshift(temp1 + temp2 | 0);
+      hash[4] = hash[4] + temp1 | 0;
+      hash.pop();
+    }
+    for (var _i6 = 0; _i6 < 8; _i6++) hash[_i6] = hash[_i6] + oldHash[_i6] | 0;
+  }
+  return hash.map(value => {
+    var hex = "";
+    for (var _j = 3; _j + 1; _j--) hex += (value >> _j * 8 & 255).toString(16).padStart(2, "0");
+    return hex;
+  }).join("");
+}
+function emitReceipt(result) {
+  var candidates = result.candidates.map(candidate => {
+    var _candidate$watersheep;
+    return {
+      minute: candidate.minute,
+      source: candidate.source,
+      is_combo_baseline: candidate.is_combo_baseline,
+      utility: candidate.utility,
+      score_mass: ((_candidate$watersheep = candidate.watersheep) === null || _candidate$watersheep === void 0 ? void 0 : _candidate$watersheep.score_mass) || null,
+      layout_snapshots: candidate.evidence.layout_snapshots,
+      session_events: candidate.evidence.session_events,
+      observation_count: candidate.evidence.observation_count
+    };
+  });
+  var stateBasis = {
+    combo_last_tile_index: result.combo.last_tile_index,
+    current_minute: result.combo.current_minute,
+    context: result.combo.context,
+    observation_fronts: result.observations.fronts_recorded,
+    candidates
+  };
+  var stateSha = sha256(JSON.stringify(stateBasis));
+  var lastFile = "don_combo_matrix_last_receipt.json";
+  var logFile = "don_combo_matrix_receipts.jsonl";
+  var previous = "";
+  try {
+    previous = String(kolmafia.fileToBuffer(lastFile) || "");
+  } catch (_unused) {
+    previous = "";
+  }
+  var appended = !previous.includes(stateSha);
+  var receipt = {
+    schema: "don-combo-shadow-receipt/v0.5",
+    generated_at: result.generated_at,
+    state_sha256: stateSha,
+    authority: "none",
+    comparison: result.comparison,
+    candidates,
+    observation_fronts: result.observations.fronts_recorded,
+    watersheep_calibration: result.watersheep.calibration
+  };
+  if (appended) {
+    kolmafia.bufferToFile(String(kolmafia.fileToBuffer(logFile) || "") + JSON.stringify(receipt) + "\n", logFile);
+    kolmafia.bufferToFile(JSON.stringify(receipt, null, 2) + "\n", lastFile);
+  }
+  return {
+    schema: receipt.schema,
+    state_sha256: stateSha,
+    appended_this_run: appended,
+    last_receipt_file: lastFile,
+    jsonl_file: logFile
+  };
+}
+function buildRuntime() {
+  var points = loadRarePoints();
+  var baseline = comboBaseline(points);
+  var ledger = loadObservationLedger();
+  var candidates = candidateFrontier(ledger, baseline, 6);
+  var status = "ready";
+  var error = null;
+  var _iterator7 = _createForOfIteratorHelper(candidates),
+    _step7;
+  try {
+    for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
+      var candidate = _step7.value;
+      if (error) break;
+      try {
+        var _askWaterSheep = askWaterSheep(candidate),
+          scores = _askWaterSheep.scores,
+          ms = _askWaterSheep.ms;
+        candidate.watersheep = {
+          score_mass: scores,
+          ms,
+          calibration: "UNVALIDATED_FOR_KOL_BEACH"
+        };
+        var scored = scoreCandidate(candidate, scores);
+        candidate.utility = scored.utility;
+        candidate.utility_components = scored.components;
+      } catch (caught) {
+        status = "offline";
+        error = caught instanceof Error ? caught.message : String(caught);
+      }
+    }
+  } catch (err) {
+    _iterator7.e(err);
+  } finally {
+    _iterator7.f();
+  }
+  candidates.sort((a, b) => (b.utility == null ? -1 : b.utility) - (a.utility == null ? -1 : a.utility) || a.minute - b.minute);
+  var current = n(kolmafia.getProperty("_beachMinutes"));
+  var context = loadContext();
+  var cmp = comparison(candidates, baseline, Object.keys(ledger.fronts).length);
+  var proof = {
+    facts: [fact("FACT", "rare-corpus", "known", points.length, "raretiles.json"), fact("FACT", "observation-fronts", "known", Object.keys(ledger.fronts).length, "native ledger"), fact("MODEL", "kol-beach-calibration", "unknown", null, "WaterSheep"), fact("FACT", "baseline-membership-model-input", "withheld", null, "input policy")],
+    relations: [relation("member-of", "combo-baseline", "candidate-pool", baseline ? true : null, "runtime construction"), relation("visible-to-model", "baseline-membership", "WaterSheep", false, "blinded input policy"), relation("authorizes", "WaterSheep", "KoL action", false, "authority boundary")],
+    design_reference: TYPE_REFERENCE
+  };
+  var result = {
+    schema: "don-combo-matrix-runtime/v0.5-ts",
+    generated_at: new Date().toISOString(),
+    mode: "shadow-only",
+    authority: "none",
+    claim: "Score Combo's exact next successful target inside the same blinded WaterSheep pool as dynamic alternatives, without changing KoL state.",
+    note: "TypeScript/Libram runtime. WaterSheep score mass is experimental and uncalibrated for KoL beach outcomes. Known rare annotations, source labels, baseline membership, and Combo route identity are withheld from model input.",
+    matrix: {
+      order: 10,
+      width: GRID,
+      height: GRID,
+      total_cells: GRID * GRID,
+      real_tile_cells: REAL,
+      unused_cells: GRID * GRID - REAL,
+      address_rule: "d=(minute-1)*100+(row-1)*10+column; (x,y)=HilbertPoint(d,10)"
+    },
+    combo: {
+      rare_tile_records: points.length,
+      unique_rare_fronts: new Set(points.filter(point => !point.false_rare).map(point => point.minute)).size,
+      false_rare_records: parseFalseRares().size,
+      raretiles_file: "raretiles.json",
+      prefs_file: "KoLmafia native properties",
+      last_tile_index: n(kolmafia.getProperty("combo_lastTileCombed")),
+      current_minute: current || null,
+      current_layout: kolmafia.getProperty("_beachLayout"),
+      context: context.context,
+      context_file: context.file,
+      baseline_in_pool: baseline != null
+    },
+    observations: {
+      ledger_file: "don_combo_matrix_ledger.json",
+      fronts_recorded: Object.keys(ledger.fronts).length,
+      ledger_updated_this_run: false,
+      session_tail: {
+        mode: "native-event",
+        events_added: 0,
+        offset: 0,
+        path: null
+      },
+      rule: "Combo records beach observations directly into the local evidence ledger; KoLmafia session logs remain recovery evidence, not the hot-path trigger."
+    },
+    watersheep: {
+      endpoint: ENDPOINT,
+      status,
+      error,
+      options: LABELS.slice(),
+      weights: WEIGHTS,
+      input_policy: "Known rare coordinates/counts, Combo target identity/order, candidate source labels, and baseline membership withheld.",
+      calibration: "UNVALIDATED_FOR_KOL_BEACH"
+    },
+    comparison: cmp,
+    proof_graph: proof,
+    ui: {
+      design_reference: DESIGN_REFERENCE,
+      type_reference: TYPE_REFERENCE,
+      semantic_order: ["claim", "context", "proof", "decision", "metadata", "exit"],
+      evidence_kinds: ["FACT", "MODEL", "POLICY"]
+    },
+    known_rare_points: points,
+    current_front_cells: layoutCells(current, kolmafia.getProperty("_beachLayout")),
+    candidates
+  };
+  result.receipt = emitReceipt(result);
+  return result;
+}
+function writeRuntime(result) {
+  var encoded = JSON.stringify(result);
+  kolmafia.bufferToFile(JSON.stringify(result, null, 2) + "\n", "don_combo_matrix_runtime.json");
+  kolmafia.bufferToFile("window.DON_COMBO_MATRIX_RUNTIME=" + encoded + ";\n", "relay/don_combo_matrix_runtime.js");
+}
+function readRequest(path) {
+  var raw = {};
+  if (!kolmafia.fileToMap(path, raw)) throw new Error("unable to read runtime request map: " + path);
+  return decodeRuntimeRequest(raw);
+}
+function writeResponse(request, response) {
+  kolmafia.mapToFile(response, "agent-runtime/outbox/" + request.id + ".txt");
+}
+function processRequest(path) {
+  var request;
+  try {
+    request = readRequest(path);
+  } catch (error) {
+    kolmafia.print("don_combo runtime: " + String(error), "red");
+    return;
+  }
+  if (request.capability === "excavator-smoke") {
+    var excavatorConfigured = kolmafia.getProperty("spadingScript").toLowerCase().includes("excavator");
+    var ok = request.event != null && request.meta != null && request.page != null;
+    var _response = {
+      schema: "kol-runtime-response/v1",
+      id: request.id,
+      status: ok ? "ok" : "invalid",
+      capability: request.capability,
+      detail: "Excavator-compatible event/meta/page envelope " + (ok ? "round-tripped" : "failed") + "; configured=" + excavatorConfigured + "; no spading preference changed and no network request made.",
+      generated_at: new Date().toISOString()
+    };
+    writeResponse(request, _response);
+    kolmafia.print("don_combo runtime smoke: " + (ok ? "PASS" : "FAIL") + " · excavator envelope");
+    return;
+  }
+  var runtime = buildRuntime();
+  writeRuntime(runtime);
+  var response = {
+    schema: "kol-runtime-response/v1",
+    id: request.id,
+    status: runtime.watersheep.status === "ready" ? "ok" : "offline",
+    capability: request.capability,
+    detail: request.reason,
+    generated_at: runtime.generated_at,
+    runtime_schema: runtime.schema,
+    shadow_top_minute: runtime.comparison.shadow_top_minute,
+    baseline_rank: runtime.comparison.baseline_rank
+  };
+  writeResponse(request, response);
+  kolmafia.print("don_combo TS runtime: " + runtime.watersheep.status + " | pool " + runtime.comparison.pool_size + " | baseline rank " + String(runtime.comparison.baseline_rank ?? "n/a") + " | shadow top " + String(runtime.comparison.shadow_top_minute ?? "n/a"));
+}
+function main(args) {
+  var raw = String(args || "").trim();
+  if (raw.startsWith("process ")) {
+    processRequest(raw.substring(8).trim());
+    return;
+  }
+  if (raw === "--smoke-excavator") {
+    var request = {
+      schema: "kol-runtime-request/v1",
+      id: "smoke-" + Date.now(),
+      capability: "excavator-smoke",
+      action: "smoke",
+      reason: "manual-smoke",
+      authority: "none",
+      event: "choice",
+      meta: "excavator-compatible",
+      page: "<html data-smoke='don_combo'></html>"
+    };
+    kolmafia.mapToFile(request, "agent-runtime/inbox/" + request.id + ".txt");
+    processRequest("agent-runtime/inbox/" + request.id + ".txt");
+    return;
+  }
+  var runtime = buildRuntime();
+  writeRuntime(runtime);
+  kolmafia.print("don_combo TS runtime refreshed.");
+}
+
+exports.main = main;

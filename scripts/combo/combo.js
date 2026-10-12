@@ -1957,6 +1957,7 @@ function sessionDelta(before) {
 function consumeInterruptRequest() {
   if (!get("don_combo_interrupt", false)) return false;
   _set("don_combo_interrupt", false);
+  _set("don_combo_last_run_interrupt_consumed", true);
   return true;
 }
 function _comb(tile) {
@@ -2186,8 +2187,11 @@ function main(args) {
   _set("don_combo_interrupt", false);
   _set("don_combo_running", true);
   _set("don_combo_last_run_status", "running");
+  _set("don_combo_last_run_requested", combs);
   _set("don_combo_last_run_combs", 0);
-  _set("logPreferenceChangeFilter", _toConsumableArray(new Set([].concat(_toConsumableArray(oldFilter.split(",")), ["spadingData", "combo_lastTileCombed", "_beachLayout", "_beachMinutes", "_beachCombing", "don_combo_interrupt", "don_combo_running", "don_combo_last_run_status", "don_combo_last_run_combs"]))).filter(x => x).join(","));
+  _set("don_combo_last_run_end_reason", "running");
+  _set("don_combo_last_run_interrupt_consumed", false);
+  _set("logPreferenceChangeFilter", _toConsumableArray(new Set([].concat(_toConsumableArray(oldFilter.split(",")), ["spadingData", "combo_lastTileCombed", "_beachLayout", "_beachMinutes", "_beachCombing", "don_combo_interrupt", "don_combo_running", "don_combo_last_run_status", "don_combo_last_run_requested", "don_combo_last_run_combs", "don_combo_last_run_end_reason", "don_combo_last_run_interrupt_consumed"]))).filter(x => x).join(","));
   var completedCombs = 0;
   var interrupted = false;
   var cleanFinish = false;
@@ -2224,6 +2228,7 @@ function main(args) {
     _set("don_combo_interrupt", false);
     _set("don_combo_last_run_combs", completedCombs);
     _set("don_combo_last_run_status", cleanFinish ? interrupted ? "interrupted" : "completed" : "failed");
+    _set("don_combo_last_run_end_reason", cleanFinish ? interrupted ? "user_cooperative_interrupt" : "requested_combs_completed" : "runtime_failure");
   }
 
   // Subtract the original session from our current session

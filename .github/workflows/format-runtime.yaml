@@ -1,0 +1,33 @@
+name: One-shot runtime formatter
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: ${{ !contains(github.event.head_commit.message, '[skip-format]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: yarn install --immutable
+      - run: yarn run format
+      - name: Commit formatter output
+        run: |
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "style(runtime): format final TS runtime [skip-format]"
+          git fetch origin main
+          git rebase origin/main
+          git push

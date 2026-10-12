@@ -678,9 +678,7 @@ function loadJsonLines(path: string, limit: number): Record<string, any>[] {
 
 function modelUtility(scoreMass: Record<string, number> | null | undefined): number | null {
   if (!scoreMass) return null;
-  return round(
-    LABELS.reduce((sum, label) => sum + n(scoreMass[label]) * WEIGHTS[label], 0),
-  );
+  return round(LABELS.reduce((sum, label) => sum + n(scoreMass[label]) * WEIGHTS[label], 0));
 }
 
 function buildMlLab() {
@@ -701,7 +699,11 @@ function buildMlLab() {
       items,
       meat: event.meat,
       item_names: itemNames,
-      prediction_status: prediction ? (prediction.error ? "error" : "ready") : "untraced",
+      prediction_status: prediction
+        ? prediction.error
+          ? "error"
+          : "ready"
+        : "untraced",
       prediction: prediction
         ? {
             model_utility: prediction.model_utility ?? null,
@@ -718,7 +720,8 @@ function buildMlLab() {
   const meanLatency =
     predicted.length > 0
       ? round(
-          predicted.reduce((sum, event) => sum + n(event.prediction?.ms), 0) / predicted.length,
+          predicted.reduce((sum, event) => sum + n(event.prediction?.ms), 0) /
+            predicted.length,
           2,
         )
       : null;
@@ -734,8 +737,10 @@ function buildMlLab() {
       }))
       .filter((candidate: { utility: number | null }) => candidate.utility != null)
       .sort(
-        (a: { utility: number | null; minute: number }, b: { utility: number | null; minute: number }) =>
-          n(b.utility) - n(a.utility) || a.minute - b.minute,
+        (
+          a: { utility: number | null; minute: number },
+          b: { utility: number | null; minute: number },
+        ) => n(b.utility) - n(a.utility) || a.minute - b.minute,
       );
     const modelBaselineIndex = modelRanked.findIndex(
       (candidate: { baseline: boolean }) => candidate.baseline,
@@ -814,7 +819,7 @@ function emitReceipt(result: Record<string, any>) {
   }
   const appended = !previous.includes(stateSha);
   const receipt = {
-    schema: "don-combo-shadow-receipt/v0.5",
+    schema: "don-combo-shadow-receipt/v0.6",
     generated_at: result.generated_at,
     state_sha256: stateSha,
     authority: "none",

@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, prefer-template, eqeqeq, no-useless-assignment */
 import {
+  appendBufferToFile,
   bufferToFile,
   fileToBuffer,
   fileToMap,
@@ -8,6 +9,8 @@ import {
   mapToFile,
   myId,
   print,
+  sessionLogs,
+  urlEncode,
   visitUrl,
 } from "kolmafia";
 
@@ -397,7 +400,7 @@ function waterSheepPayload(candidate: Candidate): WaterSheepRequest {
 function askWaterSheep(candidate: Candidate): { scores: Record<string, number>; ms: number } {
   const payload = waterSheepPayload(candidate);
   const started = Date.now();
-  const url = ENDPOINT + "?request=" + encodeURIComponent(JSON.stringify(payload));
+  const url = `${ENDPOINT}?request=${urlEncode(JSON.stringify(payload))}`;
   const raw = String(visitUrl(url, false) || "");
   const parsed = JSON.parse(raw) as WaterSheepResponse;
   if (parsed.error) throw new Error(parsed.error);
@@ -605,8 +608,8 @@ function emitReceipt(result: Record<string, any>) {
     watersheep_calibration: result.watersheep.calibration,
   };
   if (appended) {
-    bufferToFile(String(fileToBuffer(logFile) || "") + JSON.stringify(receipt) + "\n", logFile);
-    bufferToFile(JSON.stringify(receipt, null, 2) + "\n", lastFile);
+    appendBufferToFile(`${JSON.stringify(receipt)}\n`, logFile);
+    bufferToFile(`${JSON.stringify(receipt, null, 2)}\n`, lastFile);
   }
   return {
     schema: receipt.schema,
@@ -776,6 +779,8 @@ function processRequest(path: string): void {
 
   if (request.capability === "excavator-smoke") {
     const excavatorConfigured = getProperty("spadingScript").toLowerCase().includes("excavator");
+    const logs = sessionLogs(1);
+    const comboMarkerVisible = logs.some((log) => String(log).includes("DON_COMBO_OBSERVATION"));
     const ok = request.event != null && request.meta != null && request.page != null;
     const response: RuntimeResponseV1 = {
       schema: "kol-runtime-response/v1",
@@ -783,11 +788,7 @@ function processRequest(path: string): void {
       status: ok ? "ok" : "invalid",
       capability: request.capability,
       detail:
-        "Excavator-compatible event/meta/page envelope " +
-        (ok ? "round-tripped" : "failed") +
-        "; configured=" +
-        excavatorConfigured +
-        "; no spading preference changed and no network request made.",
+        `Excavator-compatible event/meta/page envelope ${ok ? "round-tripped" : "failed"}; configured=${excavatorConfigured}; sessionLogs=${logs.length}; comboMarkerVisible=${comboMarkerVisible}; no spading preference changed and no network request made.`,
       generated_at: new Date().toISOString(),
     };
     writeResponse(request, response);

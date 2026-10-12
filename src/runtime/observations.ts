@@ -1,21 +1,53 @@
-import { bufferToFile, fileToBuffer, turnsPlayed } from "kolmafia";
+import { appendBufferToFile, bufferToFile, fileToBuffer, turnsPlayed } from "kolmafia";
 
 import type { ObservationEntry, ObservationLedger } from "./contracts";
 
 export type BeachOutcome =
   | "whale"
   | "rare_target"
+  | "false_rare_item"
   | "false_rare_rough"
   | "twinkle_fallback"
   | "rough_fallback"
   | "exhausted_fallback"
   | "unknown";
 
+export interface BeachObservationDetail {
+  planned_target?: { minute: number; row: number; column: number } | null;
+  actual_comb?: { minute: number; row: number; column: number } | null;
+  items?: Record<string, number>;
+  meat?: number;
+  pre_action_prediction?: Record<string, unknown> | null;
+}
+
+export interface MlTraceEvent {
+  schema: "don-combo-ml-event/v0.1";
+  event_id: string;
+  observed_at: string;
+  turn: number;
+  minute: number;
+  outcome: BeachOutcome;
+  planned_target: BeachObservationDetail["planned_target"];
+  actual_comb: BeachObservationDetail["actual_comb"];
+  items: Record<string, number>;
+  meat: number;
+  layout: string;
+  layout_symbols: Record<string, number>;
+  pre_action_prediction: Record<string, unknown> | null;
+}
+
+export interface MlTraceLog {
+  file: string;
+  total: number;
+  events: MlTraceEvent[];
+}
+
 const LEDGER_FILE = "don_combo_matrix_ledger.json";
+const ML_EVENT_FILE = "don_combo_ml_events.jsonl";
 
 function blankLedger(): ObservationLedger {
   return {
-    schema: "don-combo-observation-ledger/v0.5",
+    schema: "don-combo-observation-ledger/v0.6",
     fronts: {},
     updated_at: null,
   };
@@ -29,11 +61,36 @@ export function loadObservationLedger(): ObservationLedger {
     if (!parsed || typeof parsed !== "object" || typeof parsed.fronts !== "object") {
       return blankLedger();
     }
-    parsed.schema = "don-combo-observation-ledger/v0.5";
+    parsed.schema = "don-combo-observation-ledger/v0.6";
     return parsed;
   } catch {
     return blankLedger();
   }
+}
+
+export function loadMlTraceEvents(limit = 500): MlTraceLog {
+  let raw = "";
+  try {
+    raw = String(fileToBuffer(ML_EVENT_FILE) || "");
+  } catch {
+    raw = "";
+  }
+  const events: MlTraceEvent[] = [];
+  let total = 0;
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const parsed = JSON.parse(trimmed) as MlTraceEvent;
+      if (parsed && parsed.schema === "don-combo-ml-event/v0.1") {
+        total++;
+        events.push(parsed);
+      }
+    } catch {
+      // Keep a malformed historical line from breaking live Combo.
+    }
+  }
+  return { file: ML_EVENT_FILE, total, events: events.slice(Math.max(0, events.length - limit)) };
 }
 
 function ensureEntry(ledger: ObservationLedger, minute: number): ObservationEntry {
@@ -92,6 +149,7 @@ export function recordBeachObservation(
   minute: number,
   layout: string,
   outcome: BeachOutcome,
+  detail: BeachObservationDetail = {},
 ): void {
   if (!Number.isInteger(minute) || minute < 1 || minute > 10000 || !layout) return;
 
@@ -103,12 +161,35 @@ export function recordBeachObservation(
   const counts = countLayout(layout);
   for (const [name, amount] of Object.entries(counts)) add(entry.symbols!, name, amount);
   add(entry.outcomes!, outcome);
+  for (const [name, amount] of Object.entries(detail.items || {})) {
+    if (amount) add(entry.items!, name, amount);
+  }
 
   if (!entry.sources!.includes("combo-native")) entry.sources!.push("combo-native");
-  entry.last_seen_epoch = Math.floor(Date.now() / 1000);
+  const now = new Date();
+  entry.last_seen_epoch = Math.floor(now.getTime() / 1000);
   entry.last_seen_turn = turnsPlayed();
   entry.last_layout = layout;
-  ledger.updated_at = new Date().toISOString();
+  ledger.updated_at = now.toISOString();
 
   bufferToFile(`${JSON.stringify(ledger, null, 2)}\n`, LEDGER_FILE);
+
+  const actual = detail.actual_comb || null;
+  const event: MlTraceEvent = {
+    schema: "don-combo-ml-event/v0.1",
+    event_id:
+      `${now.getTime()}-${turnsPlayed()}-${minute}-${actual ? actual.row + "-" + actual.column : "na"}`,
+    observed_at: now.toISOString(),
+    turn: turnsPlayed(),
+    minute,
+    outcome,
+    planned_target: detail.planned_target || null,
+    actual_comb: actual,
+    items: detail.items || {},
+    meat: detail.meat || 0,
+    layout,
+    layout_symbols: counts,
+    pre_action_prediction: detail.pre_action_prediction || null,
+  };
+  appendBufferToFile(`${JSON.stringify(event)}\n`, ML_EVENT_FILE);
 }

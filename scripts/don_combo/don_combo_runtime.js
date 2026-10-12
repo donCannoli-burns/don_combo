@@ -1076,7 +1076,8 @@ function emitReceipt(result) {
     state_sha256: stateSha,
     appended_this_run: appended,
     last_receipt_file: lastFile,
-    jsonl_file: logFile
+    jsonl_file: logFile,
+    run_control: result.run_control
   };
 }
 function buildRuntime() {

@@ -17,7 +17,7 @@
 .atlasSignalRow{display:grid;grid-template-columns:108px 1fr 44px;gap:7px;align-items:center;margin-top:7px;font-size:10px}.atlasSignalTrack{height:7px;border-radius:8px;background:#1d2b39;overflow:hidden}.atlasSignalFill{height:100%;background:var(--fact)}
 .atlasLower{display:grid;grid-template-columns:minmax(430px,1.05fr) minmax(360px,.95fr);gap:14px;margin-top:14px}.graphFrame{background:var(--well);border:1px solid var(--line);border-radius:8px;padding:7px;overflow:hidden}.graphFrame svg{width:100%;height:auto;display:block;min-height:280px}
 .graphLegend{display:flex;gap:12px;flex-wrap:wrap;margin-top:7px;color:var(--muted);font-size:10px}.graphLegend b{font-family:var(--mono)}
-.atlasTables{display:grid;gap:10px}.scrollTable{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--well)}.scrollTable table{min-width:660px}.scrollTable tr[data-bucket],.scrollTable tr[data-atlas-minute]{cursor:pointer}.scrollTable tr.sel td{background:#182b37}.scrollTable tr.dim td{opacity:.32}
+.atlasTables{display:grid;gap:10px}.scrollTable{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--well)}.scrollTable table{min-width:660px}.scrollTable tr[data-bucket],.scrollTable tr[data-atlas-minute]{cursor:pointer}.scrollTable tr.sel td{background:#182b37}.scrollTable tr.addr td{box-shadow:inset 3px 0 0 var(--selected)}.scrollTable tr.dim td{opacity:.32}
 .bucketChip{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;background:var(--model)}.rolePill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:1px 5px;font:9px var(--mono);color:var(--muted);margin-right:3px}
 .atlasMetric{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.atlasMetric .mini{background:var(--well);border:1px solid var(--line);border-radius:6px;padding:7px}.atlasMetric b{display:block;font:700 12px var(--mono)}.atlasMetric span{display:block;color:var(--muted);font-size:9px}
 @media(max-width:1080px){.atlasShell,.atlasLower{grid-template-columns:1fr}}
@@ -189,7 +189,7 @@ function draw(){
 }
 function inspect(ev){var a=atlasPoint(ev),t=a.tile;document.getElementById("tileInfo").textContent=t?"matrix ("+a.x+","+a.y+") → d="+a.d+" → bucket "+a.bucket+" → beach "+t.minute+", row "+t.row+", col "+t.column:"matrix ("+a.x+","+a.y+") → d="+a.d+" → bucket "+a.bucket+" → unused Hilbert tail"}
 function focusAddress(a){
- atlasAddress=a;focusedBucket=a.bucket;document.getElementById("atlasBucketReadout").textContent=a.bucket+" / 256";
+ atlasAddress=a;document.getElementById("atlasBucketReadout").textContent=focusedBucket==null?("all · selected "+a.bucket):focusedBucket+" / 256";
  if(a.tile){var ci=candidateIndexForMinute(a.tile.minute);if(ci>=0)selectCandidate(ci,a);else{renderAtlasFocus(a);renderEvidenceGraph(a);renderAtlasSignals(a);renderAtlasTables();draw()}}
  else{renderAtlasFocus(a);renderEvidenceGraph(a);renderAtlasSignals(a);renderAtlasTables();draw()}
 }
@@ -246,10 +246,10 @@ function buildBucketRows(){
  (R.candidates||[]).forEach(function(c,i){var b=Number((c.evidence||{}).hilbert_bucket_256);if(rows[b]){rows[b].candidates.push(i);rows[b].utility+=Number(c.utility||0)}});
  return rows
 }
-function focusBucket(b){focusedBucket=b==null?null:Number(b);document.getElementById("atlasBucketReadout").textContent=focusedBucket==null?"all / 256":focusedBucket+" / 256";renderAtlasTables();draw()}
+function focusBucket(b){focusedBucket=b==null?null:Number(b);document.getElementById("atlasBucketReadout").textContent=focusedBucket==null?(atlasAddress?("all · selected "+atlasAddress.bucket):"all / 256"):focusedBucket+" / 256";renderAtlasTables();draw()}
 function renderBucketTable(){
  var rows=buildBucketRows(),box=document.getElementById("bucketTable");if(!box)return;
- box.innerHTML="<table><thead><tr><th>Bucket</th><th>d range</th><th>real cells</th><th>rare</th><th>observed fronts</th><th>candidates</th><th>mean utility</th></tr></thead><tbody>"+rows.map(function(r){var mean=r.candidates.length?r.utility/r.candidates.length:null;return"<tr data-bucket='"+r.bucket+"' class='"+(focusedBucket===r.bucket?"sel":"")+"'><td><i class='bucketChip' style='opacity:"+(0.25+Math.min(.75,(r.rare+r.observed.size+r.candidates.length)/10))+"'></i>"+r.bucket+"</td><td class='mono'>"+r.start+"–"+(r.end<r.start?"—":r.end)+"</td><td>"+r.cells+"</td><td>"+r.rare+"</td><td>"+r.observed.size+"</td><td>"+r.candidates.length+"</td><td class='mono'>"+(mean==null?"—":mean.toFixed(4))+"</td></tr>"}).join("")+"</tbody></table>";
+ box.innerHTML="<table><thead><tr><th>Bucket</th><th>d range</th><th>real cells</th><th>rare</th><th>observed fronts</th><th>candidates</th><th>mean utility</th></tr></thead><tbody>"+rows.map(function(r){var mean=r.candidates.length?r.utility/r.candidates.length:null;return"<tr data-bucket='"+r.bucket+"' class='"+(focusedBucket===r.bucket?"sel":(atlasAddress&&atlasAddress.bucket===r.bucket?"addr":""))+"'><td><i class='bucketChip' style='opacity:"+(0.25+Math.min(.75,(r.rare+r.observed.size+r.candidates.length)/10))+"'></i>"+r.bucket+"</td><td class='mono'>"+r.start+"–"+(r.end<r.start?"—":r.end)+"</td><td>"+r.cells+"</td><td>"+r.rare+"</td><td>"+r.observed.size+"</td><td>"+r.candidates.length+"</td><td class='mono'>"+(mean==null?"—":mean.toFixed(4))+"</td></tr>"}).join("")+"</tbody></table>";
  box.querySelectorAll("[data-bucket]").forEach(function(tr){tr.onclick=function(){focusBucket(Number(tr.getAttribute("data-bucket")))}})
  var active=focusedBucket==null?null:rows[focusedBucket];document.getElementById("bucketSummary").textContent=active?("bucket "+active.bucket+" · d "+active.start+"–"+active.end+" · "+active.cells+" real cells · "+active.rare+" known rare · "+active.observed.size+" observed fronts · "+active.candidates.length+" candidates"):"256 contiguous buckets · 4096 Hilbert addresses each; final buckets include the unused Hilbert tail."
 }

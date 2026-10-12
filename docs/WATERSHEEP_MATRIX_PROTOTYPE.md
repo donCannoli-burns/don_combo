@@ -103,59 +103,41 @@ Borrowed behavior is limited to semantic hierarchy, evidence/provenance separati
 
 ## Run
 
-Update/refresh the already-installed Goblin Docs runtime snapshot first:
-
-```text
-update-llm
-kol-goblin-docs refresh combo-matrix
-```
-
 Start WaterSheep locally:
 
 ```bash
 watersheep --model samratduttaofficial/WaterSheep --serve
 ```
 
-Then from the KoLmafia root:
-
-```bash
-python3 scripts/don_combo/watersheep_combo_bridge.py --watch 30
-```
-
-For a deterministic bridge/UI smoke test:
-
-```bash
-python3 scripts/don_combo/watersheep_combo_bridge.py --mock
-```
-
-Open the KoLmafia relay browser and select `DonComboMatrix` from the `-run script-` dropdown.
-
-The expected v0.3 terminal line is:
+Install or repair the callable aliases:
 
 ```text
-don_combo matrix v0.3: ready | pool 7 | baseline rank <n> | shadow top <minute> | <mafia-root>
+call agent_skill_relay.js --install
 ```
 
-The evaluation target remains: **does a blinded dynamic route consistently rank or discover better real outcomes than the existing deterministic Combo route once observation evidence accumulates?**
+Then use Combo normally:
 
-
-## Event-driven refresh mode
-
-The preferred v0.4+ runtime no longer requires:
-
-```bash
-python3 scripts/don_combo/watersheep_combo_bridge.py --watch 30
+```text
+combo 10
 ```
 
-When `kol-goblin-docs` and `kol-ash-it-down` are installed:
+The alias routes through `don_combo_listener.ash`. That wrapper calls the real
+Combo script, refreshes Goblin Docs context when available, writes one flat ASH
+map request with `map_to_file()`, invokes the typed TypeScript runtime
+synchronously, and returns.
 
-1. opening `DonComboMatrix` asks Goblin Docs to refresh with reason `combo-matrix`;
-2. finishing a downstream Combo run asks Goblin Docs to refresh with reason `combo-finished`;
-3. Goblin Docs writes one `don-combo-matrix-refresh` inbox job;
-4. the existing `kol-ash-it-down` worker imports the installed bridge and runs one snapshot;
-5. the relay's existing polling sees the newly written runtime.
+For a no-KoL-mutation boundary smoke:
 
-KoLmafia/ASH remains the caller and state authority. The local worker only performs advisory scoring and artifact writes.
+```text
+agentcall.combo-smoke
+```
+
+Open the KoLmafia relay browser and select `DonComboMatrix` from the
+`-run script-` dropdown.
+
+The evaluation target remains: **does a blinded dynamic route consistently rank
+or discover better real outcomes than the existing deterministic Combo route
+once observation evidence accumulates?**
 
 
 ## v0.5 native TypeScript runtime cut
@@ -173,7 +155,7 @@ combo <n>
   -> ASH string[string] request
   -> map_to_file(agent-runtime/inbox/<id>.txt)
   -> don_combo_runtime.js
-  -> fileToMap + typed decoder
+  -> fileToBuffer + native ASH-map text decoder
   -> localhost WaterSheep scoring
   -> runtime/receipt artifacts
   -> return
@@ -207,3 +189,26 @@ call don_combo/don_combo_listener.ash smoke excavator
 ```
 
 round-trips an Excavator-shaped `event/meta/page` envelope through ASH `map_to_file()` and the TypeScript decoder. It performs no KoL action, does not change `spadingScript`, and makes no spading network request.
+
+## Offline deterministic WaterSheep lab
+
+The live KoLmafia runtime does not depend on Node, SQLite, `kol.js`, or
+`kolmafia-mock`. Those pieces form a separate test ring in
+`donCannoli-burns/tokens-of-loathing`.
+
+The lab reuses the pinned SQLite-backed mock materializer, validates real KoL
+item IDs through both the corpus and mock, then runs explicit labeled beach
+fixtures through the same model-facing contract:
+
+```text
+don-combo-watersheep-evidence/v1
+```
+
+Optional comparison to a live runtime hard-fails on contract mismatch. The
+benchmark produces accuracy, multiclass Brier, ECE, latency, per-class metrics,
+and optional cyclic option-order flip rate.
+
+Kingdomsitter remains the ASH parse/typed-IR/transpile verification layer;
+`ashref` remains installed-runtime truth; `kolmafia-types` is a secondary
+compile-time/reference oracle; `kol.js` is confined to the offline test/data
+ring.

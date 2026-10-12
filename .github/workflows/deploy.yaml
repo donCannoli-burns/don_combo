@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: don-combo-build-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   node-version: "22"
 

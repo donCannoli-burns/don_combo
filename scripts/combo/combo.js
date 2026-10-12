@@ -1526,12 +1526,14 @@ function _comb(tile) {
     row = tile.row,
     column = tile.column;
   kolmafia.cliExecute("beach wander ".concat(minute, ";"));
+  var layoutString = getString("_beachLayout");
+  kolmafia.print("DON_COMBO_OBSERVATION minute=".concat(minute, " layout=").concat(layoutString), "gray");
 
   // Mafia's _beachLayout property generates strings that look like
   // 4:rrrrrrrrrr,5:rrrrrrrrrr,6:rrcrrrrrcr,7:crrrrrrrrr,8:rrrrrrrrrr,9:rrrrrrrrrr,10:rrrrrrcrrr
   // We start by turning this into a multidimensional array, and then parse it as a map
   // We use maps because we want to be able to "look up" a row using its index
-  var layout = new Map(getString("_beachLayout").split(",").map(element => element.split(":"))
+  var layout = new Map(layoutString.split(",").map(element => element.split(":"))
   // While you and I both know, looking at the property, that every element at this point will look like [3, ["r","r","r","r","r","r","r","r","r","r"]]
   // TypeScript doesn't know that! the "as" called a "Type Assertion", which is exactly what it sounds like
   // This way, our compiler and our IDE don't start shouting at us for things that we, the reader, know are fine.

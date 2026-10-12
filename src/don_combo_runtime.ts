@@ -509,6 +509,7 @@ function sha256(text: string): string {
   const rightRotate = (value: number, amount: number) =>
     (value >>> amount) | (value << (32 - amount));
   let ascii = unescape(encodeURIComponent(text));
+  const byteLength = ascii.length;
   const maxWord = Math.pow(2, 32);
   const words: number[] = [];
   const hash: number[] = [];
@@ -528,8 +529,8 @@ function sha256(text: string): string {
     const code = ascii.charCodeAt(i);
     words[i >> 2] |= code << (((3 - i) % 4) * 8);
   }
-  words[words.length] = ((text.length * 8) / maxWord) | 0;
-  words[words.length] = text.length * 8;
+  words[words.length] = ((byteLength * 8) / maxWord) | 0;
+  words[words.length] = byteLength * 8;
   for (let j = 0; j < words.length;) {
     const w = words.slice(j, (j += 16));
     const oldHash = hash.slice(0, 8);
@@ -765,7 +766,20 @@ function readRequest(path: string): RuntimeRequestV1 {
 }
 
 function writeResponse(request: RuntimeRequestV1, response: RuntimeResponseV1): void {
-  mapToFile(response as any, "agent-runtime/outbox/" + request.id + ".txt");
+  const wire: Record<string, string> = {
+    schema: response.schema,
+    id: response.id,
+    status: response.status,
+    capability: response.capability,
+    detail: response.detail,
+    generated_at: response.generated_at,
+  };
+  if (response.runtime_schema != null) wire.runtime_schema = response.runtime_schema;
+  if (response.shadow_top_minute != null) {
+    wire.shadow_top_minute = String(response.shadow_top_minute);
+  }
+  if (response.baseline_rank != null) wire.baseline_rank = String(response.baseline_rank);
+  mapToFile(wire, `agent-runtime/outbox/${request.id}.txt`);
 }
 
 function processRequest(path: string): void {
@@ -840,8 +854,19 @@ export function main(args?: string): void {
       meta: "excavator-compatible",
       page: "<html data-smoke='don_combo'></html>",
     };
-    mapToFile(request as any, "agent-runtime/inbox/" + request.id + ".txt");
-    processRequest("agent-runtime/inbox/" + request.id + ".txt");
+    const wire: Record<string, string> = {
+      schema: request.schema,
+      id: request.id,
+      capability: request.capability,
+      action: request.action,
+      reason: request.reason,
+      authority: request.authority,
+      event: request.event || "",
+      meta: request.meta || "",
+      page: request.page || "",
+    };
+    mapToFile(wire, `agent-runtime/inbox/${request.id}.txt`);
+    processRequest(`agent-runtime/inbox/${request.id}.txt`);
     return;
   }
   const runtime = buildRuntime();

@@ -44,6 +44,11 @@ jobs:
       - name: Install Dependencies
         run: yarn install --immutable
 
+      - name: Prettier diagnostic diff
+        run: |
+          yarn prettier src/don_combo_runtime.ts > /tmp/don_combo_runtime.formatted.ts
+          diff -u src/don_combo_runtime.ts /tmp/don_combo_runtime.formatted.ts || true
+
       - name: Linting
         run: yarn run lint
 

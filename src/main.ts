@@ -321,4 +321,11 @@ export function main(args?: string | number): void {
 
   const lifetime = Session.add(final, Session.fromFile("combo_results.json"));
   lifetime.toFile("combo_results.json");
+
+  // Downstream shadow-lab integration: if kol-goblin-docs has been initialized,
+  // ask it to queue one one-shot matrix refresh. KoLmafia remains the caller;
+  // the local worker performs advisory WaterSheep scoring only after the run.
+  if (getProperty("kolGoblinDocsLastRefresh") !== "") {
+    cliExecute("call kol-goblin-docs.ash refresh combo-finished");
+  }
 }

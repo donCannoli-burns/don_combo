@@ -156,3 +156,54 @@ When `kol-goblin-docs` and `kol-ash-it-down` are installed:
 5. the relay's existing polling sees the newly written runtime.
 
 KoLmafia/ASH remains the caller and state authority. The local worker only performs advisory scoring and artifact writes.
+
+
+## v0.5 native TypeScript runtime cut
+
+The v0.5 runtime moves the hot path into the same tested KoLmafia TypeScript/Libram toolchain used by Combo.
+
+Control flow:
+
+```text
+combo <n>
+  -> kolmafia-skills alias
+  -> don_combo_listener.ash
+  -> real combo/combo.js
+  -> Goblin Docs context refresh
+  -> ASH string[string] request
+  -> map_to_file(agent-runtime/inbox/<id>.txt)
+  -> don_combo_runtime.js
+  -> fileToMap + typed decoder
+  -> localhost WaterSheep scoring
+  -> runtime/receipt artifacts
+  -> return
+```
+
+There is no dedicated matrix watcher or Python listener in this path. The previous Python bridge remains historical/fallback material while the TS cut is proven.
+
+Combo now records beach observations directly when it knows the layout and deterministic outcome. Session logs remain recovery/audit evidence rather than the hot-path signal.
+
+### Type/reference lineage
+
+- **Libram / KoLmafia TypeScript bindings:** runtime vocabulary and native game-state access.
+- **Excavator:** precedent for KoLmafia-native event-driven evidence collection. The runtime includes an `excavator-smoke` envelope check and does not replace or modify `spadingScript`.
+- **SymType:** design reference only for explicit properties, relations, and indeterminate truth. No SymType/SymPy runtime dependency is introduced.
+- **WaterSheep:** advisory model scoring only.
+
+The runtime exposes a deterministic proof graph alongside model output. Facts and relations are explicitly typed as FACT/MODEL/POLICY and relation truth can be true, false, or indeterminate. This proof graph is not sent to WaterSheep unless a field is deliberately projected into the blinded evidence DTO.
+
+### Native smoke
+
+After install/update:
+
+```text
+agentcall.combo-smoke
+```
+
+or:
+
+```text
+call don_combo/don_combo_listener.ash smoke excavator
+```
+
+round-trips an Excavator-shaped `event/meta/page` envelope through ASH `map_to_file()` and the TypeScript decoder. It performs no KoL action, does not change `spadingScript`, and makes no spading network request.

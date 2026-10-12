@@ -801,8 +801,7 @@ function processRequest(path: string): void {
       id: request.id,
       status: ok ? "ok" : "invalid",
       capability: request.capability,
-      detail:
-        `Excavator-compatible event/meta/page envelope ${ok ? "round-tripped" : "failed"}; configured=${excavatorConfigured}; sessionLogs=${logs.length}; comboMarkerVisible=${comboMarkerVisible}; no spading preference changed and no network request made.`,
+      detail: `Excavator-compatible event/meta/page envelope ${ok ? "round-tripped" : "failed"}; configured=${excavatorConfigured}; sessionLogs=${logs.length}; comboMarkerVisible=${comboMarkerVisible}; no spading preference changed and no network request made.`,
       generated_at: new Date().toISOString(),
     };
     writeResponse(request, response);

@@ -24,12 +24,12 @@ string queue_request(string capability, string action, string reason, string eve
     if (meta != "") request["meta"] = meta;
     if (page != "") request["page"] = page;
 
-    string path = "agent-runtime/inbox/" + id + ".txt";
-    if (!map_to_file(request, path)) {
-        print("don_combo listener: failed to write runtime request " + path, "red");
+    string request_file = "agent-runtime/inbox/" + id + ".txt";
+    if (!map_to_file(request, request_file)) {
+        print("don_combo listener: failed to write runtime request " + request_file, "red");
         return "";
     }
-    return path;
+    return request_file;
 }
 
 boolean refresh_context(string reason) {
@@ -37,9 +37,9 @@ boolean refresh_context(string reason) {
     return cli_execute("call kol-goblin-docs.ash refresh " + reason);
 }
 
-void run_runtime(string path) {
-    if (path == "") return;
-    cli_execute("call don_combo/don_combo_runtime.js process " + path);
+void run_runtime(string request_file) {
+    if (request_file == "") return;
+    cli_execute("call don_combo/don_combo_runtime.js process " + request_file);
 }
 
 void main(string command) {

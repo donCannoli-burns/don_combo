@@ -119,6 +119,12 @@ function sessionDelta(before: Session): { meat: number; items: Record<string, nu
   return { meat: delta.meat, items };
 }
 
+function consumeInterruptRequest(): boolean {
+  if (!get("don_combo_interrupt", false)) return false;
+  set("don_combo_interrupt", false);
+  return true;
+}
+
 function _comb(tile: BeachTile): void {
   // Here, we destructure the BeachTile object into three separate variables
   // It's going to be really tedious to write tile.minute and tile.row all the time
@@ -355,6 +361,10 @@ export function main(args?: string | number): void {
   if (!Number.isInteger(combs) || isNaN(combs)) abort("Invalid argument!");
   if (combs <= 0) return;
   const oldFilter = get("logPreferenceChangeFilter");
+  set("don_combo_interrupt", false);
+  set("don_combo_running", true);
+  set("don_combo_last_run_status", "running");
+  set("don_combo_last_run_combs", 0);
   set(
     "logPreferenceChangeFilter",
     [
@@ -365,26 +375,65 @@ export function main(args?: string | number): void {
         "_beachLayout",
         "_beachMinutes",
         "_beachCombing",
+        "don_combo_interrupt",
+        "don_combo_running",
+        "don_combo_last_run_status",
+        "don_combo_last_run_combs",
       ]),
     ]
       .filter((x) => x)
       .join(","),
   );
-  let n = 1;
-  while (n <= combs) {
-    // Comb returns a boolean based on whether we actually comb the tile
-    if (comb()) n++;
-  }
 
-  // We have to escape the beach combat choice at the end of the session
-  // So we do
-  if (handlingChoice()) runChoice(5);
-  if (get("spadingScript").toLowerCase().includes("excavator")) cliExecute("spade autoconfirm");
-  set("logPreferenceChangeFilter", oldFilter);
+  let completedCombs = 0;
+  let interrupted = false;
+  let cleanFinish = false;
+  try {
+    while (completedCombs < combs) {
+      // A relay interrupt is cooperative: never cut through an in-flight comb.
+      // If the request arrives between combs, stop before starting another one.
+      if (consumeInterruptRequest()) {
+        interrupted = true;
+        break;
+      }
+
+      // Comb returns a boolean based on whether we actually combed a tile.
+      if (comb()) completedCombs++;
+
+      // If the request arrived during the comb, the observation/loot trace has
+      // already been finalized. Stop here before beginning the next target.
+      if (consumeInterruptRequest()) {
+        interrupted = true;
+        break;
+      }
+    }
+
+    if (interrupted) {
+      print(
+        `don_combo: interrupt received; ending cleanly after ${completedCombs} completed comb${completedCombs === 1 ? "" : "s"}.`,
+        HIGHLIGHT,
+      );
+    }
+
+    // Always leave the Beach choice cleanly, including cooperative interrupts.
+    if (handlingChoice()) runChoice(5);
+    if (get("spadingScript").toLowerCase().includes("excavator")) cliExecute("spade autoconfirm");
+    cleanFinish = true;
+  } finally {
+    set("logPreferenceChangeFilter", oldFilter);
+    set("don_combo_running", false);
+    set("don_combo_interrupt", false);
+    set("don_combo_last_run_combs", completedCombs);
+    set(
+      "don_combo_last_run_status",
+      cleanFinish ? (interrupted ? "interrupted" : "completed") : "failed",
+    );
+  }
 
   // Subtract the original session from our current session
   // the resulting session will only have what we found during combo
   const final = Session.current().diff(baseline);
+  if (interrupted) print("=== INTERRUPTED CLEANLY ===", HIGHLIGHT);
   print("=== RESULTS ===");
   printSession(final);
 

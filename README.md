@@ -24,26 +24,35 @@ Normal Combo behavior is unchanged. Run `combo N` in the KoLmafia CLI, where `N`
 
 The downstream release adds a relay-browser entry named `DonComboMatrix`. It displays the complete 1,000,000-tile beach address space inside a 1024 x 1024 order-10 Hilbert matrix, overlays known rare positions and the currently observed beach front, and shows WaterSheep score-mass reports for a small mixed candidate frontier drawn from current, observed, and deterministic exploration fronts.
 
-WaterSheep remains advisory only. The exact Combo baseline is scored inside the same pool as the dynamic alternatives, but baseline membership, known rare coordinates/counts, candidate source labels, and Combo's route are withheld from model input. Its score mass is explicitly uncalibrated for KoL beach outcomes. The bridge reads local Combo/KoLmafia files, prefers the installed `kol-goblin-docs` runtime snapshot for player/day context, maintains a deduplicated local observation ledger, writes durable comparison receipts, and never sends a KoL request or executes a KoLmafia command.
+WaterSheep remains advisory only. The exact Combo baseline is scored inside the same pool as the dynamic alternatives, but baseline membership, known rare coordinates/counts, candidate source labels, and Combo's route are withheld from model input. Its score mass is explicitly uncalibrated for KoL beach outcomes.
 
-Start a local WaterSheep server, then run the installed bridge from your KoLmafia root:
+The preferred v0.5 runtime is KoLmafia-native: Combo records observations directly from its TypeScript execution path, a short ASH wrapper emits a flat `string[string]` request with `map_to_file()`, and `don_combo_runtime.js` reads that request with `fileToMap()`, validates typed contracts, calls localhost WaterSheep, writes the rich runtime/receipt artifacts, and returns. Goblin Docs remains the read-only player/day context owner. No dedicated Python matrix watcher is required.
+
+Start the downstream KOL-WaterSheep server:
 
 ```bash
 watersheep --model samratduttaofficial/WaterSheep --serve
-python3 scripts/don_combo/watersheep_combo_bridge.py
 ```
 
-For a deterministic UI smoke test without a model:
+Install/repair the callable aliases from `kolmafia-skills`:
 
-```bash
-python3 scripts/don_combo/watersheep_combo_bridge.py --mock
+```text
+call agent_skill_relay.js --install
 ```
 
-For periodic shadow reassessment:
+Then normal use remains:
 
-```bash
-python3 scripts/don_combo/watersheep_combo_bridge.py --watch 30
+```text
+combo 10
 ```
+
+The installed `combo` alias routes through `don_combo_listener.ash`, executes the deterministic Combo script, refreshes Goblin Docs context, runs one advisory matrix reassessment, and returns. For a no-KoL-mutation compatibility smoke:
+
+```text
+agentcall.combo-smoke
+```
+
+That round-trips an Excavator-shaped `event/meta/page` envelope through the same native ASH-map/TypeScript boundary without changing `spadingScript` or sending spading data.
 
 Then open the KoLmafia relay browser and choose `DonComboMatrix` from the `-run script-` dropdown.
 

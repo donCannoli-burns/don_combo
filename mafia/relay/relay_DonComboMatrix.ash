@@ -2,9 +2,7 @@
 // Read-only with respect to KoL. When kol-goblin-docs is initialized, opening
 // this surface queues a one-shot advisory matrix refresh through kol-ash-it-down.
 void main() {
-  if (get_property("kolGoblinDocsLastRefresh") != "") {
-    cli_execute("call kol-goblin-docs.ash refresh combo-matrix");
-  }
+  cli_execute("call don_combo/don_combo_listener.ash refresh combo-matrix");
 
   string target = "don_combo_matrix.html?player=" + my_id() + "&gameday=" + gameday_to_int();
   writeln("<!doctype html>");

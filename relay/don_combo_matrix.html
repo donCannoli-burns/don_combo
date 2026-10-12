@@ -8,10 +8,23 @@
 <style>
 :root{--bg:#091018;--panel:#101923;--panel2:#14212e;--well:#071018;--line:#26384a;--text:#eef4f8;--muted:#96a8b8;--fact:#72dfa6;--model:#82b7ff;--policy:#f4c56a;--bad:#ff8e88;--rare:#ffd166;--current:#72dfa6;--combo:#ff8e88;--selected:#f7f9fb;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(900px 500px at 0 -10%,rgba(130,183,255,.07),transparent 60%),var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}a{color:inherit}button{font:inherit;cursor:pointer}.mono,code,pre{font-family:var(--mono)}.top{position:sticky;top:0;z-index:20;background:rgba(9,16,24,.94);border-bottom:1px solid var(--line);backdrop-filter:blur(9px)}.topin{max-width:1500px;margin:auto;padding:12px 18px;display:flex;gap:16px;align-items:center;justify-content:space-between}.brand b{font-size:16px}.brand span{display:block;color:var(--muted);font-size:11px}.nav{display:flex;gap:4px;flex-wrap:wrap}.nav a,.btn{padding:6px 9px;border:1px solid var(--line);border-radius:6px;text-decoration:none;background:var(--panel);color:var(--text)}.nav a:hover,.btn:hover{background:var(--panel2)}.btn.interrupt{border-color:#7a403e;color:#ffb0aa}.btn.interrupt:hover{background:#2a1718}.btn.interrupt.queued{border-color:#8b6c2d;color:var(--policy)}.shell{max-width:1500px;margin:auto;padding:18px}.eyebrow{font:700 10px/1.4 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}.hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr);gap:14px;align-items:stretch}.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}.claim h1{font-size:clamp(22px,3vw,38px);line-height:1.08;margin:6px 0 9px;letter-spacing:-.025em}.claim p{max-width:72ch;color:#cdd8e1;margin:0}.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:14px}.chip{border:1px solid var(--line);border-radius:999px;padding:4px 7px;font:11px var(--mono)}.fact{color:var(--fact)}.model{color:var(--model)}.policy{color:var(--policy)}.bad{color:var(--bad)}.compare{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:8px}.route{background:var(--well);border:1px solid var(--line);border-radius:8px;padding:10px;min-height:114px}.route .big{font:800 24px var(--mono);margin:3px 0}.route small{color:var(--muted)}.agreement{margin-top:9px;border-top:1px solid var(--line);padding-top:9px}.readiness{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.readiness .mini{background:var(--well);border:1px solid var(--line);border-radius:6px;padding:7px}.readiness b{display:block;font:700 12px var(--mono)}.readiness span{color:var(--muted);font-size:9px}.section{scroll-margin-top:75px;margin-top:18px}.sectionhead{display:flex;justify-content:space-between;gap:16px;align-items:end;margin-bottom:9px}.sectionhead h2{font-size:16px;margin:2px 0 0}.sectionhead p{margin:0;color:var(--muted);max-width:64ch;font-size:12px}.grid2{display:grid;grid-template-columns:minmax(360px,720px) minmax(360px,1fr);gap:14px}@media(max-width:980px){.hero,.grid2{grid-template-columns:1fr}.nav{display:none}}.canvasWrap{position:relative;aspect-ratio:1;max-width:720px;background:var(--well);border:1px solid var(--line);border-radius:6px;overflow:hidden}.canvasWrap canvas{width:100%;height:100%;display:block;image-rendering:pixelated}.legend{display:flex;gap:11px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin-top:8px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}.tileinfo{margin-top:9px;min-height:39px;color:var(--muted);font:12px/1.45 var(--mono)}.stats{display:grid;grid-template-columns:repeat(4,minmax(90px,1fr));gap:7px}@media(max-width:680px){.stats{grid-template-columns:1fr 1fr}}.stat{background:var(--well);border:1px solid var(--line);border-radius:7px;padding:9px}.stat b{display:block;font:700 16px var(--mono)}.stat span{font-size:10px;color:var(--muted)}table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;color:var(--muted);font-size:10px;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--line);padding:7px}td{padding:8px 7px;border-bottom:1px solid #1d2b39;vertical-align:top}.candidate{cursor:pointer}.candidate:hover,.candidate.sel{background:#162433}.rank{font:700 15px var(--mono)}.source{font:10px var(--mono);border:1px solid var(--line);border-radius:999px;padding:2px 5px;color:var(--muted)}.bars{display:grid;grid-template-columns:70px minmax(80px,1fr) 38px;gap:3px 6px;align-items:center}.bar{height:6px;background:#1d2b39;border-radius:8px;overflow:hidden}.fill{height:100%;background:var(--model)}.muted{color:var(--muted)}.evidence{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.evidence .item{background:var(--well);border:1px solid var(--line);padding:8px;border-radius:7px}.item b{display:block;font:13px var(--mono)}.item span{color:var(--muted);font-size:10px}.proofgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:760px){.proofgrid{grid-template-columns:1fr}}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--well);border:1px solid var(--line);border-radius:7px;padding:10px;max-height:340px;overflow:auto;color:#cfe0ec;font-size:11px}.callout{border-left:3px solid var(--model);padding:9px 11px;background:var(--well);color:#d8e3eb}.lineage{display:grid;grid-template-columns:130px 1fr;gap:5px 10px;font-size:12px}.lineage dt{color:var(--muted)}.lineage dd{margin:0;font-family:var(--mono);overflow-wrap:anywhere}.footer{color:var(--muted);font-size:11px;padding-bottom:38px}.status{font:10px var(--mono);border:1px solid var(--line);border-radius:999px;padding:4px 7px}.ok{color:var(--fact)}.warn{color:var(--policy)}.papergrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:900px){.papergrid{grid-template-columns:1fr}}.paper{background:#fff;color:#20252b;border:1px solid #d7dce1;border-radius:7px;padding:10px}.paper h3{font:600 12px/1.3 Georgia,serif;margin:0 0 6px}.paper p{font:10px/1.35 Georgia,serif;color:#555;margin:5px 0 0}.paper svg{display:block;width:100%;height:auto;min-height:175px}.mlstats{display:grid;grid-template-columns:repeat(5,minmax(100px,1fr));gap:7px;margin-bottom:10px}@media(max-width:850px){.mlstats{grid-template-columns:1fr 1fr}}.mltable{max-height:360px;overflow:auto}.mltable td,.mltable th{font-size:10px}.mlitem{font-family:var(--mono);font-size:10px}.trace-on{color:var(--fact)}.trace-off{color:var(--policy)}
+.atlasShell{display:grid;grid-template-columns:minmax(520px,1.35fr) minmax(320px,.65fr);gap:14px;align-items:start}
+.atlasMapCard{min-width:0}.atlasToolbar{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:9px}
+.atlasLenses{display:flex;gap:5px;flex-wrap:wrap}.atlasLens{border:1px solid var(--line);background:var(--well);color:var(--muted);border-radius:999px;padding:4px 8px;font:10px var(--mono);cursor:pointer}
+.atlasLens.active{color:#061018;background:var(--fact);border-color:var(--fact);font-weight:800}
+.atlasBucketState{font:10px var(--mono);color:var(--muted);display:flex;gap:7px;align-items:center}.atlasBucketState b{color:var(--text)}
+.atlasSide{display:grid;gap:10px}.atlasFocusTitle{font:800 22px/1.1 var(--mono);margin:5px 0 8px}.atlasChain{font:11px/1.55 var(--mono);color:#cbd7df;background:var(--well);border:1px solid var(--line);border-radius:7px;padding:8px}
+.atlasSignalRow{display:grid;grid-template-columns:108px 1fr 44px;gap:7px;align-items:center;margin-top:7px;font-size:10px}.atlasSignalTrack{height:7px;border-radius:8px;background:#1d2b39;overflow:hidden}.atlasSignalFill{height:100%;background:var(--fact)}
+.atlasLower{display:grid;grid-template-columns:minmax(430px,1.05fr) minmax(360px,.95fr);gap:14px;margin-top:14px}.graphFrame{background:var(--well);border:1px solid var(--line);border-radius:8px;padding:7px;overflow:hidden}.graphFrame svg{width:100%;height:auto;display:block;min-height:280px}
+.graphLegend{display:flex;gap:12px;flex-wrap:wrap;margin-top:7px;color:var(--muted);font-size:10px}.graphLegend b{font-family:var(--mono)}
+.atlasTables{display:grid;gap:10px}.scrollTable{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--well)}.scrollTable table{min-width:660px}.scrollTable tr[data-bucket],.scrollTable tr[data-atlas-minute]{cursor:pointer}.scrollTable tr.sel td{background:#182b37}.scrollTable tr.dim td{opacity:.32}
+.bucketChip{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;background:var(--model)}.rolePill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:1px 5px;font:9px var(--mono);color:var(--muted);margin-right:3px}
+.atlasMetric{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}.atlasMetric .mini{background:var(--well);border:1px solid var(--line);border-radius:6px;padding:7px}.atlasMetric b{display:block;font:700 12px var(--mono)}.atlasMetric span{display:block;color:var(--muted);font-size:9px}
+@media(max-width:1080px){.atlasShell,.atlasLower{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<header class="top"><div class="topin"><div class="brand"><b>don_combo · Shadow Route Lab</b><span>dense memory · sparse inference · no model authority</span></div><nav class="nav"><a href="#overview">Overview</a><a href="#matrix">Matrix</a><a href="#candidates">Candidates</a><a href="#evidence">Evidence</a><a href="#ml-lab">ML Lab</a><a href="#packet">Agent packet</a><a href="#runtime">Runtime</a></nav><div><span id="status" class="status">loading</span> <button id="interruptCombo" class="btn interrupt" title="Ask a running Combo invocation to stop after its current comb">Interrupt after current comb</button> <button id="exportSnapshot" class="btn">Export HTML snapshot</button> <button class="btn" onclick="location.reload()">Refresh</button></div></div></header>
+<header class="top"><div class="topin"><div class="brand"><b>don_combo · Shadow Route Lab</b><span>dense memory · sparse inference · no model authority</span></div><nav class="nav"><a href="#overview">Overview</a><a href="#matrix">Atlas</a><a href="#candidates">Candidates</a><a href="#evidence">Evidence</a><a href="#ml-lab">ML Lab</a><a href="#packet">Agent packet</a><a href="#runtime">Runtime</a></nav><div><span id="status" class="status">loading</span> <button id="interruptCombo" class="btn interrupt" title="Ask a running Combo invocation to stop after its current comb">Interrupt after current comb</button> <button id="exportSnapshot" class="btn">Export HTML snapshot</button> <button class="btn" onclick="location.reload()">Refresh</button></div></div></header>
 
 <main class="shell">
 <section id="overview" class="hero">
@@ -30,17 +43,67 @@
 </section>
 
 <section id="matrix" class="section">
-<div class="sectionhead"><div><div class="eyebrow">Proof / world view</div><h2>Hilbert beach intelligence field</h2></div><p>The million-cell address space remains dense. Only the candidate frontier receives model inference.</p></div>
-<div class="grid2"><article class="card"><div class="canvasWrap"><canvas id="map" width="1024" height="1024"></canvas></div><div class="legend"><span><i class="dot" style="background:var(--rare)"></i>known rare FACT</span><span><i class="dot" style="background:var(--model)"></i>shadow candidate MODEL</span><span><i class="dot" style="background:var(--current)"></i>current front FACT</span><span><i class="dot" style="background:var(--combo)"></i>Combo target FACT</span><span><i class="dot" style="background:var(--selected)"></i>selected</span></div><div id="tileInfo" class="tileinfo">Move over the matrix to inspect an address.</div></article><aside><div id="stats" class="stats"></div><article class="card" style="margin-top:10px"><div class="eyebrow">Reading rule</div><div class="callout"><b>Known truth outranks inference.</b><br>Gold/green/red marks are deterministic local facts. Blue marks are WaterSheep shadow scores. Nothing on this page issues a KoL action.</div></article></aside></div>
+<div class="sectionhead"><div><div class="eyebrow">Proof / linked representation</div><h2>Hilbert evidence atlas</h2></div><p>One dataset, three synchronized projections: spatial Hilbert address field, typed evidence graph, and exact readable cross-index. Selection in any view updates the others.</p></div>
+<div class="atlasShell">
+  <article class="card atlasMapCard">
+    <div class="atlasToolbar">
+      <div class="atlasLenses" role="group" aria-label="Hilbert evidence lenses">
+        <button class="atlasLens active" data-atlas-lens="all">All evidence</button>
+        <button class="atlasLens" data-atlas-lens="observed">Observed fronts</button>
+        <button class="atlasLens" data-atlas-lens="candidates">Candidate pool</button>
+        <button class="atlasLens" data-atlas-lens="rare">Known rare</button>
+        <button class="atlasLens" data-atlas-lens="current">Current front</button>
+      </div>
+      <div class="atlasBucketState">bucket <b id="atlasBucketReadout">all / 256</b> <button id="atlasClearBucket" class="btn" style="padding:3px 7px">clear</button></div>
+    </div>
+    <div class="canvasWrap"><canvas id="map" width="1024" height="1024"></canvas></div>
+    <div class="legend"><span><i class="dot" style="background:var(--rare)"></i>known rare FACT</span><span><i class="dot" style="background:#31566b"></i>observed front FACT</span><span><i class="dot" style="background:var(--model)"></i>candidate MODEL</span><span><i class="dot" style="background:var(--current)"></i>current front FACT</span><span><i class="dot" style="background:var(--combo)"></i>Combo baseline</span><span><i class="dot" style="background:var(--selected)"></i>focus</span></div>
+    <div id="tileInfo" class="tileinfo">Move over or click the matrix: (x,y) → Hilbert d → beach tile → bucket → evidence record.</div>
+  </article>
+  <aside class="atlasSide">
+    <article class="card">
+      <div class="eyebrow">Focus trace / spatial → data</div>
+      <div id="atlasFocus" class="muted">Select a candidate, table row, bucket, or Hilbert cell.</div>
+    </article>
+    <article class="card">
+      <div class="eyebrow">Signal profile / selected front</div>
+      <div id="atlasSignals" class="muted">No focus.</div>
+    </article>
+    <article class="card">
+      <div class="eyebrow">Reading rule</div>
+      <div class="callout"><b>The views are projections, not separate truths.</b><br>The Hilbert field answers <i>where</i>; the graph answers <i>how evidence flows</i>; the tables preserve the exact values. FACT, MODEL and POLICY remain distinct.</div>
+    </article>
+  </aside>
+</div>
+<div class="atlasLower">
+  <article class="card">
+    <div class="eyebrow">Relation graph / selected record</div>
+    <h3 style="margin:4px 0 8px">Address → evidence → model → policy → outcome</h3>
+    <div class="graphFrame"><svg id="evidenceGraph" viewBox="0 0 920 300" role="img" aria-label="Typed evidence relation graph"></svg></div>
+    <div class="graphLegend"><span><b class="fact">FACT</b> observed/local truth</span><span><b class="model">MODEL</b> WaterSheep score mass</span><span><b class="policy">POLICY</b> deterministic ranking</span><span><b class="muted">STRUCTURAL</b> Hilbert/bucket relation</span></div>
+  </article>
+  <div class="atlasTables">
+    <article class="card">
+      <div class="eyebrow">Hilbert bucket register / contiguous d ranges</div>
+      <div id="bucketSummary" class="muted" style="margin:5px 0 8px">256 contiguous buckets · 4096 Hilbert addresses each.</div>
+      <div id="bucketTable" class="scrollTable"></div>
+    </article>
+  </div>
+</div>
+<article class="card" style="margin-top:14px">
+  <div class="eyebrow">Readable cross-index / same atlas data</div>
+  <p class="muted" style="margin:5px 0 9px">Observed fronts and current candidates are listed from the same records painted into the matrix. Click a row to focus its spatial region and relation graph.</p>
+  <div id="atlasDataTable" class="scrollTable"></div>
+</article>
 </section>
 
 <section id="candidates" class="section" data-role="decision">
-<div class="sectionhead"><div><div class="eyebrow">Decision / inspect, do not execute</div><h2>Candidate frontier</h2></div><p>Sources are current, observed, or deterministic exploration samples. Known-rare status is deliberately not part of model input.</p></div>
+<div class="sectionhead"><div><div class="eyebrow">Decision / inspect, do not execute</div><h2>Candidate frontier · exact scoring cross-index</h2></div><p>Current scoring pool with both model-only and final model+policy rank. Human source labels remain withheld from WaterSheep.</p></div>
 <article class="card"><div id="candidateTable" class="muted">No runtime snapshot.</div></article>
 </section>
 
 <section id="evidence" class="section">
-<div class="sectionhead"><div><div class="eyebrow">Proof / selected candidate</div><h2>Evidence inspector</h2></div><p>Everything the model saw is visible here, separately from the utility policy applied afterward.</p></div>
+<div class="sectionhead"><div><div class="eyebrow">Proof / selected candidate</div><h2>Selected candidate · exact evidence record</h2></div><p>Everything the model saw is visible here, separately from the utility policy applied afterward.</p></div>
 <div class="proofgrid"><article class="card"><div class="eyebrow fact">FACT · model-safe input</div><div id="factEvidence" class="evidence"></div></article><article class="card"><div class="eyebrow model">MODEL · score mass</div><div id="modelEvidence"></div><div class="eyebrow policy" style="margin-top:12px">POLICY · utility composition</div><div id="policyEvidence" class="evidence"></div></article></div>
 </section>
 
@@ -70,11 +133,19 @@
 <script>
 (function(){
 "use strict";
-var R=window.DON_COMBO_MATRIX_RUNTIME||null,N=1024,REAL=1000000,C=document.getElementById("map"),ctx=C.getContext("2d"),selected=0,baseline=null;
+var R=window.DON_COMBO_MATRIX_RUNTIME||null,N=1024,REAL=1000000,TOTAL=N*N,C=document.getElementById("map"),ctx=C.getContext("2d"),selected=0,baseline=null,atlasLens="all",focusedBucket=null,atlasAddress=null;
 var colors={rare:"#ffd166",model:"#82b7ff",current:"#72dfa6",combo:"#ff8e88",selected:"#f7f9fb"};
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(ch){return({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[ch]})}
 function xy2d(n,x,y){var d=0;for(var s=n>>1;s>0;s>>=1){var rx=(x&s)>0?1:0,ry=(y&s)>0?1:0;d+=s*s*((3*rx)^ry);if(ry===0){if(rx===1){x=n-1-x;y=n-1-y}var t=x;x=y;y=t}}return d}
 function tileOf(d){if(d<0||d>=REAL)return null;var m=Math.floor(d/100)+1,o=d%100;return{minute:m,row:Math.floor(o/10)+1,column:o%10}}
+function d2xy(n,d){var x=0,y=0,t=d;for(var q=1;q<n;q<<=1){var rx=(t>>1)&1,ry=(t^rx)&1;if(ry===0){if(rx===1){x=q-1-x;y=q-1-y}var z=x;x=y;y=z}x+=q*rx;y+=q*ry;t>>=2}return{x:x,y:y}}
+function bucketOfD(d){return Math.max(0,Math.min(255,Math.floor(Number(d||0)/4096)))}
+function frontRecord(minute){var fs=((R||{}).observations||{}).fronts||[];for(var i=0;i<fs.length;i++)if(Number(fs[i].minute)===Number(minute))return fs[i];return null}
+function candidateIndexForMinute(minute){var cs=(R&&R.candidates)||[];for(var i=0;i<cs.length;i++)if(Number(cs[i].minute)===Number(minute))return i;return -1}
+function latestTrace(minute){var es=((R||{}).ml_lab||{}).events||[],hit=null;for(var i=0;i<es.length;i++)if(Number(es[i].minute)===Number(minute))hit=es[i];return hit}
+function modelRankMap(){var cs=(R&&R.candidates)||[],a=cs.map(function(c,i){return{i:i,v:Number(((c.utility_components||{}).model)||0),minute:Number(c.minute)}});a.sort(function(x,y){return y.v-x.v||x.minute-y.minute});var out={};a.forEach(function(x,i){out[x.i]=i+1});return out}
+function atlasPoint(ev){var b=C.getBoundingClientRect(),x=Math.max(0,Math.min(N-1,Math.floor((ev.clientX-b.left)*N/b.width))),y=Math.max(0,Math.min(N-1,Math.floor((ev.clientY-b.top)*N/b.height))),d=xy2d(N,x,y),t=tileOf(d);return{x:x,y:y,d:d,tile:t,bucket:bucketOfD(d)}}
+
 function params(){var q=new URLSearchParams(location.search);return{player:Number(q.get("player")||0),gameday:Number(q.get("gameday")||0)}}
 function comboBaseline(){
  if(!R)return null;var p=params(),pts=(R.known_rare_points||[]).map(function(x){return{minute:x.minute,row:x.row,column:x.column,false_rare:!!x.false_rare,d:x.d,x:x.x,y:x.y}});
@@ -88,26 +159,120 @@ function comboBaseline(){
 }
 function base(){ctx.fillStyle="#071018";ctx.fillRect(0,0,N,N)}
 function circle(x,y,r,color){ctx.beginPath();ctx.fillStyle=color;ctx.arc(x+.5,y+.5,r,0,Math.PI*2);ctx.fill()}
-function draw(){
- base();if(!R)return;
- ctx.fillStyle=colors.rare;(R.known_rare_points||[]).forEach(function(p){if(!p.false_rare)ctx.fillRect(p.x,p.y,1,1)});
- (R.candidates||[]).forEach(function(c,i){var p=c.representative;if(!p)return;var u=Math.max(0,Math.min(1,Number(c.utility||0)));circle(p.x,p.y,3+4*u,i===selected?colors.selected:colors.model)});
- (R.current_front_cells||[]).forEach(function(p){ctx.fillStyle=colors.current;ctx.fillRect(p.x-1,p.y-1,3,3)});
- var bridge=((R.comparison||{}).combo_baseline)||null;
- if(bridge)circle(bridge.x,bridge.y,6,colors.combo);else if(baseline&&baseline.tile)circle(baseline.tile.x,baseline.tile.y,6,colors.combo)
+function bucketMatchesD(d){return focusedBucket==null||bucketOfD(d)===focusedBucket}
+function paintBucket(){
+ if(focusedBucket==null)return;
+ var start=focusedBucket*4096,end=Math.min(TOTAL,start+4096),p=d2xy(N,start);
+ ctx.save();ctx.fillStyle="rgba(130,183,255,.075)";
+ for(var d=start;d<end;d++){p=d2xy(N,d);ctx.fillRect(p.x,p.y,1,1)}
+ ctx.strokeStyle="rgba(130,183,255,.52)";ctx.lineWidth=.7;ctx.beginPath();
+ for(var q=start;q<end;q++){p=d2xy(N,q);if(q===start)ctx.moveTo(p.x+.5,p.y+.5);else ctx.lineTo(p.x+.5,p.y+.5)}
+ ctx.stroke();ctx.restore()
 }
-function inspect(ev){var b=C.getBoundingClientRect(),x=Math.max(0,Math.min(N-1,Math.floor((ev.clientX-b.left)*N/b.width))),y=Math.max(0,Math.min(N-1,Math.floor((ev.clientY-b.top)*N/b.height))),d=xy2d(N,x,y),t=tileOf(d);document.getElementById("tileInfo").textContent=t?"matrix ("+x+","+y+") → d="+d+" → beach "+t.minute+", row "+t.row+", col "+t.column:"matrix ("+x+","+y+") → unused Hilbert tail"}
+function paintObservedFronts(){
+ if(!(atlasLens==="all"||atlasLens==="observed"))return;
+ var fs=((R||{}).observations||{}).fronts||[],max=1;fs.forEach(function(f){max=Math.max(max,Number(f.session_events||0))});
+ fs.forEach(function(f){
+   var alpha=.08+.18*Math.min(1,Math.log1p(Number(f.session_events||0))/Math.log1p(max)),start=Number(f.d_start||0),end=Math.min(REAL-1,Number(f.d_end||start));
+   ctx.fillStyle="rgba(72,133,158,"+alpha.toFixed(3)+")";
+   for(var d=start;d<=end;d++){if(!bucketMatchesD(d))continue;var p=d2xy(N,d);ctx.fillRect(p.x,p.y,1,1)}
+ })
+}
+function draw(){
+ base();if(!R)return;paintBucket();paintObservedFronts();
+ if(atlasLens==="all"||atlasLens==="rare"){ctx.fillStyle=colors.rare;(R.known_rare_points||[]).forEach(function(p){if(!p.false_rare&&bucketMatchesD(p.d))ctx.fillRect(p.x,p.y,1,1)})}
+ if(atlasLens==="all"||atlasLens==="candidates"){(R.candidates||[]).forEach(function(c,i){var p=c.representative;if(!p||!bucketMatchesD(p.d))return;var u=Math.max(0,Math.min(1,Number(c.utility||0)));circle(p.x,p.y,3+4*u,i===selected?colors.selected:colors.model)})}
+ if(atlasLens==="all"||atlasLens==="current"){(R.current_front_cells||[]).forEach(function(p){if(!bucketMatchesD(p.d))return;ctx.fillStyle=colors.current;ctx.fillRect(p.x-1,p.y-1,3,3)})}
+ var bridge=((R.comparison||{}).combo_baseline)||null;
+ if((atlasLens==="all"||atlasLens==="candidates")&&bridge&&bucketMatchesD(bridge.d))circle(bridge.x,bridge.y,6,colors.combo);else if((atlasLens==="all"||atlasLens==="candidates")&&baseline&&baseline.tile&&bucketMatchesD(baseline.tile.d))circle(baseline.tile.x,baseline.tile.y,6,colors.combo);
+ if(atlasAddress&&bucketMatchesD(atlasAddress.d))circle(atlasAddress.x,atlasAddress.y,5,colors.selected)
+}
+function inspect(ev){var a=atlasPoint(ev),t=a.tile;document.getElementById("tileInfo").textContent=t?"matrix ("+a.x+","+a.y+") → d="+a.d+" → bucket "+a.bucket+" → beach "+t.minute+", row "+t.row+", col "+t.column:"matrix ("+a.x+","+a.y+") → d="+a.d+" → bucket "+a.bucket+" → unused Hilbert tail"}
+function focusAddress(a){
+ atlasAddress=a;focusedBucket=a.bucket;document.getElementById("atlasBucketReadout").textContent=a.bucket+" / 256";
+ if(a.tile){var ci=candidateIndexForMinute(a.tile.minute);if(ci>=0)selectCandidate(ci,a);else{renderAtlasFocus(a);renderEvidenceGraph(a);renderAtlasSignals(a);renderAtlasTables();draw()}}
+ else{renderAtlasFocus(a);renderEvidenceGraph(a);renderAtlasSignals(a);renderAtlasTables();draw()}
+}
 C.addEventListener("mousemove",inspect);
+C.addEventListener("click",function(ev){focusAddress(atlasPoint(ev))});
+function signalRow(label,value,color){
+ var pct=Math.max(0,Math.min(100,Number(value||0)*100));return"<div class='atlasSignalRow'><span>"+esc(label)+"</span><span class='atlasSignalTrack'><i class='atlasSignalFill' style='display:block;width:"+pct.toFixed(1)+"%;background:"+(color||"var(--fact)")+"'></i></span><b class='mono'>"+pct.toFixed(1)+"%</b></div>"
+}
+function renderAtlasFocus(a){
+ var box=document.getElementById("atlasFocus");if(!box)return;
+ if(!a){box.innerHTML="<span class='muted'>Select a candidate, table row, bucket, or Hilbert cell.</span>";return}
+ var t=a.tile||tileOf(a.d),f=t?frontRecord(t.minute):null,ci=t?candidateIndexForMinute(t.minute):-1,c=ci>=0?(R.candidates||[])[ci]:null,tr=t?latestTrace(t.minute):null;
+ var roles=[];if(c)roles.push(c.is_combo_baseline?"Combo baseline":"candidate "+c.source);if(f)roles.push("observed");if((R.known_rare_points||[]).some(function(p){return Number(p.d)===Number(a.d)&&!p.false_rare}))roles.push("known rare");if(!roles.length)roles.push("address only");
+ box.innerHTML="<div class='atlasFocusTitle'>"+(t?"beach "+t.minute:"unused tail")+"</div><div class='atlasChain'>("+a.x+","+a.y+") → d="+a.d+" → bucket "+a.bucket+(t?" → row "+t.row+", col "+t.column:"")+"</div><div class='chips'>"+roles.map(function(r){return"<span class='chip'>"+esc(r)+"</span>"}).join("")+"</div><div class='atlasMetric'>"+evItem("layout snapshots",f?f.layout_snapshots:0)+evItem("session events",f?f.session_events:0)+evItem("candidate utility",c&&c.utility!=null?Number(c.utility).toFixed(4):"—")+"</div>"+(tr?"<p class='muted' style='margin:9px 0 0'>Latest traced outcome: <b>"+esc(tr.outcome)+"</b> · "+esc(Object.keys(tr.items||{}).map(function(k){return(tr.items[k]||0)+" "+k}).join(", ")||"no item")+"</p>":"")
+}
+function renderAtlasSignals(a){
+ var box=document.getElementById("atlasSignals");if(!box)return;var t=a&&a.tile?a.tile:null,f=t?frontRecord(t.minute):null,ci=t?candidateIndexForMinute(t.minute):-1,c=ci>=0?(R.candidates||[])[ci]:null;
+ if(!f&&!c){box.innerHTML="<span class='muted'>No observed or candidate signal for this address.</span>";return}
+ var html="";
+ if(f){var sr=f.symbol_rates||{},or=f.outcome_rates||{};html+="<div class='eyebrow fact'>FACT · observed</div>"+signalRow("rough",sr.rough,"#63869a")+signalRow("twinkle",sr.twinkle,"#72dfa6")+signalRow("whale",sr.whale,"#f4c56a")+signalRow("rare-target route",or.rare_target,"#ffd166")}
+ if(c&&c.watersheep&&c.watersheep.score_mass){var sc=c.watersheep.score_mass;html+="<div class='eyebrow model' style='margin-top:10px'>MODEL · score mass</div>"+signalRow("rare",sc.rare,"#82b7ff")+signalRow("whale",sc.whale,"#82b7ff")+signalRow("twinkle",sc.twinkle,"#82b7ff")+signalRow("regular",sc.regular,"#82b7ff")}
+ box.innerHTML=html
+}
+function graphNode(x,y,w,h,title,detail,kind){
+ var fill=kind==="FACT"?"#10271f":kind==="MODEL"?"#102238":kind==="POLICY"?"#302712":"#16212b",stroke=kind==="FACT"?"#72dfa6":kind==="MODEL"?"#82b7ff":kind==="POLICY"?"#f4c56a":"#52697a";
+ return"<g><rect x='"+x+"' y='"+y+"' width='"+w+"' height='"+h+"' rx='8' fill='"+fill+"' stroke='"+stroke+"' stroke-width='1.4'/><text x='"+(x+10)+"' y='"+(y+18)+"' font-family='ui-monospace,monospace' font-size='9' fill='"+stroke+"'>"+esc(kind)+"</text><text x='"+(x+10)+"' y='"+(y+38)+"' font-family='system-ui,sans-serif' font-size='13' font-weight='700' fill='#eef4f8'>"+esc(title)+"</text><text x='"+(x+10)+"' y='"+(y+56)+"' font-family='ui-monospace,monospace' font-size='9' fill='#96a8b8'>"+esc(detail)+"</text></g>"
+}
+function graphEdge(x1,y1,x2,y2,label,color,dash){
+ return"<g><line x1='"+x1+"' y1='"+y1+"' x2='"+x2+"' y2='"+y2+"' stroke='"+color+"' stroke-width='1.4' "+(dash?"stroke-dasharray='5 5'":"")+"/><text x='"+((x1+x2)/2)+"' y='"+(((y1+y2)/2)-5)+"' text-anchor='middle' font-family='ui-monospace,monospace' font-size='8' fill='"+color+"'>"+esc(label)+"</text></g>"
+}
+function renderEvidenceGraph(a){
+ var svg=document.getElementById("evidenceGraph");if(!svg)return;if(!a){svg.innerHTML="<text x='460' y='150' text-anchor='middle' fill='#96a8b8' font-family='ui-monospace,monospace' font-size='12'>Select an atlas record.</text>";return}
+ var t=a.tile||tileOf(a.d),f=t?frontRecord(t.minute):null,ci=t?candidateIndexForMinute(t.minute):-1,c=ci>=0?(R.candidates||[])[ci]:null,tr=t?latestTrace(t.minute):null,ws=c&&c.watersheep?c.watersheep.score_mass:null,u=c?c.utility_components||{}:{};
+ var topClass="—",topV=-1;if(ws)Object.keys(ws).forEach(function(k){if(Number(ws[k])>topV){topV=Number(ws[k]);topClass=k}});
+ var parts=["<rect width='920' height='300' fill='#071018'/>"];
+ parts.push(graphEdge(170,145,255,82,"maps to","#52697a",true),graphEdge(170,145,255,220,"bucket","#52697a",true));
+ parts.push(graphNode(20,108,150,74,t?"beach "+t.minute:"unused tail","d="+a.d+" · ("+a.x+","+a.y+")","STRUCT"));
+ parts.push(graphNode(255,42,175,82,"observed evidence",f?(f.session_events+" events · "+f.layout_snapshots+" layouts"):"no local observations","FACT"));
+ parts.push(graphNode(255,185,175,72,"Hilbert bucket "+a.bucket,"d "+(a.bucket*4096)+"–"+Math.min(TOTAL-1,(a.bucket+1)*4096-1),"STRUCT"));
+ if(c){
+   parts.push(graphEdge(430,82,500,82,"model-safe fields","#82b7ff",false),graphNode(500,42,170,82,"WaterSheep",topClass+" "+(topV>=0?topV.toFixed(3):"—"),"MODEL"));
+   parts.push(graphEdge(670,82,735,82,"weighted","#f4c56a",false),graphNode(735,42,165,82,"utility "+Number(c.utility||0).toFixed(4),"M "+Number(u.model||0).toFixed(4)+" · obs "+Number(u.observed||0).toFixed(4),"POLICY"));
+   if(f)parts.push(graphEdge(430,105,735,105,"policy-only observed adjustment","#f4c56a",true))
+ }else{
+   parts.push(graphNode(500,42,170,82,"not in current pool","no WaterSheep score","MODEL"),graphNode(735,42,165,82,"no current rank","policy not applied","POLICY"))
+ }
+ if(tr){parts.push(graphEdge(342,124,342,185,"later observation","#72dfa6",true),graphEdge(430,220,735,220,"actual result","#72dfa6",false),graphNode(735,185,165,72,tr.outcome,Object.keys(tr.items||{}).map(function(k){return(tr.items[k]||0)+" "+k}).join(", ")||"no item","FACT"))}
+ svg.innerHTML=parts.join("")
+}
+function buildBucketRows(){
+ var rows=Array.from({length:256},function(_,b){return{bucket:b,start:b*4096,end:Math.min(REAL-1,(b+1)*4096-1),cells:Math.max(0,Math.min(REAL,(b+1)*4096)-b*4096),rare:0,observed:new Set(),candidates:[],utility:0}});
+ (R.known_rare_points||[]).forEach(function(p){if(!p.false_rare&&p.d<REAL)rows[bucketOfD(p.d)].rare++});
+ (((R||{}).observations||{}).fronts||[]).forEach(function(f){for(var b=Number(f.bucket_start_256);b<=Number(f.bucket_end_256);b++)if(rows[b])rows[b].observed.add(Number(f.minute))});
+ (R.candidates||[]).forEach(function(c,i){var b=Number((c.evidence||{}).hilbert_bucket_256);if(rows[b]){rows[b].candidates.push(i);rows[b].utility+=Number(c.utility||0)}});
+ return rows
+}
+function focusBucket(b){focusedBucket=b==null?null:Number(b);document.getElementById("atlasBucketReadout").textContent=focusedBucket==null?"all / 256":focusedBucket+" / 256";renderAtlasTables();draw()}
+function renderBucketTable(){
+ var rows=buildBucketRows(),box=document.getElementById("bucketTable");if(!box)return;
+ box.innerHTML="<table><thead><tr><th>Bucket</th><th>d range</th><th>real cells</th><th>rare</th><th>observed fronts</th><th>candidates</th><th>mean utility</th></tr></thead><tbody>"+rows.map(function(r){var mean=r.candidates.length?r.utility/r.candidates.length:null;return"<tr data-bucket='"+r.bucket+"' class='"+(focusedBucket===r.bucket?"sel":"")+"'><td><i class='bucketChip' style='opacity:"+(0.25+Math.min(.75,(r.rare+r.observed.size+r.candidates.length)/10))+"'></i>"+r.bucket+"</td><td class='mono'>"+r.start+"–"+(r.end<r.start?"—":r.end)+"</td><td>"+r.cells+"</td><td>"+r.rare+"</td><td>"+r.observed.size+"</td><td>"+r.candidates.length+"</td><td class='mono'>"+(mean==null?"—":mean.toFixed(4))+"</td></tr>"}).join("")+"</tbody></table>";
+ box.querySelectorAll("[data-bucket]").forEach(function(tr){tr.onclick=function(){focusBucket(Number(tr.getAttribute("data-bucket")))}})
+ var active=focusedBucket==null?null:rows[focusedBucket];document.getElementById("bucketSummary").textContent=active?("bucket "+active.bucket+" · d "+active.start+"–"+active.end+" · "+active.cells+" real cells · "+active.rare+" known rare · "+active.observed.size+" observed fronts · "+active.candidates.length+" candidates"):"256 contiguous buckets · 4096 Hilbert addresses each; final buckets include the unused Hilbert tail."
+}
+function renderAtlasDataTable(){
+ var box=document.getElementById("atlasDataTable");if(!box)return,by={};
+ (((R||{}).observations||{}).fronts||[]).forEach(function(f){by[String(f.minute)]={minute:Number(f.minute),front:f,candidate:null}});
+ (R.candidates||[]).forEach(function(c,i){var k=String(c.minute);if(!by[k])by[k]={minute:Number(c.minute),front:null,candidate:null};by[k].candidate={c:c,i:i}});
+ var rank=modelRankMap(),rows=Object.keys(by).map(function(k){return by[k]}).filter(function(r){var d=(r.candidate?r.candidate.c.representative.d:(r.front?r.front.d_start:0));return focusedBucket==null||bucketOfD(d)===focusedBucket||r.front&&(Number(r.front.bucket_start_256)<=focusedBucket&&Number(r.front.bucket_end_256)>=focusedBucket)}).sort(function(a,b){var ac=!!a.candidate,bc=!!b.candidate;if(ac!==bc)return ac?-1:1;return a.minute-b.minute});
+ box.innerHTML="<table><thead><tr><th>Front</th><th>Role</th><th>d / bucket</th><th>Obs</th><th>FACT signal</th><th>MODEL rank</th><th>POLICY rank / utility</th></tr></thead><tbody>"+rows.map(function(r){var f=r.front,ci=r.candidate,c=ci&&ci.c,d=ci?c.representative.d:(f?f.d_start:0),bucket=bucketOfD(d),roles=[];if(f)roles.push("observed");if(c)roles.push(c.is_combo_baseline?"baseline":c.source);var sr=f?(f.symbol_rates||{}):{};return"<tr data-atlas-minute='"+r.minute+"' class='"+(atlasAddress&&atlasAddress.tile&&atlasAddress.tile.minute===r.minute?"sel":"")+"'><td><b>"+r.minute+"</b></td><td>"+roles.map(function(x){return"<span class='rolePill'>"+esc(x)+"</span>"}).join("")+"</td><td class='mono'>"+d+" / "+bucket+"</td><td>"+(f?f.session_events+" ev · "+f.layout_snapshots+" lay":"—")+"</td><td class='mono'>"+(f?("rough "+Number(sr.rough||0).toFixed(3)+" · tw "+Number(sr.twinkle||0).toFixed(3)):"—")+"</td><td>"+(ci?rank[ci.i]+"/"+(R.candidates||[]).length:"—")+"</td><td class='mono'>"+(ci?(ci.i+1)+"/"+(R.candidates||[]).length+" · "+Number(c.utility||0).toFixed(4):"—")+"</td></tr>"}).join("")+"</tbody></table>";
+ box.querySelectorAll("[data-atlas-minute]").forEach(function(tr){tr.onclick=function(){var minute=Number(tr.getAttribute("data-atlas-minute")),ci=candidateIndexForMinute(minute),d=ci>=0?(R.candidates[ci].representative.d):((frontRecord(minute)||{}).d_start||((minute-1)*100)),p=d2xy(N,d),a={x:p.x,y:p.y,d:d,tile:tileOf(d),bucket:bucketOfD(d)};if(ci>=0)selectCandidate(ci,a);else focusAddress(a)}})
+}
+function renderAtlasTables(){renderBucketTable();renderAtlasDataTable()}
+function renderAtlasAll(a){renderAtlasFocus(a||atlasAddress);renderAtlasSignals(a||atlasAddress);renderEvidenceGraph(a||atlasAddress);renderAtlasTables()}
 function scoreBars(scores){if(!scores)return'<span class="bad">unavailable</span>';return'<div class="bars">'+["rare","whale","sandcastle","twinkle","regular","scratched"].map(function(k){var v=Number(scores[k]||0);return"<span>"+k+"</span><span class='bar'><i class='fill' style='display:block;width:"+(v*100).toFixed(1)+"%'></i></span><span class='mono'>"+v.toFixed(3)+"</span>"}).join("")+"</div>"}
 function evItem(label,value){return"<div class='item'><b>"+esc(value)+"</b><span>"+esc(label)+"</span></div>"}
-function selectCandidate(i){
+function selectCandidate(i,addressOverride){
  selected=i;var c=(R.candidates||[])[i];if(!c)return;draw();
  document.querySelectorAll(".candidate").forEach(function(row){row.classList.toggle("sel",Number(row.getAttribute("data-i"))===i)});
  var e=c.evidence||{},rates=e.observed_symbol_rates||{},outcomes=e.observed_outcome_rates||{};
  document.getElementById("factEvidence").innerHTML=evItem("beach minute",c.minute)+evItem("Hilbert bucket / 256",e.hilbert_bucket_256)+evItem("layout snapshots",e.layout_snapshots)+evItem("session events",e.session_events||0)+evItem("total observations",e.observation_count||0)+evItem("last seen age hours",e.last_seen_age_hours==null?"never":e.last_seen_age_hours)+evItem("distance from current",e.distance_from_current==null?"unknown":e.distance_from_current)+evItem("sand / event",Number(e.sand_per_event||0).toFixed(2))+evItem("observed whale rate",Number(rates.whale||0).toFixed(4))+evItem("observed twinkle rate",Number(rates.twinkle||0).toFixed(4));
  var ws=c.watersheep||{};document.getElementById("modelEvidence").innerHTML=scoreBars(ws.score_mass)+"<p class='muted'>Calibration: <code>"+esc(ws.calibration||"—")+"</code>. These are relative score masses, not validated KoL probabilities.</p>";
  var u=c.utility_components||{};document.getElementById("policyEvidence").innerHTML=evItem("human source (withheld)",c.source)+evItem("total utility",c.utility==null?"—":Number(c.utility).toFixed(4))+evItem("model component",u.model==null?"—":u.model)+evItem("exploration bonus",u.exploration==null?"—":u.exploration)+evItem("observed adjustment",u.observed==null?"—":u.observed)+evItem("rare-target rate (policy only)",Number(outcomes.rare_target||0).toFixed(4))+evItem("rough-fallback rate (policy only)",Number(outcomes.rough_fallback||0).toFixed(4))+evItem("twinkle-fallback rate (policy only)",Number(outcomes.twinkle_fallback||0).toFixed(4));
- var p=c.representative||{};document.getElementById("tileInfo").textContent="selected beach "+c.minute+" → representative d="+p.d+" → matrix ("+p.x+","+p.y+")"
+ var p=c.representative||{},a=addressOverride||{x:p.x,y:p.y,d:p.d,tile:tileOf(p.d),bucket:bucketOfD(p.d)};atlasAddress=a;focusedBucket=a.bucket;document.getElementById("atlasBucketReadout").textContent=a.bucket+" / 256";document.getElementById("tileInfo").textContent="selected beach "+c.minute+" → d="+a.d+" → bucket "+a.bucket+" → matrix ("+a.x+","+a.y+")";renderAtlasAll(a);draw();
  buildPacket()
 }
 function svgText(x,y,text,anchor,size,color){return"<text x='"+x+"' y='"+y+"' text-anchor='"+anchor+"' font-family='Georgia,serif' font-size='"+size+"' fill='"+color+"'>"+esc(text)+"</text>"}
@@ -151,10 +316,12 @@ function renderMlLab(){
  var rows=events.slice(Math.max(0,events.length-120)).reverse();
  document.getElementById("mlEventTable").innerHTML=rows.length?"<table><thead><tr><th>#</th><th>Front</th><th>Prediction</th><th>Outcome</th><th>Actual comb</th><th>Loot</th><th>ms</th></tr></thead><tbody>"+rows.map(function(e){var p=e.prediction||{},actual=e.actual_comb||{},loot=Object.keys(e.items||{}).map(function(k){return(e.items[k]||0)+" "+k}).join(", ")||"—";return"<tr><td class='mono'>"+e.index+"</td><td><b>"+e.minute+"</b></td><td class='mono'>"+(p.model_utility==null?"untraced":"M "+Number(p.model_utility).toFixed(4)+" · P "+Number(p.policy_utility).toFixed(4))+"</td><td>"+esc(e.outcome)+"</td><td class='mono'>"+(actual.row==null?"—":actual.row+","+actual.column)+"</td><td class='mlitem'>"+esc(loot)+(Number(e.meat||0)?" · "+Number(e.meat)+" meat":"")+"</td><td class='mono'>"+(p.ms==null?"—":p.ms)+"</td></tr>"}).join("")+"</tbody></table>":"No per-comb events recorded yet.";
 }
+document.querySelectorAll("[data-atlas-lens]").forEach(function(btn){btn.addEventListener("click",function(){atlasLens=btn.getAttribute("data-atlas-lens")||"all";document.querySelectorAll("[data-atlas-lens]").forEach(function(x){x.classList.toggle("active",x===btn)});draw()})});
+document.getElementById("atlasClearBucket").addEventListener("click",function(){focusBucket(null)});
 function buildPacket(){
  if(!R)return;var c=(R.candidates||[])[selected]||null,cmp=R.comparison||{},browser=comboBaseline(),bridge=cmp.combo_baseline||null;
  var parity=null;if(browser&&bridge)parity=browser.tile.minute===bridge.minute&&browser.tile.row===bridge.row&&browser.tile.column===bridge.column;
- var obj={schema:"don-combo-shadow-comparison/v0.5",generated_at:R.generated_at,authority:"none",comparison:cmp,selected_candidate:c,receipt:R.receipt||null,run_control:R.run_control||null,baseline_verification:parity,ml_lab_summary:R.ml_lab?{schema:R.ml_lab.schema,trace_enabled:R.ml_lab.trace_enabled,events_total:R.ml_lab.events_total,predicted_events:R.ml_lab.predicted_events,snapshots_in_artifact:R.ml_lab.snapshots_in_artifact}:null,boundaries:{facts:"KoLmafia local prefs + Combo rare corpus + local observation ledger",model:"WaterSheep scores from model-safe weak evidence; known rare annotations, source labels, baseline membership, Combo route, and Combo-derived outcome labels are withheld",policy:"fixed utility weights outside model",execution:"none"},provenance:{runtime_schema:R.schema,design_reference:(R.ui||{}).design_reference}};
+ var obj={schema:"don-combo-shadow-comparison/v0.6",generated_at:R.generated_at,authority:"none",comparison:cmp,selected_candidate:c,receipt:R.receipt||null,run_control:R.run_control||null,baseline_verification:parity,ml_lab_summary:R.ml_lab?{schema:R.ml_lab.schema,trace_enabled:R.ml_lab.trace_enabled,events_total:R.ml_lab.events_total,predicted_events:R.ml_lab.predicted_events,snapshots_in_artifact:R.ml_lab.snapshots_in_artifact}:null,boundaries:{facts:"KoLmafia local prefs + Combo rare corpus + local observation ledger",model:"WaterSheep scores from model-safe weak evidence; known rare annotations, source labels, baseline membership, Combo route, and Combo-derived outcome labels are withheld",policy:"fixed utility weights outside model",execution:"none"},provenance:{runtime_schema:R.schema,design_reference:(R.ui||{}).design_reference}};
  document.getElementById("packetText").textContent=JSON.stringify(obj,null,2)
 }
 function render(){
@@ -168,13 +335,13 @@ function render(){
  document.getElementById("agreement").innerHTML=bridge==null?"Comparison waiting for baseline context.":cmp.agreement?"<span class='fact'>AGREEMENT · Combo baseline ranked #1 in the blinded pool</span>":"<span class='model'>DISAGREEMENT · Combo baseline ranked #"+cmp.baseline_rank+" of "+cmp.pool_size+"</span>";
  document.getElementById("readiness").innerHTML="<div class='mini'><b class='"+(cmp.evidence_maturity==="COLD_START"?"policy":"fact")+"'>"+esc(cmp.evidence_maturity||"—")+"</b><span>evidence maturity</span></div><div class='mini'><b>"+(cmp.top_vs_second_margin==null?"—":Number(cmp.top_vs_second_margin).toFixed(4))+"</b><span>top vs #2 margin</span></div><div class='mini'><b>"+esc(cmp.ranking_separation||"—")+"</b><span>ranking separation · not confidence</span></div>";
  var m=R.matrix||{},tail=obs.session_tail||{};document.getElementById("stats").innerHTML=evItem("real tile cells",Number(m.real_tile_cells||0).toLocaleString())+evItem("known rare records",Number(combo.rare_tile_records||0).toLocaleString())+evItem("observed fronts",Number(obs.fronts_recorded||0).toLocaleString())+evItem("session events +last poll",Number(tail.events_added||0))+evItem("pool members",cands.length)+evItem("observed pool members",Number(cmp.observed_candidates||0))+evItem("baseline rank",cmp.baseline_rank==null?"—":cmp.baseline_rank+"/"+cmp.pool_size)+evItem("session cursor bytes",Number(tail.offset||0).toLocaleString());
- document.getElementById("candidateTable").innerHTML=cands.length?"<table><thead><tr><th>#</th><th>Front</th><th>Human source</th><th>Utility</th><th>FACT evidence</th><th>MODEL score mass</th></tr></thead><tbody>"+cands.map(function(c,i){var e=c.evidence||{},tag=c.is_combo_baseline?" <span class='fact'>BLINDED BASELINE</span>":"";return"<tr class='candidate' data-i='"+i+"'><td class='rank'>"+(i+1)+"</td><td><b>"+c.minute+"</b>"+tag+"</td><td><span class='source'>"+esc(c.source)+"</span></td><td class='mono'>"+(c.utility==null?"—":Number(c.utility).toFixed(4))+"</td><td class='muted'>layouts "+(e.layout_snapshots||0)+" · events "+(e.session_events||0)+"<br>bucket "+e.hilbert_bucket_256+"<br>age "+(e.last_seen_age_hours==null?"never":e.last_seen_age_hours+"h")+"</td><td>"+scoreBars(c.watersheep&&c.watersheep.score_mass)+"</td></tr>"}).join("")+"</tbody></table>":"No candidates.";
+ var mr=modelRankMap();document.getElementById("candidateTable").innerHTML=cands.length?"<table><thead><tr><th>Policy rank</th><th>Model rank</th><th>Front</th><th>Bucket</th><th>Human source</th><th>Model utility</th><th>Final utility</th><th>FACT evidence</th><th>MODEL score mass</th></tr></thead><tbody>"+cands.map(function(c,i){var e=c.evidence||{},u=c.utility_components||{},tag=c.is_combo_baseline?" <span class='fact'>BLINDED BASELINE</span>":"";return"<tr class='candidate' data-i='"+i+"'><td class='rank'>"+(i+1)+"</td><td class='rank'>"+mr[i]+"</td><td><b>"+c.minute+"</b>"+tag+"</td><td class='mono'>"+e.hilbert_bucket_256+"</td><td><span class='source'>"+esc(c.source)+"</span></td><td class='mono'>"+Number(u.model||0).toFixed(4)+"</td><td class='mono'>"+(c.utility==null?"—":Number(c.utility).toFixed(4))+"</td><td class='muted'>layouts "+(e.layout_snapshots||0)+" · events "+(e.session_events||0)+"<br>age "+(e.last_seen_age_hours==null?"never":e.last_seen_age_hours+"h")+"</td><td>"+scoreBars(c.watersheep&&c.watersheep.score_mass)+"</td></tr>"}).join("")+"</tbody></table>":"No candidates.";
  document.querySelectorAll(".candidate").forEach(function(row){row.addEventListener("click",function(){selectCandidate(Number(row.getAttribute("data-i")))})});
- var ref=(R.ui||{}).design_reference||{},browser=comboBaseline(),parity=(browser&&bridge)?(browser.tile.minute===bridge.minute&&browser.tile.row===bridge.row&&browser.tile.column===bridge.column):null;
- document.getElementById("lineage").innerHTML="<dt>Runtime schema</dt><dd>"+esc(R.schema)+"</dd><dt>Generated</dt><dd>"+esc(R.generated_at)+"</dd><dt>Run status</dt><dd>"+esc(run.status||"unknown")+"</dd><dt>Requested combs</dt><dd>"+esc(run.requested_combs==null?"—":run.requested_combs)+"</dd><dt>Completed combs</dt><dd>"+esc(run.completed_combs==null?"—":run.completed_combs)+"</dd><dt>End reason</dt><dd>"+esc(run.end_reason||"unknown")+"</dd><dt>Interrupt consumed</dt><dd>"+esc(String(!!run.interrupt_consumed))+"</dd><dt>ML event delta</dt><dd>"+esc(run.ml_event_delta==null?"—":run.ml_event_delta)+"</dd><dt>Trace span complete</dt><dd>"+esc(String(!!run.ml_trace_span_complete))+"</dd><dt>Baseline parity</dt><dd>"+(parity===null?"pending":parity?"PASS":"MISMATCH")+"</dd><dt>Context</dt><dd>"+esc(combo.context_file)+"</dd><dt>Rare corpus</dt><dd>"+esc(combo.raretiles_file)+"</dd><dt>Prefs</dt><dd>"+esc(combo.prefs_file)+"</dd><dt>Observation ledger</dt><dd>"+esc(obs.ledger_file)+"</dd><dt>Receipt log</dt><dd>"+esc(receipt.jsonl_file)+"</dd><dt>Receipt state</dt><dd>"+esc(receipt.state_sha256)+"</dd><dt>WaterSheep</dt><dd>"+esc(ws.endpoint)+"</dd><dt>Calibration</dt><dd>"+esc(ws.calibration)+"</dd><dt>UI reference</dt><dd>"+esc(ref.repository)+" @ "+esc(ref.commit)+"</dd><dt>Reference use</dt><dd>"+esc(ref.use)+"</dd>";
- renderMlLab();
+ var ui=R.ui||{},ref=ui.design_reference||{},rep=ui.representation_reference||{},hRef=ui.hilbert_ui_reference||{},browser=comboBaseline(),parity=(browser&&bridge)?(browser.tile.minute===bridge.minute&&browser.tile.row===bridge.row&&browser.tile.column===bridge.column):null;
+ document.getElementById("lineage").innerHTML="<dt>Runtime schema</dt><dd>"+esc(R.schema)+"</dd><dt>Generated</dt><dd>"+esc(R.generated_at)+"</dd><dt>Run status</dt><dd>"+esc(run.status||"unknown")+"</dd><dt>Requested combs</dt><dd>"+esc(run.requested_combs==null?"—":run.requested_combs)+"</dd><dt>Completed combs</dt><dd>"+esc(run.completed_combs==null?"—":run.completed_combs)+"</dd><dt>End reason</dt><dd>"+esc(run.end_reason||"unknown")+"</dd><dt>Interrupt consumed</dt><dd>"+esc(String(!!run.interrupt_consumed))+"</dd><dt>ML event delta</dt><dd>"+esc(run.ml_event_delta==null?"—":run.ml_event_delta)+"</dd><dt>Trace span complete</dt><dd>"+esc(String(!!run.ml_trace_span_complete))+"</dd><dt>Baseline parity</dt><dd>"+(parity===null?"pending":parity?"PASS":"MISMATCH")+"</dd><dt>Context</dt><dd>"+esc(combo.context_file)+"</dd><dt>Rare corpus</dt><dd>"+esc(combo.raretiles_file)+"</dd><dt>Prefs</dt><dd>"+esc(combo.prefs_file)+"</dd><dt>Observation ledger</dt><dd>"+esc(obs.ledger_file)+"</dd><dt>Receipt log</dt><dd>"+esc(receipt.jsonl_file)+"</dd><dt>Receipt state</dt><dd>"+esc(receipt.state_sha256)+"</dd><dt>WaterSheep</dt><dd>"+esc(ws.endpoint)+"</dd><dt>Calibration</dt><dd>"+esc(ws.calibration)+"</dd><dt>Layout reference</dt><dd>"+esc(ref.repository)+" @ "+esc(ref.commit)+"</dd><dt>Layout use</dt><dd>"+esc(ref.use)+"</dd><dt>Representation reference</dt><dd>"+esc(rep.repository)+"/"+esc(rep.path)+"</dd><dt>Representation use</dt><dd>"+esc(rep.use)+"</dd><dt>Hilbert interaction reference</dt><dd>"+esc(hRef.source)+"</dd>";
+ renderMlLab();renderAtlasAll(atlasAddress);
  document.getElementById("rawRuntime").textContent=JSON.stringify({schema:R.schema,generated_at:R.generated_at,mode:R.mode,authority:R.authority,note:R.note,run_control:R.run_control,combo:R.combo,observations:R.observations,watersheep:R.watersheep,comparison:R.comparison,ml_lab:R.ml_lab,receipt:R.receipt,ui:R.ui},null,2);
- if(cands.length){selected=Math.min(selected,cands.length-1);selectCandidate(selected)}else draw()
+ if(cands.length){selected=Math.min(selected,cands.length-1);selectCandidate(selected,atlasAddress)}else{renderAtlasAll(atlasAddress);draw()}
 }
 document.getElementById("copyPacket").addEventListener("click",function(){var text=document.getElementById("packetText").textContent;navigator.clipboard.writeText(text).then(function(){document.getElementById("copyPacket").textContent="Copied";setTimeout(function(){document.getElementById("copyPacket").textContent="Copy packet"},1200)}).catch(function(){})});
 
@@ -206,7 +373,7 @@ function exportHtmlSnapshot(){
    button.setAttribute("title","Static snapshot: controls disabled")
  });
  var meta=[
-   ["don-combo-snapshot-schema","don-combo-html-snapshot/v0.5"],
+   ["don-combo-snapshot-schema","don-combo-html-snapshot/v0.6"],
    ["don-combo-snapshot-exported-at",exportedAt],
    ["don-combo-runtime-schema",R.schema||""],
    ["don-combo-runtime-generated-at",runtimeGenerated||""],
@@ -226,12 +393,12 @@ function exportHtmlSnapshot(){
  banner.setAttribute("class","card");
  banner.setAttribute("data-role","snapshot-manifest");
  banner.setAttribute("style","max-width:1500px;margin:14px auto 0");
- banner.innerHTML="<div class='eyebrow'>Frozen HTML snapshot</div><div class='lineage' style='margin-top:8px'><dt>Snapshot schema</dt><dd>don-combo-html-snapshot/v0.5</dd><dt>Exported</dt><dd>"+esc(exportedAt)+"</dd><dt>Runtime generated</dt><dd>"+esc(runtimeGenerated||"—")+"</dd><dt>Run status</dt><dd>"+esc(run.status||"unknown")+"</dd><dt>Requested combs</dt><dd>"+esc(run.requested_combs==null?"—":run.requested_combs)+"</dd><dt>Completed combs</dt><dd>"+esc(run.completed_combs==null?"—":run.completed_combs)+"</dd><dt>End reason</dt><dd>"+esc(run.end_reason||"unknown")+"</dd><dt>Interrupt consumed</dt><dd>"+esc(String(!!run.interrupt_consumed))+"</dd><dt>ML events before → after</dt><dd>"+esc((run.ml_events_before==null?"—":run.ml_events_before)+" → "+(run.ml_events_after==null?"—":run.ml_events_after))+"</dd><dt>ML event delta</dt><dd>"+esc(run.ml_event_delta==null?"—":run.ml_event_delta)+"</dd><dt>Trace span complete</dt><dd>"+esc(String(!!run.ml_trace_span_complete))+"</dd><dt>Receipt state</dt><dd>"+esc(receipt.state_sha256||"—")+"</dd><dt>Authority</dt><dd>none · static evidence only</dd></div>";
+ banner.innerHTML="<div class='eyebrow'>Frozen HTML snapshot</div><div class='lineage' style='margin-top:8px'><dt>Snapshot schema</dt><dd>don-combo-html-snapshot/v0.6</dd><dt>Exported</dt><dd>"+esc(exportedAt)+"</dd><dt>Runtime generated</dt><dd>"+esc(runtimeGenerated||"—")+"</dd><dt>Run status</dt><dd>"+esc(run.status||"unknown")+"</dd><dt>Requested combs</dt><dd>"+esc(run.requested_combs==null?"—":run.requested_combs)+"</dd><dt>Completed combs</dt><dd>"+esc(run.completed_combs==null?"—":run.completed_combs)+"</dd><dt>End reason</dt><dd>"+esc(run.end_reason||"unknown")+"</dd><dt>Interrupt consumed</dt><dd>"+esc(String(!!run.interrupt_consumed))+"</dd><dt>ML events before → after</dt><dd>"+esc((run.ml_events_before==null?"—":run.ml_events_before)+" → "+(run.ml_events_after==null?"—":run.ml_events_after))+"</dd><dt>ML event delta</dt><dd>"+esc(run.ml_event_delta==null?"—":run.ml_event_delta)+"</dd><dt>Trace span complete</dt><dd>"+esc(String(!!run.ml_trace_span_complete))+"</dd><dt>Receipt state</dt><dd>"+esc(receipt.state_sha256||"—")+"</dd><dt>Authority</dt><dd>none · static evidence only</dd></div>";
  var top=clone.querySelector(".top");if(top&&top.nextSibling)top.parentNode.insertBefore(banner,top.nextSibling);else body.insertBefore(banner,body.firstChild);
  var machine=document.createElement("script");
  machine.setAttribute("type","application/json");
  machine.setAttribute("id","don-combo-snapshot-runtime");
- machine.textContent=safeSnapshotJson({schema:"don-combo-html-snapshot/v0.5",exported_at:exportedAt,runtime:R,selected_candidate_index:selected,agent_packet:JSON.parse(document.getElementById("packetText").textContent||"{}")});
+ machine.textContent=safeSnapshotJson({schema:"don-combo-html-snapshot/v0.6",exported_at:exportedAt,runtime:R,selected_candidate_index:selected,agent_packet:JSON.parse(document.getElementById("packetText").textContent||"{}")});
  body.appendChild(machine);
  var note=document.createComment(" don_combo frozen snapshot: scripts disabled; embedded runtime is inert application/json ");
  body.appendChild(note);

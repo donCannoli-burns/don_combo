@@ -1,6 +1,11 @@
 // don_combo WaterSheep matrix launcher.
-// Read-only: player/day runtime context is provided by installed kol-goblin-docs.
+// Read-only with respect to KoL. When kol-goblin-docs is initialized, opening
+// this surface queues a one-shot advisory matrix refresh through kol-ash-it-down.
 void main() {
+  if (get_property("kolGoblinDocsLastRefresh") != "") {
+    cli_execute("call kol-goblin-docs.ash refresh combo-matrix");
+  }
+
   string target = "don_combo_matrix.html?player=" + my_id() + "&gameday=" + gameday_to_int();
   writeln("<!doctype html>");
   writeln("<html><head><meta charset='utf-8'><title>don_combo matrix</title></head>");

@@ -16,6 +16,7 @@ import {
 } from "kolmafia";
 import { $items, get, property, Session, set, sinceKolmafiaRevision } from "libram";
 
+import { traceTargetPrediction } from "./don_combo_runtime";
 import { recordBeachObservation, type BeachOutcome } from "./runtime/observations";
 
 // Gotta print in a legible colour.
@@ -86,6 +87,38 @@ function addFalseRare(tile: BeachTile) {
 // We precede the function name with an underscore to show that it's not a front, user-facing function
 // In this script, really only main is, but we may port this code into libram at some point
 // We'd want to export the comb function, but not _comb
+function mlTraceEnabled(): boolean {
+  return ["1", "true", "target", "on"].includes(
+    String(getProperty("don_combo_ml_trace") || "").toLowerCase(),
+  );
+}
+
+function captureTargetPrediction(minute: number): Record<string, unknown> | null {
+  if (!mlTraceEnabled()) return null;
+  try {
+    return traceTargetPrediction(minute);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    print(`don_combo ML trace unavailable: ${message} · Combo continues normally.`, "gray");
+    return {
+      schema: "don-combo-target-prediction/v0.1",
+      generated_at: new Date().toISOString(),
+      minute,
+      error: message,
+      authority: "none",
+    };
+  }
+}
+
+function sessionDelta(before: Session): { meat: number; items: Record<string, number> } {
+  const delta = Session.current().diff(before);
+  const items: Record<string, number> = {};
+  for (const [item, quantity] of delta.items) {
+    if (quantity) items[item.name] = quantity;
+  }
+  return { meat: delta.meat, items };
+}
+
 function _comb(tile: BeachTile): void {
   // Here, we destructure the BeachTile object into three separate variables
   // It's going to be really tedious to write tile.minute and tile.row all the time
@@ -109,8 +142,22 @@ function _comb(tile: BeachTile): void {
       .map((rowLayout) => [parseInt(rowLayout[0]), rowLayout[1].split("")] as [number, string[]]),
   );
 
-  const finishObservation = (outcome: BeachOutcome) =>
-    recordBeachObservation(minute, layoutString, outcome);
+  const preActionPrediction = captureTargetPrediction(minute);
+  const finishObservation = (
+    outcome: BeachOutcome,
+    actualRow: number,
+    actualColumn: number,
+    before: Session,
+  ) => {
+    const delta = sessionDelta(before);
+    recordBeachObservation(minute, layoutString, outcome, {
+      planned_target: { minute, row, column },
+      actual_comb: { minute, row: actualRow, column: actualColumn },
+      items: delta.items,
+      meat: delta.meat,
+      pre_action_prediction: preActionPrediction,
+    });
+  };
 
   // the Array.find() method returnns either an element of the array that fits, or undefined
   // We convert our Map to an Array here to use the .find() method
@@ -121,8 +168,9 @@ function _comb(tile: BeachTile): void {
     // This is beneficial to us! Arrays are indexed starting at 1, so .findIndex() gets us just what we want
     const whaleColumn = whaleRow[1].findIndex((x) => x === "W");
     print("We found a whale. To hey deze's heart, we'll stab at it.", "red");
+    const before = Session.current();
     cliExecute(`beach comb ${whaleRow[0]} ${whaleColumn}`);
-    finishObservation("whale");
+    finishObservation("whale", whaleRow[0], whaleColumn, before);
     // By returning partway through, we avoid needing to use "else"
     // With the exception of try...finally shenanigans, using the return keyword will just immediately terminate the function
     return;
@@ -147,6 +195,7 @@ function _comb(tile: BeachTile): void {
     if (rareRow[column] !== "c") {
       print("Our rare tile is uncombed, so let's go ahead and change that.", "red");
       // Grab the output of our comb and lowercase the resulting text
+      const before = Session.current();
       const output = cliExecuteOutput(`beach comb ${row} ${column}`).toLowerCase();
 
       // We exclude grain of sand as it means we didn't comb a twinkle as expected
@@ -161,7 +210,12 @@ function _comb(tile: BeachTile): void {
         addFalseRare(tile);
       }
 
-      finishObservation(falseRareRough ? "false_rare_rough" : "rare_target");
+      finishObservation(
+        falseRareRough ? "false_rare_rough" : hasCommonItem ? "false_rare_item" : "rare_target",
+        row,
+        column,
+        before,
+      );
       return;
     }
   }
@@ -172,8 +226,9 @@ function _comb(tile: BeachTile): void {
   if (firstTwinkleRow) {
     print("Our rare tile is combed, but we found a twinkle!", HIGHLIGHT);
     const twinkleColumn = firstTwinkleRow[1].findIndex((x) => x === "t");
+    const before = Session.current();
     cliExecute(`beach comb ${firstTwinkleRow[0]} ${twinkleColumn}`);
-    finishObservation("twinkle_fallback");
+    finishObservation("twinkle_fallback", firstTwinkleRow[0], twinkleColumn, before);
     return;
   }
 
@@ -186,14 +241,16 @@ function _comb(tile: BeachTile): void {
       HIGHLIGHT,
     );
     const roughcolumn = firstRoughRow[1].findIndex((x) => x === "r");
+    const before = Session.current();
     cliExecute(`beach comb ${firstRoughRow[0]} ${roughcolumn}`);
-    finishObservation("rough_fallback");
+    finishObservation("rough_fallback", firstRoughRow[0], roughcolumn, before);
     return;
   }
 
   print("We've exhausted all other options, so we're combing an already-combed tile.", HIGHLIGHT);
+  const before = Session.current();
   cliExecute(`beach comb ${row} ${column}`);
-  finishObservation("exhausted_fallback");
+  finishObservation("exhausted_fallback", row, column, before);
 }
 
 // Alright now this is pretty cool

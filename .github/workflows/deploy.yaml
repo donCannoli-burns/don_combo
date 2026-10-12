@@ -33,6 +33,19 @@ jobs:
       - name: Build
         run: yarn run build
 
+      - name: Relay inline JavaScript syntax
+        run: |
+          node <<'NODE'
+          const fs = require("fs");
+          const html = fs.readFileSync("mafia/relay/don_combo_matrix.html", "utf8");
+          const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)]
+            .map((m) => m[1].trim())
+            .filter(Boolean);
+          if (!scripts.length) throw new Error("no inline relay script found");
+          for (const source of scripts) new Function(source);
+          console.log(`relay inline JS syntax: PASS (${scripts.length} script block)`);
+          NODE
+
   lint:
     runs-on: ubuntu-latest
     steps:

@@ -1,0 +1,818 @@
+import {
+  appendBufferToFile,
+  bufferToFile,
+  fileToBuffer,
+  fileToMap,
+  gamedayToInt,
+  getProperty,
+  mapToFile,
+  myId,
+  print,
+  visitUrl,
+} from "kolmafia";
+import {
+  type BeachTile,
+  type Candidate,
+  type CandidateEvidence,
+  type ObservationLedger,
+  type RarePoint,
+  type RuntimeRequestV1,
+  type RuntimeResponseV1,
+  type WaterSheepRequest,
+  type WaterSheepResponse,
+  decodeRuntimeRequest,
+  fact,
+  relation,
+} from "./runtime/contracts";
+import { loadObservationLedger } from "./runtime/observations";
+
+const GRID = 1024;
+const REAL = 1_000_000;
+const LABELS = ["rare", "whale", "sandcastle", "twinkle", "regular", "scratched"] as const;
+const MODEL_KEYS: Record<string, (typeof LABELS)[number]> = {
+  A: "rare",
+  B: "whale",
+  C: "sandcastle",
+  D: "twinkle",
+  E: "regular",
+  F: "scratched",
+};
+const WEIGHTS: Record<(typeof LABELS)[number], number> = {
+  rare: 1,
+  whale: 0.86,
+  sandcastle: 0.66,
+  twinkle: 0.38,
+  regular: 0.1,
+  scratched: 0,
+};
+const ENDPOINT = "http://127.0.0.1:8766/v1/kolmafia";
+const DESIGN_REFERENCE = {
+  repository: "es-3581100/math-by-design",
+  commit: "4f3cfebc0bc8f2f243080d9c758290323eeaf595",
+  use: "hierarchy, evidence/provenance separation, semantic handoff; reference not template",
+};
+const TYPE_REFERENCE = {
+  repository: "together-science/symtype",
+  use: "explicit properties, relations, and indeterminate truth as TypeScript design inspiration only",
+};
+
+function n(value: unknown, fallback = 0): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function round(value: number, places = 6): number {
+  const scale = Math.pow(10, places);
+  return Math.round(value * scale) / scale;
+}
+
+function dFor(minute: number, row: number, column: number): number {
+  return (minute - 1) * 100 + (row - 1) * 10 + column;
+}
+
+function xyFor(d: number): [number, number] {
+  let x = 0;
+  let y = 0;
+  let t = d;
+  let s = 1;
+  while (s < GRID) {
+    const rx = (t >> 1) & 1;
+    const ry = (t ^ rx) & 1;
+    if (ry === 0) {
+      if (rx === 1) {
+        x = s - 1 - x;
+        y = s - 1 - y;
+      }
+      const temp = x;
+      x = y;
+      y = temp;
+    }
+    x += s * rx;
+    y += s * ry;
+    t >>= 2;
+    s <<= 1;
+  }
+  return [x, y];
+}
+
+function parseFalseRares(): Set<string> {
+  const result = new Set<string>();
+  for (const raw of String(getProperty("combo_false_rares") || "").split(";")) {
+    if (/^\d+,\d+,\d+$/.test(raw)) result.add(raw);
+  }
+  return result;
+}
+
+function loadRarePoints(): RarePoint[] {
+  const parsed = JSON.parse(String(fileToBuffer("raretiles.json") || "[]")) as BeachTile[];
+  const falseRares = parseFalseRares();
+  return parsed
+    .filter(
+      (tile) =>
+        Number.isInteger(tile.minute) &&
+        Number.isInteger(tile.row) &&
+        Number.isInteger(tile.column) &&
+        tile.minute >= 1 &&
+        tile.minute <= 10000 &&
+        tile.row >= 1 &&
+        tile.row <= 10 &&
+        tile.column >= 0 &&
+        tile.column <= 9,
+    )
+    .map((tile) => {
+      const d = dFor(tile.minute, tile.row, tile.column);
+      const [x, y] = xyFor(d);
+      return {
+        ...tile,
+        d,
+        x,
+        y,
+        false_rare: falseRares.has(`${tile.minute},${tile.row},${tile.column}`),
+      };
+    });
+}
+
+function comboShuffle(points: RarePoint[], player: number): RarePoint[] {
+  const work = points.slice();
+  const output: RarePoint[] = [];
+  let seed = player;
+  while (work.length) {
+    seed++;
+    const index = Math.floor(Math.sin(seed) * work.length);
+    output.push(...work.splice(index));
+  }
+  return output;
+}
+
+function comboBaseline(points: RarePoint[]) {
+  if (!points.length) return null;
+  const shuffled = comboShuffle(points, n(myId()));
+  const day = 1 + (gamedayToInt() % 8);
+  const rowsHidden = 4 - Math.abs(4 - day);
+  const last = n(getProperty("combo_lastTileCombed"), 0);
+  for (let step = 1; step <= shuffled.length; step++) {
+    const index = (last + step) % shuffled.length;
+    const tile = shuffled[index];
+    if (tile.row > rowsHidden && !tile.false_rare) {
+      return {
+        minute: tile.minute,
+        row: tile.row,
+        column: tile.column,
+        d: tile.d,
+        x: tile.x,
+        y: tile.y,
+        shuffled_index: index,
+        skipped_inaccessible: step - 1,
+        rows_hidden: rowsHidden,
+        player: n(myId()),
+        gameday: gamedayToInt(),
+      };
+    }
+  }
+  return null;
+}
+
+function loadContext(): { context: Record<string, unknown>; file: string } {
+  const map: Record<string, string> = {};
+  if (fileToMap("kol-goblin-docs/runtime.tsv", map) && map.player_id && map.gameday) {
+    return {
+      context: {
+        player: n(map.player_id),
+        player_name: map.player || null,
+        gameday: n(map.gameday),
+        captured_at: map.generated_at || null,
+        source: "kol-goblin-docs",
+      },
+      file: "kol-goblin-docs/runtime.tsv",
+    };
+  }
+  return {
+    context: {
+      player: n(myId()),
+      gameday: gamedayToInt(),
+      captured_at: null,
+      source: "kolmafia-native",
+    },
+    file: "KoLmafia native functions",
+  };
+}
+
+function symbolRates(entry: Record<string, any>): Record<string, number> {
+  const symbols = (entry.symbols || {}) as Record<string, number>;
+  const visible = Math.max(1, n(symbols.visible));
+  const result: Record<string, number> = {};
+  for (const key of ["whale", "twinkle", "rough", "combed", "other"]) {
+    result[key] = round(n(symbols[key]) / visible);
+  }
+  return result;
+}
+
+function outcomeRates(entry: Record<string, any>): Record<string, number> {
+  const outcomes = (entry.outcomes || {}) as Record<string, number>;
+  const events = Math.max(1, n(entry.session_events));
+  const result: Record<string, number> = {};
+  for (const key of [
+    "whale",
+    "rare_target",
+    "false_rare_rough",
+    "twinkle_fallback",
+    "rough_fallback",
+    "exhausted_fallback",
+    "unknown",
+  ]) {
+    result[key] = round(n(outcomes[key]) / events);
+  }
+  return result;
+}
+
+function evidenceFor(minute: number, current: number, ledger: ObservationLedger): CandidateEvidence {
+  const entry = (ledger.fronts[String(minute)] || {}) as Record<string, any>;
+  const layouts = n(entry.layout_snapshots);
+  const events = n(entry.session_events);
+  const seen = n(entry.last_seen_epoch, 0);
+  const d = dFor(minute, 1, 0);
+  const [x, y] = xyFor(d);
+  return {
+    minute_fraction: round((minute - 1) / 9999),
+    hilbert_bucket_256: Math.floor(d / 4096),
+    distance_from_current: current ? Math.abs(minute - current) : null,
+    layout_snapshots: layouts,
+    session_events: events,
+    observation_count: layouts + events,
+    last_seen_age_hours: seen ? round(Math.max(0, Date.now() / 1000 - seen) / 3600, 3) : null,
+    last_seen_turn: entry.last_seen_turn == null ? null : n(entry.last_seen_turn),
+    observed_symbol_rates: symbolRates(entry),
+    observed_outcome_rates: outcomeRates(entry),
+    sand_per_event: events ? round(n((entry.items || {})["grain of sand"]) / events, 4) : 0,
+    representative: { d, x, y, row: 1, column: 0 },
+  };
+}
+
+function sampleMinutes(
+  ledger: ObservationLedger,
+  count: number,
+  current: number,
+  exclude: Set<number>,
+): Array<[number, "current" | "observed" | "explore"]> {
+  const selected: number[] = [];
+  const sources: Record<string, "current" | "observed" | "explore"> = {};
+  const add = (minute: number, source: "current" | "observed" | "explore") => {
+    if (minute >= 1 && minute <= 10000 && !exclude.has(minute) && !sources[String(minute)]) {
+      selected.push(minute);
+      sources[String(minute)] = source;
+    }
+  };
+  if (current) add(current, "current");
+
+  const observed = Object.entries(ledger.fronts).map(([minuteText, raw]) => {
+    const entry = raw as Record<string, any>;
+    const symbols = (entry.symbols || {}) as Record<string, number>;
+    const outcomes = (entry.outcomes || {}) as Record<string, number>;
+    const visible = Math.max(1, n(symbols.visible));
+    const events = Math.max(1, n(entry.session_events));
+    const layoutSignal =
+      (n(symbols.whale) * 4 + n(symbols.twinkle) * 2 + n(symbols.rough)) / visible;
+    const eventSignal =
+      (n(outcomes.whale) * 4 +
+        n(outcomes.rare_target) * 3 +
+        n(outcomes.twinkle_fallback) * 2 +
+        n(outcomes.rough_fallback) * 0.25) /
+      events;
+    return {
+      minute: n(minuteText),
+      signal: layoutSignal + eventSignal,
+      observations: n(entry.layout_snapshots) + n(entry.session_events),
+    };
+  });
+  observed.sort(
+    (a, b) => b.signal - a.signal || b.observations - a.observations || a.minute - b.minute,
+  );
+  const observedTarget = Math.max(1, Math.floor(count / 3)) + (current ? 1 : 0);
+  for (const item of observed) {
+    if (selected.length >= observedTarget) break;
+    add(item.minute, "observed");
+  }
+
+  let seed =
+    (n(getProperty("combo_lastTileCombed")) * 2654435761 +
+      current * 2246822519 +
+      Object.keys(ledger.fronts).length * 3266489917 +
+      count) >>>
+    0;
+  while (selected.length < count) {
+    seed = (Math.imul(1664525, seed) + 1013904223) >>> 0;
+    add(1 + (seed % 10000), "explore");
+  }
+  return selected.slice(0, count).map((minute) => [minute, sources[String(minute)]]);
+}
+
+function candidateFrontier(
+  ledger: ObservationLedger,
+  baseline: ReturnType<typeof comboBaseline>,
+  count = 6,
+): Candidate[] {
+  const current = n(getProperty("_beachMinutes"));
+  const result: Candidate[] = [];
+  if (baseline) {
+    const evidence = evidenceFor(baseline.minute, current, ledger);
+    result.push({
+      minute: baseline.minute,
+      source: "combo-baseline",
+      is_combo_baseline: true,
+      evidence,
+      representative: {
+        d: baseline.d,
+        x: baseline.x,
+        y: baseline.y,
+        row: baseline.row,
+        column: baseline.column,
+      },
+      utility: null,
+      utility_components: null,
+      watersheep: null,
+    });
+  }
+  const exclude = new Set<number>(baseline ? [baseline.minute] : []);
+  for (const [minute, source] of sampleMinutes(ledger, count, current, exclude)) {
+    const evidence = evidenceFor(minute, current, ledger);
+    result.push({
+      minute,
+      source,
+      is_combo_baseline: false,
+      evidence,
+      representative: evidence.representative,
+      utility: null,
+      utility_components: null,
+      watersheep: null,
+    });
+  }
+  return result;
+}
+
+function waterSheepPayload(candidate: Candidate): WaterSheepRequest {
+  const evidence = candidate.evidence;
+  return {
+    state: {
+      mode: "shadow-only; no action authorized",
+      beach_minute: candidate.minute,
+      minute_fraction: evidence.minute_fraction,
+      hilbert_bucket_256: evidence.hilbert_bucket_256,
+      distance_from_current: evidence.distance_from_current,
+      layout_snapshots: evidence.layout_snapshots,
+      session_events: evidence.session_events,
+      last_seen_age_hours: evidence.last_seen_age_hours,
+      observed_symbol_rates: evidence.observed_symbol_rates,
+      observed_outcome_rates: evidence.observed_outcome_rates,
+      sand_per_event: evidence.sand_per_event,
+      current_layout_if_same_front:
+        candidate.minute === n(getProperty("_beachMinutes"))
+          ? getProperty("_beachLayout")
+          : "not observed",
+      withheld:
+        "known rare annotations, Combo target/order, candidate source labels, baseline membership, and rare count are intentionally withheld",
+    },
+    questions: {
+      tile_class: {
+        type: "choice",
+        instructions:
+          "Experimental shadow scoring only. Assign relative score mass to six neutral outcome classes from the supplied weak evidence. Do not choose an action. The class keys are intentionally neutral.",
+        criteria: {
+          A: "rare tile opportunity",
+          B: "whale opportunity",
+          C: "sandcastle opportunity",
+          D: "twinkle or uncommon opportunity",
+          E: "ordinary regular beach opportunity",
+          F: "already exhausted, combed, or low-value opportunity",
+        },
+      },
+    },
+  };
+}
+
+function askWaterSheep(candidate: Candidate): { scores: Record<string, number>; ms: number } {
+  const payload = waterSheepPayload(candidate);
+  const started = Date.now();
+  const url = ENDPOINT + "?request=" + encodeURIComponent(JSON.stringify(payload));
+  const raw = String(visitUrl(url, false) || "");
+  const parsed = JSON.parse(raw) as WaterSheepResponse;
+  if (parsed.error) throw new Error(parsed.error);
+  const probabilities = parsed.answers?.tile_class?.probabilities || {};
+  const scores: Record<string, number> = {};
+  for (const [key, label] of Object.entries(MODEL_KEYS)) scores[label] = n(probabilities[key]);
+  let total = Object.values(scores).reduce((sum, value) => sum + value, 0);
+  if (total <= 0) {
+    for (const label of LABELS) scores[label] = n(probabilities[label]);
+    total = Object.values(scores).reduce((sum, value) => sum + value, 0);
+  }
+  if (total <= 0) throw new Error("WaterSheep returned no tile_class score mass");
+  for (const label of LABELS) scores[label] = scores[label] / total;
+  return { scores, ms: Date.now() - started };
+}
+
+function scoreCandidate(
+  candidate: Candidate,
+  scores: Record<string, number>,
+): { utility: number; components: { model: number; exploration: number; observed: number } } {
+  const evidence = candidate.evidence;
+  const rates = evidence.observed_symbol_rates;
+  const outcomes = evidence.observed_outcome_rates;
+  const model = LABELS.reduce((sum, label) => sum + n(scores[label]) * WEIGHTS[label], 0);
+  const exploration = 0.08 / Math.sqrt(1 + evidence.observation_count);
+  const observed =
+    n(rates.whale) * 0.16 +
+    n(rates.twinkle) * 0.08 -
+    n(rates.combed) * 0.05 +
+    n(outcomes.whale) * 0.16 +
+    n(outcomes.rare_target) * 0.12 +
+    n(outcomes.twinkle_fallback) * 0.08 -
+    n(outcomes.rough_fallback) * 0.02 -
+    n(outcomes.exhausted_fallback) * 0.05;
+  return {
+    utility: round(model + exploration + observed),
+    components: {
+      model: round(model),
+      exploration: round(exploration),
+      observed: round(observed),
+    },
+  };
+}
+
+function comparison(candidates: Candidate[], baseline: ReturnType<typeof comboBaseline>, fronts: number) {
+  const scored = candidates.filter((candidate) => candidate.utility != null);
+  const top = scored[0];
+  const second = scored[1];
+  const margin =
+    top && second ? round((top.utility as number) - (second.utility as number)) : null;
+  const observedCandidates = scored.filter((candidate) => candidate.evidence.observation_count > 0)
+    .length;
+  const fraction = round(observedCandidates / Math.max(1, scored.length), 4);
+  const maturity =
+    observedCandidates === 0
+      ? "COLD_START"
+      : fraction < 0.5 || fronts < 10
+        ? "WARMING"
+        : "EVIDENCE_RICH";
+  const separation = margin == null || margin < 0.01 ? "LOW" : margin < 0.03 ? "MEDIUM" : "HIGH";
+  const baselineIndex = scored.findIndex((candidate) => candidate.is_combo_baseline);
+  const baselineCandidate = baselineIndex >= 0 ? scored[baselineIndex] : null;
+  return {
+    combo_baseline: baseline,
+    baseline_rank: baselineIndex >= 0 ? baselineIndex + 1 : null,
+    pool_size: scored.length,
+    shadow_top_minute: top?.minute ?? null,
+    shadow_top_source: top?.source ?? null,
+    agreement: Boolean(top?.is_combo_baseline),
+    top_vs_second_margin: margin,
+    top_vs_baseline_delta:
+      top && baselineCandidate
+        ? round((top.utility as number) - (baselineCandidate.utility as number))
+        : null,
+    observed_candidates: observedCandidates,
+    observed_candidate_fraction: fraction,
+    evidence_maturity: maturity,
+    ranking_separation: separation,
+    readiness_note: "Ranking separation is descriptive, not calibrated confidence.",
+  };
+}
+
+function layoutCells(minute: number, raw: string) {
+  if (!minute) return [];
+  const result: Array<Record<string, unknown>> = [];
+  for (const part of String(raw || "").split(",")) {
+    const split = part.indexOf(":");
+    if (split < 0) continue;
+    const row = n(part.substring(0, split));
+    if (row < 1 || row > 10) continue;
+    const symbols = part.substring(split + 1).slice(0, 10);
+    for (let column = 0; column < symbols.length; column++) {
+      const d = dFor(minute, row, column);
+      const [x, y] = xyFor(d);
+      result.push({ d, x, y, row, column, symbol: symbols[column] });
+    }
+  }
+  return result;
+}
+
+function sha256(text: string): string {
+  const rightRotate = (value: number, amount: number) => (value >>> amount) | (value << (32 - amount));
+  let ascii = unescape(encodeURIComponent(text));
+  const maxWord = Math.pow(2, 32);
+  const words: number[] = [];
+  const hash: number[] = [];
+  const k: number[] = [];
+  let primeCounter = 0;
+  const isComposite: Record<number, boolean> = {};
+  for (let candidate = 2; primeCounter < 64; candidate++) {
+    if (!isComposite[candidate]) {
+      for (let i = 0; i < 313; i += candidate) isComposite[i] = true;
+      hash[primeCounter] = (Math.pow(candidate, 0.5) * maxWord) | 0;
+      k[primeCounter++] = (Math.pow(candidate, 1 / 3) * maxWord) | 0;
+    }
+  }
+  ascii += "\x80";
+  while ((ascii.length % 64) - 56) ascii += "\x00";
+  for (let i = 0; i < ascii.length; i++) {
+    const code = ascii.charCodeAt(i);
+    words[i >> 2] |= code << (((3 - i) % 4) * 8);
+  }
+  words[words.length] = ((text.length * 8) / maxWord) | 0;
+  words[words.length] = text.length * 8;
+  for (let j = 0; j < words.length; ) {
+    const w = words.slice(j, (j += 16));
+    const oldHash = hash.slice(0, 8);
+    for (let i = 0; i < 64; i++) {
+      const w15 = w[i - 15];
+      const w2 = w[i - 2];
+      const a = hash[0];
+      const e = hash[4];
+      const temp1 =
+        hash[7] +
+        (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) +
+        ((e & hash[5]) ^ (~e & hash[6])) +
+        k[i] +
+        (w[i] =
+          i < 16
+            ? w[i]
+            : (w[i - 16] +
+                (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ (w15 >>> 3)) +
+                w[i - 7] +
+                (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ (w2 >>> 10))) |
+              0);
+      const temp2 =
+        (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) +
+        ((a & hash[1]) ^ (a & hash[2]) ^ (hash[1] & hash[2]));
+      hash.unshift((temp1 + temp2) | 0);
+      hash[4] = (hash[4] + temp1) | 0;
+      hash.pop();
+    }
+    for (let i = 0; i < 8; i++) hash[i] = (hash[i] + oldHash[i]) | 0;
+  }
+  return hash
+    .map((value) => {
+      let hex = "";
+      for (let j = 3; j + 1; j--) hex += ((value >> (j * 8)) & 255).toString(16).padStart(2, "0");
+      return hex;
+    })
+    .join("");
+}
+
+function emitReceipt(result: Record<string, any>) {
+  const candidates = (result.candidates as Candidate[]).map((candidate) => ({
+    minute: candidate.minute,
+    source: candidate.source,
+    is_combo_baseline: candidate.is_combo_baseline,
+    utility: candidate.utility,
+    score_mass: candidate.watersheep?.score_mass || null,
+    layout_snapshots: candidate.evidence.layout_snapshots,
+    session_events: candidate.evidence.session_events,
+    observation_count: candidate.evidence.observation_count,
+  }));
+  const stateBasis = {
+    combo_last_tile_index: result.combo.last_tile_index,
+    current_minute: result.combo.current_minute,
+    context: result.combo.context,
+    observation_fronts: result.observations.fronts_recorded,
+    candidates,
+  };
+  const stateSha = sha256(JSON.stringify(stateBasis));
+  const lastFile = "don_combo_matrix_last_receipt.json";
+  const logFile = "don_combo_matrix_receipts.jsonl";
+  let previous = "";
+  try {
+    previous = String(fileToBuffer(lastFile) || "");
+  } catch {
+    previous = "";
+  }
+  const appended = !previous.includes(stateSha);
+  const receipt = {
+    schema: "don-combo-shadow-receipt/v0.5",
+    generated_at: result.generated_at,
+    state_sha256: stateSha,
+    authority: "none",
+    comparison: result.comparison,
+    candidates,
+    observation_fronts: result.observations.fronts_recorded,
+    watersheep_calibration: result.watersheep.calibration,
+  };
+  if (appended) {
+    appendBufferToFile(JSON.stringify(receipt) + "\n", logFile);
+    bufferToFile(JSON.stringify(receipt, null, 2) + "\n", lastFile);
+  }
+  return {
+    schema: receipt.schema,
+    state_sha256: stateSha,
+    appended_this_run: appended,
+    last_receipt_file: lastFile,
+    jsonl_file: logFile,
+  };
+}
+
+function buildRuntime() {
+  const points = loadRarePoints();
+  const baseline = comboBaseline(points);
+  const ledger = loadObservationLedger();
+  const candidates = candidateFrontier(ledger, baseline, 6);
+  let status = "ready";
+  let error: string | null = null;
+  for (const candidate of candidates) {
+    if (error) break;
+    try {
+      const { scores, ms } = askWaterSheep(candidate);
+      candidate.watersheep = {
+        score_mass: scores,
+        ms,
+        calibration: "UNVALIDATED_FOR_KOL_BEACH",
+      };
+      const scored = scoreCandidate(candidate, scores);
+      candidate.utility = scored.utility;
+      candidate.utility_components = scored.components;
+    } catch (caught) {
+      status = "offline";
+      error = caught instanceof Error ? caught.message : String(caught);
+    }
+  }
+  candidates.sort(
+    (a, b) =>
+      (b.utility == null ? -1 : b.utility) - (a.utility == null ? -1 : a.utility) ||
+      a.minute - b.minute,
+  );
+  const current = n(getProperty("_beachMinutes"));
+  const context = loadContext();
+  const cmp = comparison(candidates, baseline, Object.keys(ledger.fronts).length);
+  const proof = {
+    facts: [
+      fact("FACT", "rare-corpus", "known", points.length, "raretiles.json"),
+      fact("FACT", "observation-fronts", "known", Object.keys(ledger.fronts).length, "native ledger"),
+      fact("MODEL", "kol-beach-calibration", "unknown", null, "WaterSheep"),
+      fact("FACT", "baseline-membership-model-input", "withheld", null, "input policy"),
+    ],
+    relations: [
+      relation("member-of", "combo-baseline", "candidate-pool", baseline ? true : null, "runtime construction"),
+      relation("visible-to-model", "baseline-membership", "WaterSheep", false, "blinded input policy"),
+      relation("authorizes", "WaterSheep", "KoL action", false, "authority boundary"),
+    ],
+    design_reference: TYPE_REFERENCE,
+  };
+  const result: Record<string, any> = {
+    schema: "don-combo-matrix-runtime/v0.5-ts",
+    generated_at: new Date().toISOString(),
+    mode: "shadow-only",
+    authority: "none",
+    claim:
+      "Score Combo's exact next successful target inside the same blinded WaterSheep pool as dynamic alternatives, without changing KoL state.",
+    note:
+      "TypeScript/Libram runtime. WaterSheep score mass is experimental and uncalibrated for KoL beach outcomes. Known rare annotations, source labels, baseline membership, and Combo route identity are withheld from model input.",
+    matrix: {
+      order: 10,
+      width: GRID,
+      height: GRID,
+      total_cells: GRID * GRID,
+      real_tile_cells: REAL,
+      unused_cells: GRID * GRID - REAL,
+      address_rule: "d=(minute-1)*100+(row-1)*10+column; (x,y)=HilbertPoint(d,10)",
+    },
+    combo: {
+      rare_tile_records: points.length,
+      unique_rare_fronts: new Set(points.filter((point) => !point.false_rare).map((point) => point.minute)).size,
+      false_rare_records: parseFalseRares().size,
+      raretiles_file: "raretiles.json",
+      prefs_file: "KoLmafia native properties",
+      last_tile_index: n(getProperty("combo_lastTileCombed")),
+      current_minute: current || null,
+      current_layout: getProperty("_beachLayout"),
+      context: context.context,
+      context_file: context.file,
+      baseline_in_pool: baseline != null,
+    },
+    observations: {
+      ledger_file: "don_combo_matrix_ledger.json",
+      fronts_recorded: Object.keys(ledger.fronts).length,
+      ledger_updated_this_run: false,
+      session_tail: { mode: "native-event", events_added: 0, offset: 0, path: null },
+      rule:
+        "Combo records beach observations directly into the local evidence ledger; KoLmafia session logs remain recovery evidence, not the hot-path trigger.",
+    },
+    watersheep: {
+      endpoint: ENDPOINT,
+      status,
+      error,
+      options: LABELS.slice(),
+      weights: WEIGHTS,
+      input_policy:
+        "Known rare coordinates/counts, Combo target identity/order, candidate source labels, and baseline membership withheld.",
+      calibration: "UNVALIDATED_FOR_KOL_BEACH",
+    },
+    comparison: cmp,
+    proof_graph: proof,
+    ui: {
+      design_reference: DESIGN_REFERENCE,
+      type_reference: TYPE_REFERENCE,
+      semantic_order: ["claim", "context", "proof", "decision", "metadata", "exit"],
+      evidence_kinds: ["FACT", "MODEL", "POLICY"],
+    },
+    known_rare_points: points,
+    current_front_cells: layoutCells(current, getProperty("_beachLayout")),
+    candidates,
+  };
+  result.receipt = emitReceipt(result);
+  return result;
+}
+
+function writeRuntime(result: Record<string, any>): void {
+  const encoded = JSON.stringify(result);
+  bufferToFile(JSON.stringify(result, null, 2) + "\n", "don_combo_matrix_runtime.json");
+  bufferToFile("window.DON_COMBO_MATRIX_RUNTIME=" + encoded + ";\n", "relay/don_combo_matrix_runtime.js");
+}
+
+function readRequest(path: string): RuntimeRequestV1 {
+  const raw: Record<string, string> = {};
+  if (!fileToMap(path, raw)) throw new Error("unable to read runtime request map: " + path);
+  return decodeRuntimeRequest(raw);
+}
+
+function writeResponse(request: RuntimeRequestV1, response: RuntimeResponseV1): void {
+  mapToFile(response as any, "agent-runtime/outbox/" + request.id + ".txt");
+}
+
+function processRequest(path: string): void {
+  let request: RuntimeRequestV1;
+  try {
+    request = readRequest(path);
+  } catch (error) {
+    print("don_combo runtime: " + String(error), "red");
+    return;
+  }
+
+  if (request.capability === "excavator-smoke") {
+    const excavatorConfigured = getProperty("spadingScript").toLowerCase().includes("excavator");
+    const ok = request.event != null && request.meta != null && request.page != null;
+    const response: RuntimeResponseV1 = {
+      schema: "kol-runtime-response/v1",
+      id: request.id,
+      status: ok ? "ok" : "invalid",
+      capability: request.capability,
+      detail:
+        "Excavator-compatible event/meta/page envelope " +
+        (ok ? "round-tripped" : "failed") +
+        "; configured=" +
+        excavatorConfigured +
+        "; no spading preference changed and no network request made.",
+      generated_at: new Date().toISOString(),
+    };
+    writeResponse(request, response);
+    print("don_combo runtime smoke: " + (ok ? "PASS" : "FAIL") + " · excavator envelope");
+    return;
+  }
+
+  const runtime = buildRuntime();
+  writeRuntime(runtime);
+  const response: RuntimeResponseV1 = {
+    schema: "kol-runtime-response/v1",
+    id: request.id,
+    status: runtime.watersheep.status === "ready" ? "ok" : "offline",
+    capability: request.capability,
+    detail: request.reason,
+    generated_at: runtime.generated_at,
+    runtime_schema: runtime.schema,
+    shadow_top_minute: runtime.comparison.shadow_top_minute,
+    baseline_rank: runtime.comparison.baseline_rank,
+  };
+  writeResponse(request, response);
+  print(
+    "don_combo TS runtime: " +
+      runtime.watersheep.status +
+      " | pool " +
+      runtime.comparison.pool_size +
+      " | baseline rank " +
+      String(runtime.comparison.baseline_rank ?? "n/a") +
+      " | shadow top " +
+      String(runtime.comparison.shadow_top_minute ?? "n/a"),
+  );
+}
+
+export function main(args?: string): void {
+  const raw = String(args || "").trim();
+  if (raw.startsWith("process ")) {
+    processRequest(raw.substring(8).trim());
+    return;
+  }
+  if (raw === "--smoke-excavator") {
+    const request: RuntimeRequestV1 = {
+      schema: "kol-runtime-request/v1",
+      id: "smoke-" + Date.now(),
+      capability: "excavator-smoke",
+      action: "smoke",
+      reason: "manual-smoke",
+      authority: "none",
+      event: "choice",
+      meta: "excavator-compatible",
+      page: "<html data-smoke='don_combo'></html>",
+    };
+    mapToFile(request as any, "agent-runtime/inbox/" + request.id + ".txt");
+    processRequest("agent-runtime/inbox/" + request.id + ".txt");
+    return;
+  }
+  const runtime = buildRuntime();
+  writeRuntime(runtime);
+  print("don_combo TS runtime refreshed.");
+}

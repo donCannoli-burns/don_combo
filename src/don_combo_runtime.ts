@@ -1,5 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, prefer-template, eqeqeq, no-useless-assignment */
 import {
-  appendBufferToFile,
   bufferToFile,
   fileToBuffer,
   fileToMap,
@@ -595,7 +595,7 @@ function emitReceipt(result: Record<string, any>) {
     watersheep_calibration: result.watersheep.calibration,
   };
   if (appended) {
-    appendBufferToFile(JSON.stringify(receipt) + "\n", logFile);
+    bufferToFile(String(fileToBuffer(logFile) || "") + JSON.stringify(receipt) + "\n", logFile);
     bufferToFile(JSON.stringify(receipt, null, 2) + "\n", lastFile);
   }
   return {

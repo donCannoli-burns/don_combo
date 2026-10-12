@@ -992,6 +992,24 @@ function buildMlLab() {
     note: "Per-comb target traces are pre-action WaterSheep scores for the actual Combo target. Snapshot history compares model-only baseline rank with final model+policy rank. Neither grants execution authority."
   };
 }
+function buildRunControl() {
+  var status = String(kolmafia.getProperty("don_combo_last_run_status") || "unknown");
+  var endReason = String(kolmafia.getProperty("don_combo_last_run_end_reason") || "unknown");
+  var running = String(kolmafia.getProperty("don_combo_running") || "").toLowerCase() === "true";
+  var interruptRequested = String(kolmafia.getProperty("don_combo_interrupt") || "").toLowerCase() === "true";
+  var interruptConsumed = String(kolmafia.getProperty("don_combo_last_run_interrupt_consumed") || "").toLowerCase() === "true";
+  return {
+    schema: "don-combo-run-control/v0.1",
+    requested_combs: n(kolmafia.getProperty("don_combo_last_run_requested")),
+    completed_combs: n(kolmafia.getProperty("don_combo_last_run_combs")),
+    status,
+    end_reason: endReason,
+    running,
+    interrupt_requested: interruptRequested,
+    interrupt_consumed: interruptConsumed,
+    clean_early_end: status === "interrupted" && endReason === "user_cooperative_interrupt"
+  };
+}
 function emitReceipt(result) {
   var _result$ml_lab, _result$ml_lab2;
   var candidates = result.candidates.map(candidate => {
@@ -1013,6 +1031,7 @@ function emitReceipt(result) {
     context: result.combo.context,
     observation_fronts: result.observations.fronts_recorded,
     ml_trace_events: ((_result$ml_lab = result.ml_lab) === null || _result$ml_lab === void 0 ? void 0 : _result$ml_lab.events_total) ?? 0,
+    run_control: result.run_control,
     candidates
   };
   var stateSha = sha256(JSON.stringify(stateBasis));
@@ -1026,7 +1045,7 @@ function emitReceipt(result) {
   }
   var appended = !previous.includes(stateSha);
   var receipt = {
-    schema: "don-combo-shadow-receipt/v0.6",
+    schema: "don-combo-shadow-receipt/v0.7",
     generated_at: result.generated_at,
     state_sha256: stateSha,
     authority: "none",
@@ -1034,6 +1053,7 @@ function emitReceipt(result) {
     candidates,
     observation_fronts: result.observations.fronts_recorded,
     ml_trace_events: ((_result$ml_lab2 = result.ml_lab) === null || _result$ml_lab2 === void 0 ? void 0 : _result$ml_lab2.events_total) ?? 0,
+    run_control: result.run_control,
     watersheep_calibration: result.watersheep.calibration
   };
   if (appended) {
@@ -1093,7 +1113,7 @@ function buildRuntime() {
     design_reference: TYPE_REFERENCE
   };
   var result = {
-    schema: "don-combo-matrix-runtime/v0.6-ts",
+    schema: "don-combo-matrix-runtime/v0.7-ts",
     generated_at: new Date().toISOString(),
     mode: "shadow-only",
     authority: "none",
@@ -1144,6 +1164,7 @@ function buildRuntime() {
       calibration: "UNVALIDATED_FOR_KOL_BEACH"
     },
     comparison: cmp,
+    run_control: buildRunControl(),
     ml_lab: buildMlLab(),
     proof_graph: proof,
     ui: {

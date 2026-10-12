@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>don_combo · WaterSheep Matrix</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1118;--panel:#111a24;--ink:#e6edf3;--mut:#93a4b7;--rule:#263445;--hi:#7dd3fc;--rare:#fbbf24;--whale:#60a5fa;--castle:#f59e0b;--twinkle:#c084fc;--regular:#64748b;--scratched:#475569}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}header{padding:18px 22px;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}h1{font-size:20px;margin:0}.sub{color:var(--mut);margin:3px 0 0}.badge{border:1px solid var(--rule);background:var(--panel);padding:5px 8px;border-radius:999px;font-size:12px}.warn{color:#fbbf24}.ok{color:#86efac}.bad{color:#fca5a5}main{display:grid;grid-template-columns:minmax(320px,720px) minmax(320px,1fr);gap:18px;padding:18px}@media(max-width:980px){main{grid-template-columns:1fr}}.box{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:14px}.box h2{font-size:14px;margin:0 0 10px}.canvasWrap{position:relative;max-width:720px;aspect-ratio:1;border:1px solid var(--rule);background:#071018}.canvasWrap canvas{width:100%;height:100%;display:block;image-rendering:pixelated}.legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:9px;color:var(--mut);font-size:12px}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}.info{margin-top:10px;min-height:44px;color:var(--mut);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}.stats{display:grid;grid-template-columns:repeat(3,minmax(100px,1fr));gap:8px;margin-bottom:12px}.stat{background:#0c141d;border:1px solid var(--rule);border-radius:6px;padding:9px}.stat b{display:block;font-size:16px}.stat span{color:var(--mut);font-size:11px}table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;color:var(--mut);font-weight:600;border-bottom:1px solid var(--rule);padding:6px}td{padding:6px;border-bottom:1px solid #1d2a38;vertical-align:top}.p{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;white-space:nowrap}.bars{display:grid;grid-template-columns:76px 1fr 42px;gap:4px 7px;align-items:center}.bar{height:7px;background:#1e293b;border-radius:8px;overflow:hidden}.fill{height:100%;background:var(--hi)}button{background:#172433;border:1px solid var(--rule);color:var(--ink);padding:6px 9px;border-radius:5px;cursor:pointer}code{color:#bae6fd}.small{color:var(--mut);font-size:12px}.empty{padding:24px;color:var(--mut);text-align:center}.candidate{cursor:pointer}.candidate:hover{background:#152131}
+</style>
+</head>
+<body>
+<header>
+<div><h1>don_combo · WaterSheep Beach Matrix</h1><p class="sub">1,000,000 KoL beach tiles mapped into a 1024×1024 Hilbert address space. Shadow assessment only.</p></div>
+<div><span id="mode" class="badge">loading runtime…</span> <button onclick="location.reload()">Refresh</button></div>
+</header>
+<main>
+<section>
+<div class="box">
+<h2>Hilbert probability field</h2>
+<div class="canvasWrap"><canvas id="matrix" width="1024" height="1024"></canvas></div>
+<div class="legend"><span><i class="dot" style="background:var(--rare)"></i>known rare</span><span><i class="dot" style="background:var(--hi)"></i>WaterSheep candidate</span><span><i class="dot" style="background:#22c55e"></i>current front</span></div>
+<div id="tileInfo" class="info">Move over the matrix to inspect a tile address.</div>
+</div>
+</section>
+<section>
+<div class="stats" id="stats"></div>
+<div class="box"><h2>Candidate fronts</h2><div id="candidates" class="empty">No runtime snapshot yet.</div></div>
+<div class="box" style="margin-top:18px"><h2>Runtime</h2><div id="runtime" class="small"></div></div>
+</section>
+</main>
+<script src="don_combo_matrix_runtime.js"></script>
+<script>
+(()=>{
+'use strict';
+const N=1024,REAL=1000000,C=document.getElementById('matrix'),ctx=C.getContext('2d'),R=window.DON_COMBO_MATRIX_RUNTIME||null;
+const colors={rare:'#fbbf24',whale:'#60a5fa',sandcastle:'#f59e0b',twinkle:'#c084fc',regular:'#64748b',scratched:'#475569'};
+function xy2d(n,x,y){let d=0;for(let s=n>>1;s>0;s>>=1){const rx=(x&s)>0?1:0,ry=(y&s)>0?1:0;d+=s*s*((3*rx)^ry);if(ry===0){if(rx===1){x=n-1-x;y=n-1-y}const t=x;x=y;y=t}}return d}
+function tile(d){if(d<0||d>=REAL)return null;const minute=Math.floor(d/100)+1,o=d%100,row=Math.floor(o/10)+1,column=o%10;return{minute,row,column}}
+function base(){ctx.fillStyle='#071018';ctx.fillRect(0,0,N,N);ctx.strokeStyle='#223041';ctx.strokeRect(.5,.5,N-1,N-1)}
+function draw(){base();if(!R)return;ctx.fillStyle=colors.rare;for(const p of R.known_rare_points||[]){ctx.fillRect(p.x,p.y,1,1)}for(const p of R.current_front_cells||[]){ctx.fillStyle=p.symbol==='W'?'#38bdf8':p.symbol==='t'?'#d8b4fe':p.symbol==='c'?'#334155':'#22c55e';ctx.fillRect(p.x-1,p.y-1,3,3)}for(const c of R.candidates||[]){const p=c.representative;if(!p)continue;const u=c.utility==null?0:Math.max(0,Math.min(1.75,c.utility));ctx.beginPath();ctx.fillStyle=`rgba(125,211,252,${.35+.35*Math.min(1,u)})`;ctx.arc(p.x+.5,p.y+.5,3+5*Math.min(1,u),0,Math.PI*2);ctx.fill()}}
+function inspect(evt){const b=C.getBoundingClientRect(),x=Math.max(0,Math.min(N-1,Math.floor((evt.clientX-b.left)*N/b.width))),y=Math.max(0,Math.min(N-1,Math.floor((evt.clientY-b.top)*N/b.height))),d=xy2d(N,x,y),t=tile(d),el=document.getElementById('tileInfo');el.textContent=t?`matrix (${x},${y}) → d=${d} → beach ${t.minute}, row ${t.row}, col ${t.column}`:`matrix (${x},${y}) → d=${d} → unused Hilbert tail`}
+C.addEventListener('mousemove',inspect);
+function bars(probs){if(!probs)return'<span class="small">WaterSheep unavailable</span>';return'<div class="bars">'+Object.keys(colors).map(k=>{const v=Number(probs[k]||0);return`<span>${k}</span><span class="bar"><i class="fill" style="display:block;width:${(v*100).toFixed(1)}%;background:${colors[k]}"></i></span><span class="p">${v.toFixed(3)}</span>`}).join('')+'</div>'}
+function render(){draw();const mode=document.getElementById('mode');if(!R){mode.textContent='NO RUNTIME SNAPSHOT';mode.classList.add('warn');document.getElementById('runtime').innerHTML=`Run <code>python3 scripts/don_combo/watersheep_combo_bridge.py --mock</code> for a smoke test, or start WaterSheep on port 8766 and run the bridge normally.`;return}const ws=R.watersheep||{},status=String(ws.status||'unknown');mode.textContent=`${String(R.mode||'shadow').toUpperCase()} · WATERSHEEP ${status.toUpperCase()}`;mode.classList.add(status==='ready'?'ok':status==='offline'?'bad':'warn');const m=R.matrix||{},combo=R.combo||{};document.getElementById('stats').innerHTML=`<div class="stat"><b>${Number(m.real_tile_cells||0).toLocaleString()}</b><span>real tile cells</span></div><div class="stat"><b>${Number(combo.rare_tile_records||0).toLocaleString()}</b><span>known rare records</span></div><div class="stat"><b>${(R.candidates||[]).length}</b><span>assessed fronts</span></div>`;const rows=R.candidates||[];document.getElementById('candidates').innerHTML=rows.length?`<table><thead><tr><th>Front</th><th>Utility</th><th>Evidence</th><th>WaterSheep distribution</th></tr></thead><tbody>${rows.map((c,i)=>`<tr class="candidate" data-i="${i}"><td><b>${c.minute}</b><br><span class="small">${c.known_rare_count} known rare</span></td><td class="p">${c.utility==null?'—':Number(c.utility).toFixed(3)}</td><td class="small">local rare fronts: ${c.rare_fronts_within_25_minutes}<br>structural: ${Number(c.structural_score).toFixed(3)}</td><td>${bars(c.watersheep&&c.watersheep.probabilities)}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">No candidates.</div>';document.getElementById('runtime').innerHTML=`Generated <code>${R.generated_at}</code><br>Current beach: <code>${combo.current_minute==null?'unknown':combo.current_minute}</code><br>Endpoint: <code>${ws.endpoint||'—'}</code>${ws.error?`<br><span class="bad">${ws.error}</span>`:''}<br><br>${R.note||''}`;document.querySelectorAll('.candidate').forEach(tr=>tr.addEventListener('click',()=>{const c=rows[+tr.dataset.i],p=c.representative;if(!p)return;document.getElementById('tileInfo').textContent=`candidate beach ${c.minute} → representative row ${p.row}, col ${p.column} → d=${p.d} → matrix (${p.x},${p.y})`}))}
+render();
+})();
+</script>
+</body>
+</html>

@@ -58,6 +58,15 @@ const TYPE_REFERENCE = {
   repository: "together-science/symtype",
   use: "explicit properties, relations, and indeterminate truth as TypeScript design inspiration only",
 };
+const REPRESENTATION_REFERENCE = {
+  repository: "es-3581100/Kotlin-Studio",
+  path: "Sacred-Computations-Map",
+  use: "one semantic dataset projected as linked graph, spatial matrix, inspector, signal profile, and exact readable cross-index",
+};
+const HILBERT_UI_REFERENCE = {
+  source: "user-provided hilbert_hashtable.html",
+  use: "direct cell -> Hilbert d -> bucket -> table inspection and bucket isolation",
+};
 
 function unescapeAshField(value: string): string {
   let output = "";
@@ -296,6 +305,36 @@ function evidenceFor(
     sand_per_event: events ? round(n((entry.items || {})["grain of sand"]) / events, 4) : 0,
     representative: { d, x, y, row: 1, column: 0 },
   };
+}
+
+function observationAtlas(ledger: ObservationLedger) {
+  return Object.entries(ledger.fronts)
+    .map(([minuteText, raw]) => {
+      const minute = n(minuteText);
+      const entry = raw as Record<string, any>;
+      const dStart = dFor(minute, 1, 0);
+      const dEnd = dFor(minute, 10, 9);
+      return {
+        minute,
+        d_start: dStart,
+        d_end: dEnd,
+        bucket_start_256: Math.floor(dStart / 4096),
+        bucket_end_256: Math.floor(dEnd / 4096),
+        layout_snapshots: n(entry.layout_snapshots),
+        session_events: n(entry.session_events),
+        observation_count: n(entry.layout_snapshots) + n(entry.session_events),
+        last_seen_epoch: entry.last_seen_epoch == null ? null : n(entry.last_seen_epoch),
+        last_seen_turn: entry.last_seen_turn == null ? null : n(entry.last_seen_turn),
+        symbol_counts: entry.symbols || {},
+        symbol_rates: symbolRates(entry),
+        outcome_counts: entry.outcomes || {},
+        outcome_rates: outcomeRates(entry),
+        items: entry.items || {},
+        sources: Array.isArray(entry.sources) ? entry.sources : [],
+        last_layout: entry.last_layout || null,
+      };
+    })
+    .sort((a, b) => a.minute - b.minute);
 }
 
 function sampleMinutes(
@@ -937,7 +976,7 @@ function buildRuntime() {
     design_reference: TYPE_REFERENCE,
   };
   const result: Record<string, any> = {
-    schema: "don-combo-matrix-runtime/v0.7-ts",
+    schema: "don-combo-matrix-runtime/v0.8-ts",
     generated_at: new Date().toISOString(),
     mode: "shadow-only",
     authority: "none",
@@ -971,6 +1010,7 @@ function buildRuntime() {
     observations: {
       ledger_file: "don_combo_matrix_ledger.json",
       fronts_recorded: Object.keys(ledger.fronts).length,
+      fronts: observationAtlas(ledger),
       ledger_updated_this_run: false,
       session_tail: { mode: "native-event", events_added: 0, offset: 0, path: null },
       rule: "Combo records beach observations directly into the local evidence ledger; KoLmafia session logs remain recovery evidence, not the hot-path trigger.",
@@ -992,6 +1032,8 @@ function buildRuntime() {
     proof_graph: proof,
     ui: {
       design_reference: DESIGN_REFERENCE,
+      representation_reference: REPRESENTATION_REFERENCE,
+      hilbert_ui_reference: HILBERT_UI_REFERENCE,
       type_reference: TYPE_REFERENCE,
       semantic_order: ["claim", "context", "proof", "decision", "metadata", "exit"],
       evidence_kinds: ["FACT", "MODEL", "POLICY"],

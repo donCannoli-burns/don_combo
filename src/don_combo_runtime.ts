@@ -783,6 +783,28 @@ function buildMlLab() {
   };
 }
 
+function buildRunControl() {
+  const status = String(getProperty("don_combo_last_run_status") || "unknown");
+  const endReason = String(getProperty("don_combo_last_run_end_reason") || "unknown");
+  const running = String(getProperty("don_combo_running") || "").toLowerCase() === "true";
+  const interruptRequested =
+    String(getProperty("don_combo_interrupt") || "").toLowerCase() === "true";
+  const interruptConsumed =
+    String(getProperty("don_combo_last_run_interrupt_consumed") || "").toLowerCase() === "true";
+
+  return {
+    schema: "don-combo-run-control/v0.1",
+    requested_combs: n(getProperty("don_combo_last_run_requested")),
+    completed_combs: n(getProperty("don_combo_last_run_combs")),
+    status,
+    end_reason: endReason,
+    running,
+    interrupt_requested: interruptRequested,
+    interrupt_consumed: interruptConsumed,
+    clean_early_end: status === "interrupted" && endReason === "user_cooperative_interrupt",
+  };
+}
+
 function emitReceipt(result: Record<string, any>) {
   const candidates = (result.candidates as Candidate[]).map((candidate) => ({
     minute: candidate.minute,
@@ -800,6 +822,7 @@ function emitReceipt(result: Record<string, any>) {
     context: result.combo.context,
     observation_fronts: result.observations.fronts_recorded,
     ml_trace_events: result.ml_lab?.events_total ?? 0,
+    run_control: result.run_control,
     candidates,
   };
   const stateSha = sha256(JSON.stringify(stateBasis));
@@ -813,7 +836,7 @@ function emitReceipt(result: Record<string, any>) {
   }
   const appended = !previous.includes(stateSha);
   const receipt = {
-    schema: "don-combo-shadow-receipt/v0.6",
+    schema: "don-combo-shadow-receipt/v0.7",
     generated_at: result.generated_at,
     state_sha256: stateSha,
     authority: "none",
@@ -821,6 +844,7 @@ function emitReceipt(result: Record<string, any>) {
     candidates,
     observation_fronts: result.observations.fronts_recorded,
     ml_trace_events: result.ml_lab?.events_total ?? 0,
+    run_control: result.run_control,
     watersheep_calibration: result.watersheep.calibration,
   };
   if (appended) {
@@ -901,7 +925,7 @@ function buildRuntime() {
     design_reference: TYPE_REFERENCE,
   };
   const result: Record<string, any> = {
-    schema: "don-combo-matrix-runtime/v0.6-ts",
+    schema: "don-combo-matrix-runtime/v0.7-ts",
     generated_at: new Date().toISOString(),
     mode: "shadow-only",
     authority: "none",
@@ -951,6 +975,7 @@ function buildRuntime() {
       calibration: "UNVALIDATED_FOR_KOL_BEACH",
     },
     comparison: cmp,
+    run_control: buildRunControl(),
     ml_lab: buildMlLab(),
     proof_graph: proof,
     ui: {

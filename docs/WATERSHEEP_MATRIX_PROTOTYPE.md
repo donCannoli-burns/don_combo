@@ -140,9 +140,9 @@ or discover better real outcomes than the existing deterministic Combo route
 once observation evidence accumulates?**
 
 
-## v0.5 native TypeScript runtime cut
+## v0.6 native TypeScript runtime cut
 
-The v0.5 runtime moves the hot path into the same tested KoLmafia TypeScript/Libram toolchain used by Combo.
+The v0.6 runtime keeps the hot path into the same tested KoLmafia TypeScript/Libram toolchain used by Combo.
 
 Control flow:
 
@@ -212,3 +212,41 @@ Kingdomsitter remains the ASH parse/typed-IR/transpile verification layer;
 `ashref` remains installed-runtime truth; `kolmafia-types` is a secondary
 compile-time/reference oracle; `kol.js` is confined to the offline test/data
 ring.
+
+
+## ML Lab / frozen experiment artifact
+
+The v0.6 runtime adds an opt-in target-trace stream without changing Combo's authority.
+
+When `don_combo_ml_trace=true`, Combo asks WaterSheep exactly once for the planned target after the beach layout is known and before any tile is combed. The result is advisory only. The actual comb then records its coordinate plus the Session delta for meat and items into:
+
+```text
+data/don_combo_ml_events.jsonl
+```
+
+Each event uses `don-combo-ml-event/v0.1` and binds:
+
+```text
+pre-action target evidence
+  -> WaterSheep score mass
+  -> model-only weighted utility
+  -> deterministic model+policy utility
+  -> actual comb coordinate
+  -> deterministic outcome label
+  -> exact item/meat delta
+```
+
+A WaterSheep error is caught, recorded, and never blocks or redirects Combo.
+
+The model-facing DTO no longer contains `observed_outcome_rates`. In particular, labels such as `rare_target`, `false_rare_rough`, and fallback classes are deterministic evaluation/policy evidence and are withheld from WaterSheep so they cannot proxy Combo's known-rare route.
+
+The relay's **ML Lab** renders two paper-style SVG plots:
+
+1. pre-action model-only and model+policy utility over traced combs, with actual outcome markers and exact loot in the live hover metadata;
+2. Combo baseline rank over durable shadow snapshots, comparing WaterSheep-only rank with final model+policy rank.
+
+It also renders a per-comb table with front, prediction, actual outcome, actual comb coordinate, loot, and inference latency.
+
+The HTML exporter freezes those plots and tables into `don-combo-html-snapshot/v0.4` and embeds the full v0.6 runtime as inert `application/json`. The artifact is therefore sufficient to answer questions such as “what did WaterSheep say before the driftwood hit?” for events captured after tracing was enabled.
+
+Older ledger observations remain valid evidence but cannot be retroactively assigned a pre-action prediction.

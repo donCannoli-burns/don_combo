@@ -90,7 +90,11 @@ export function loadMlTraceEvents(limit = 500): MlTraceLog {
       // Keep a malformed historical line from breaking live Combo.
     }
   }
-  return { file: ML_EVENT_FILE, total, events: events.slice(Math.max(0, events.length - limit)) };
+  return {
+    file: ML_EVENT_FILE,
+    total,
+    events: events.slice(Math.max(0, events.length - limit)),
+  };
 }
 
 function ensureEntry(ledger: ObservationLedger, minute: number): ObservationEntry {
@@ -177,8 +181,9 @@ export function recordBeachObservation(
   const actual = detail.actual_comb || null;
   const event: MlTraceEvent = {
     schema: "don-combo-ml-event/v0.1",
-    event_id:
-      `${now.getTime()}-${turnsPlayed()}-${minute}-${actual ? `${actual.row}-${actual.column}` : "na"}`,
+    event_id: `${now.getTime()}-${turnsPlayed()}-${minute}-${
+      actual ? `${actual.row}-${actual.column}` : "na"
+    }`,
     observed_at: now.toISOString(),
     turn: turnsPlayed(),
     minute,

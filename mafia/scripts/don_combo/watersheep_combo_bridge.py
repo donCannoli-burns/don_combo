@@ -135,13 +135,17 @@ def update_ledger(root,pref):
         entry=fronts.setdefault(str(minute),{
             "layout_snapshots":0,
             "symbols":{"whale":0,"twinkle":0,"rough":0,"combed":0,"other":0,"visible":0},
-            "last_layout_key":None,"last_seen_epoch":None,
+            "seen_layout_keys":[],"last_layout_key":None,"last_seen_epoch":None,
         })
-        if entry.get("last_layout_key")!=key:
+        seen=set(entry.get("seen_layout_keys") or [])
+        if entry.get("last_layout_key"): seen.add(entry["last_layout_key"])
+        if key not in seen:
             counts=layout_counts(layout)
             entry["layout_snapshots"]=safe_int(entry.get("layout_snapshots"))+1
             for name,value in counts.items():
                 entry.setdefault("symbols",{})[name]=safe_int(entry["symbols"].get(name))+value
+            seen.add(key)
+            entry["seen_layout_keys"]=sorted(seen)
             entry["last_layout_key"]=key
             entry["last_seen_epoch"]=int(time.time())
             ledger["updated_at"]=time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())
@@ -222,7 +226,12 @@ def ask(endpoint,candidate,pref,timeout):
         "type":"choice",
         "instructions":"Experimental shadow scoring only. Assign relative score mass to six neutral outcome classes from the supplied weak evidence. Do not choose an action. The class keys are intentionally neutral.",
         "criteria":{
-            "A":"class A","B":"class B","C":"class C","D":"class D","E":"class E","F":"class F"
+            "A":"rare tile opportunity",
+            "B":"whale opportunity",
+            "C":"sandcastle opportunity",
+            "D":"twinkle or uncommon opportunity",
+            "E":"ordinary regular beach opportunity",
+            "F":"already exhausted, combed, or low-value opportunity"
         }
     }}}
     req=urllib.request.Request(endpoint,data=json.dumps(payload).encode(),headers={"Content-Type":"application/json"},method="POST")

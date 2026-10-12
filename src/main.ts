@@ -15,6 +15,7 @@ import {
   setProperty,
 } from "kolmafia";
 import { $items, get, property, Session, set, sinceKolmafiaRevision } from "libram";
+import { recordBeachObservation, type BeachOutcome } from "./runtime/observations";
 
 // Gotta print in a legible colour.
 const HIGHLIGHT = isDarkMode() ? "yellow" : "blue";
@@ -107,6 +108,9 @@ function _comb(tile: BeachTile): void {
       .map((rowLayout) => [parseInt(rowLayout[0]), rowLayout[1].split("")] as [number, string[]]),
   );
 
+  const finishObservation = (outcome: BeachOutcome) =>
+    recordBeachObservation(minute, layoutString, outcome);
+
   // the Array.find() method returnns either an element of the array that fits, or undefined
   // We convert our Map to an Array here to use the .find() method
   // We check for a whale here just because wouldn't it be neat if we had a whale?
@@ -117,6 +121,7 @@ function _comb(tile: BeachTile): void {
     const whaleColumn = whaleRow[1].findIndex((x) => x === "W");
     print("We found a whale. To hey deze's heart, we'll stab at it.", "red");
     cliExecute(`beach comb ${whaleRow[0]} ${whaleColumn}`);
+    finishObservation("whale");
     // By returning partway through, we avoid needing to use "else"
     // With the exception of try...finally shenanigans, using the return keyword will just immediately terminate the function
     return;
@@ -124,6 +129,7 @@ function _comb(tile: BeachTile): void {
 
   const rareRow = layout.get(row);
   if (rareRow) {
+    let falseRareRough = false;
     // Here we make sure that the tile we were going to comb wasn't actually rough sand
     // This uses `hasTwinkleVision` which was added in r27618, but this is not required.
     if (get("hasTwinkleVision", false) && rareRow[column] === "r") {
@@ -133,6 +139,7 @@ function _comb(tile: BeachTile): void {
       );
       // Note that it is not a rare tile, then invoke a function to add it to the false rares
       addFalseRare(tile);
+      falseRareRough = true;
     }
 
     // Here we make sure that the tile we were going to comb wasn't already combed
@@ -153,6 +160,7 @@ function _comb(tile: BeachTile): void {
         addFalseRare(tile);
       }
 
+      finishObservation(falseRareRough ? "false_rare_rough" : "rare_target");
       return;
     }
   }
@@ -164,6 +172,7 @@ function _comb(tile: BeachTile): void {
     print("Our rare tile is combed, but we found a twinkle!", HIGHLIGHT);
     const twinkleColumn = firstTwinkleRow[1].findIndex((x) => x === "t");
     cliExecute(`beach comb ${firstTwinkleRow[0]} ${twinkleColumn}`);
+    finishObservation("twinkle_fallback");
     return;
   }
 
@@ -177,11 +186,13 @@ function _comb(tile: BeachTile): void {
     );
     const roughcolumn = firstRoughRow[1].findIndex((x) => x === "r");
     cliExecute(`beach comb ${firstRoughRow[0]} ${roughcolumn}`);
+    finishObservation("rough_fallback");
     return;
   }
 
   print("We've exhausted all other options, so we're combing an already-combed tile.", HIGHLIGHT);
   cliExecute(`beach comb ${row} ${column}`);
+  finishObservation("exhausted_fallback");
 }
 
 // Alright now this is pretty cool
@@ -322,10 +333,4 @@ export function main(args?: string | number): void {
   const lifetime = Session.add(final, Session.fromFile("combo_results.json"));
   lifetime.toFile("combo_results.json");
 
-  // Downstream shadow-lab integration: if kol-goblin-docs has been initialized,
-  // ask it to queue one one-shot matrix refresh. KoLmafia remains the caller;
-  // the local worker performs advisory WaterSheep scoring only after the run.
-  if (getProperty("kolGoblinDocsLastRefresh") !== "") {
-    cliExecute("call kol-goblin-docs.ash refresh combo-finished");
-  }
 }

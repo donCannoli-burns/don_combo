@@ -73,6 +73,37 @@ def load_rares(root):
         except (OSError,json.JSONDecodeError): pass
     raise FileNotFoundError("raretiles.json not found in KoLmafia data or installed git projects")
 
+def load_context(root):
+    path=root/"data"/"don_combo_matrix_context.json"
+    try:
+        value=json.loads(path.read_text())
+        player=safe_int(value.get("player"),0); gameday=safe_int(value.get("gameday"),-1)
+        if player>0 and gameday>=0:
+            return {"player":player,"gameday":gameday,"captured_at":value.get("captured_at")},path
+    except (OSError,json.JSONDecodeError,AttributeError): pass
+    return None,path
+
+def combo_shuffle(points,player):
+    work=list(points); out=[]; seed=int(player)
+    while work:
+        seed+=1
+        index=math.floor(math.sin(seed)*len(work))
+        if index<0: index=max(0,len(work)+index)
+        tail=work[index:]; del work[index:]; out.extend(tail)
+    return out
+
+def combo_baseline(points,pref,context):
+    if not context or not points: return None
+    shuffled=combo_shuffle(points,context["player"])
+    if not shuffled: return None
+    day=1+(context["gameday"]%8); rows_hidden=4-abs(4-day)
+    last=safe_int(pref.get("combo_lastTileCombed"),0)
+    for step in range(1,len(shuffled)+1):
+        index=(last+step)%len(shuffled); tile=shuffled[index]
+        if tile["row"]>rows_hidden and not tile["false_rare"]:
+            return {"minute":tile["minute"],"row":tile["row"],"column":tile["column"],"d":tile["d"],"x":tile["x"],"y":tile["y"],"shuffled_index":index,"skipped_inaccessible":step-1,"rows_hidden":rows_hidden,"player":context["player"],"gameday":context["gameday"]}
+    return None
+
 def rare_points(rares,pref):
     bad=false_rares(pref.get("combo_false_rares",""))
     out=[]
@@ -171,11 +202,11 @@ def evidence_for(minute,current,ledger):
         "representative":{"d":d,"x":x,"y":y,"row":1,"column":0},
     }
 
-def sample_minutes(pref,ledger,count):
-    count=max(1,count); current=safe_int(pref.get("_beachMinutes"),0)
+def sample_minutes(pref,ledger,count,exclude=None):
+    count=max(1,count); current=safe_int(pref.get("_beachMinutes"),0); exclude=set(exclude or ())
     selected=[]; sources={}
     def add(m,source):
-        if 1<=m<=10000 and m not in sources:
+        if 1<=m<=10000 and m not in sources and m not in exclude:
             selected.append(m); sources[m]=source
     if current: add(current,"current")
     observed=[]
@@ -193,12 +224,15 @@ def sample_minutes(pref,ledger,count):
         add(1+(seed%10000),"explore")
     return [(m,sources[m]) for m in selected[:count]]
 
-def candidate_frontier(pref,ledger,count):
-    current=safe_int(pref.get("_beachMinutes"),0)
-    out=[]
-    for minute,source in sample_minutes(pref,ledger,count):
+def candidate_frontier(pref,ledger,count,baseline):
+    current=safe_int(pref.get("_beachMinutes"),0); out=[]
+    if baseline:
+        ev=evidence_for(baseline["minute"],current,ledger)
+        out.append({"minute":baseline["minute"],"source":"combo-baseline","is_combo_baseline":True,"evidence":ev,"representative":{"d":baseline["d"],"x":baseline["x"],"y":baseline["y"],"row":baseline["row"],"column":baseline["column"]},"utility":None,"utility_components":None,"watersheep":None})
+    exclude={baseline["minute"]} if baseline else set()
+    for minute,source in sample_minutes(pref,ledger,count,exclude):
         ev=evidence_for(minute,current,ledger)
-        out.append({"minute":minute,"source":source,"evidence":ev,"representative":ev["representative"],"utility":None,"utility_components":None,"watersheep":None})
+        out.append({"minute":minute,"source":source,"is_combo_baseline":False,"evidence":ev,"representative":ev["representative"],"utility":None,"utility_components":None,"watersheep":None})
     return out
 
 def mock_scores(minute):

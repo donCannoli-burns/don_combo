@@ -47,6 +47,8 @@ python3 scripts/don_combo/watersheep_combo_bridge.py --watch 30
 
 Then open the KoLmafia relay browser and choose `DonComboMatrix` from the `-run script-` dropdown.
 
+The relay also exposes **Export HTML snapshot**. It downloads a self-contained, script-free HTML evidence artifact containing the frozen Hilbert canvas, rendered comparison/evidence UI, agent packet, provenance, and the full runtime object as inert `application/json`. Snapshot filenames include the runtime timestamp and the first 12 characters of the comparison receipt state hash.
+
 See [docs/WATERSHEEP_MATRIX_PROTOTYPE.md](docs/WATERSHEEP_MATRIX_PROTOTYPE.md) for the prototype boundary and data flow.
 
 ## Rare tile data

@@ -75,7 +75,10 @@ const baseSettings = {
     : undefined,
 };
 
-export default [{ "scripts/combo/combo": "src/main.ts" }].map((input) => ({
+export default [
+  { "scripts/combo/combo": "src/main.ts" },
+  { "scripts/don_combo/don_combo_runtime": "src/don_combo_runtime.ts" },
+].map((input) => ({
   input,
   ...baseSettings,
 }));

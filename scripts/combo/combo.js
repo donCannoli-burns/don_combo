@@ -1954,6 +1954,11 @@ function sessionDelta(before) {
     items
   };
 }
+function consumeInterruptRequest() {
+  if (!get("don_combo_interrupt", false)) return false;
+  _set("don_combo_interrupt", false);
+  return true;
+}
 function _comb(tile) {
   // Here, we destructure the BeachTile object into three separate variables
   // It's going to be really tedious to write tile.minute and tile.row all the time
@@ -2178,22 +2183,53 @@ function main(args) {
   if (!Number.isInteger(combs) || isNaN(combs)) kolmafia.abort("Invalid argument!");
   if (combs <= 0) return;
   var oldFilter = get("logPreferenceChangeFilter");
-  _set("logPreferenceChangeFilter", _toConsumableArray(new Set([].concat(_toConsumableArray(oldFilter.split(",")), ["spadingData", "combo_lastTileCombed", "_beachLayout", "_beachMinutes", "_beachCombing"]))).filter(x => x).join(","));
-  var n = 1;
-  while (n <= combs) {
-    // Comb returns a boolean based on whether we actually comb the tile
-    if (comb()) n++;
-  }
+  _set("don_combo_interrupt", false);
+  _set("don_combo_running", true);
+  _set("don_combo_last_run_status", "running");
+  _set("don_combo_last_run_combs", 0);
+  _set("logPreferenceChangeFilter", _toConsumableArray(new Set([].concat(_toConsumableArray(oldFilter.split(",")), ["spadingData", "combo_lastTileCombed", "_beachLayout", "_beachMinutes", "_beachCombing", "don_combo_interrupt", "don_combo_running", "don_combo_last_run_status", "don_combo_last_run_combs"]))).filter(x => x).join(","));
+  var completedCombs = 0;
+  var interrupted = false;
+  var cleanFinish = false;
+  try {
+    while (completedCombs < combs) {
+      // A relay interrupt is cooperative: never cut through an in-flight comb.
+      // If the request arrives between combs, stop before starting another one.
+      if (consumeInterruptRequest()) {
+        interrupted = true;
+        break;
+      }
 
-  // We have to escape the beach combat choice at the end of the session
-  // So we do
-  if (kolmafia.handlingChoice()) kolmafia.runChoice(5);
-  if (get("spadingScript").toLowerCase().includes("excavator")) kolmafia.cliExecute("spade autoconfirm");
-  _set("logPreferenceChangeFilter", oldFilter);
+      // Comb returns a boolean based on whether we actually combed a tile.
+      if (comb()) completedCombs++;
+
+      // If the request arrived during the comb, the observation/loot trace has
+      // already been finalized. Stop here before beginning the next target.
+      if (consumeInterruptRequest()) {
+        interrupted = true;
+        break;
+      }
+    }
+    if (interrupted) {
+      kolmafia.print("don_combo: interrupt received; ending cleanly after ".concat(completedCombs, " completed comb").concat(completedCombs === 1 ? "" : "s", "."), HIGHLIGHT);
+    }
+
+    // Always leave the Beach choice cleanly, including cooperative interrupts.
+    if (kolmafia.handlingChoice()) kolmafia.runChoice(5);
+    if (get("spadingScript").toLowerCase().includes("excavator")) kolmafia.cliExecute("spade autoconfirm");
+    cleanFinish = true;
+  } finally {
+    _set("logPreferenceChangeFilter", oldFilter);
+    _set("don_combo_running", false);
+    _set("don_combo_interrupt", false);
+    _set("don_combo_last_run_combs", completedCombs);
+    _set("don_combo_last_run_status", cleanFinish ? interrupted ? "interrupted" : "completed" : "failed");
+  }
 
   // Subtract the original session from our current session
   // the resulting session will only have what we found during combo
   var final = Session.current().diff(baseline);
+  if (interrupted) kolmafia.print("=== INTERRUPTED CLEANLY ===", HIGHLIGHT);
   kolmafia.print("=== RESULTS ===");
   printSession(final);
   var lifetime = Session.add(final, Session.fromFile("combo_results.json"));

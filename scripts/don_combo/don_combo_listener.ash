@@ -33,7 +33,7 @@ string queue_request(string capability, string action, string reason, string eve
 }
 
 boolean refresh_context(string reason) {
-    if (get_property("kolGoblinDocsLastRefresh") == "") return false;
+    if (!git_exists("donCannoli-burns-kol-goblin-docs")) return false;
     return cli_execute("call kol-goblin-docs.ash refresh " + reason);
 }
 

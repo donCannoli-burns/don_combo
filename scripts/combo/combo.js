@@ -1459,10 +1459,13 @@ var Session = /*#__PURE__*/function () {
   }]);
 }();
 
+var WATERSHEEP_EVIDENCE_CONTRACT = "don-combo-watersheep-evidence/v1";
+
 var LEDGER_FILE = "don_combo_matrix_ledger.json";
+var ML_EVENT_FILE = "don_combo_ml_events.jsonl";
 function blankLedger() {
   return {
-    schema: "don-combo-observation-ledger/v0.5",
+    schema: "don-combo-observation-ledger/v0.6",
     fronts: {},
     updated_at: null
   };
@@ -1475,7 +1478,7 @@ function loadObservationLedger() {
     if (!parsed || typeof parsed !== "object" || typeof parsed.fronts !== "object") {
       return blankLedger();
     }
-    parsed.schema = "don-combo-observation-ledger/v0.5";
+    parsed.schema = "don-combo-observation-ledger/v0.6";
     return parsed;
   } catch (_unused) {
     return blankLedger();
@@ -1530,36 +1533,37 @@ function countLayout(layout) {
     other: 0,
     visible: 0
   };
-  var _iterator = _createForOfIteratorHelper(String(layout || "").split(",")),
-    _step;
+  var _iterator2 = _createForOfIteratorHelper(String(layout || "").split(",")),
+    _step2;
   try {
-    for (_iterator.s(); !(_step = _iterator.n()).done;) {
-      var part = _step.value;
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      var part = _step2.value;
       var split = part.indexOf(":");
       if (split < 0) continue;
       var symbols = part.substring(split + 1).slice(0, 10);
-      var _iterator2 = _createForOfIteratorHelper(symbols),
-        _step2;
+      var _iterator3 = _createForOfIteratorHelper(symbols),
+        _step3;
       try {
-        for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
-          var symbol = _step2.value;
+        for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+          var symbol = _step3.value;
           counts.visible++;
           if (symbol === "W") counts.whale++;else if (symbol === "t") counts.twinkle++;else if (symbol === "r") counts.rough++;else if (symbol === "c") counts.combed++;else counts.other++;
         }
       } catch (err) {
-        _iterator2.e(err);
+        _iterator3.e(err);
       } finally {
-        _iterator2.f();
+        _iterator3.f();
       }
     }
   } catch (err) {
-    _iterator.e(err);
+    _iterator2.e(err);
   } finally {
-    _iterator.f();
+    _iterator2.f();
   }
   return counts;
 }
 function recordBeachObservation(minute, layout, outcome) {
+  var detail = arguments.length > 3 && arguments[3] !== undefined ? arguments[3] : {};
   if (!Number.isInteger(minute) || minute < 1 || minute > 10000 || !layout) return;
   var ledger = loadObservationLedger();
   var entry = ensureEntry(ledger, minute);
@@ -1573,12 +1577,281 @@ function recordBeachObservation(minute, layout, outcome) {
     add(entry.symbols, name, amount);
   }
   add(entry.outcomes, outcome);
+  for (var _i2 = 0, _Object$entries2 = Object.entries(detail.items || {}); _i2 < _Object$entries2.length; _i2++) {
+    var _Object$entries2$_i = _slicedToArray(_Object$entries2[_i2], 2),
+      _name = _Object$entries2$_i[0],
+      _amount = _Object$entries2$_i[1];
+    if (_amount) add(entry.items, _name, _amount);
+  }
   if (!entry.sources.includes("combo-native")) entry.sources.push("combo-native");
-  entry.last_seen_epoch = Math.floor(Date.now() / 1000);
+  var now = new Date();
+  entry.last_seen_epoch = Math.floor(now.getTime() / 1000);
   entry.last_seen_turn = kolmafia.turnsPlayed();
   entry.last_layout = layout;
-  ledger.updated_at = new Date().toISOString();
+  ledger.updated_at = now.toISOString();
   kolmafia.bufferToFile("".concat(JSON.stringify(ledger, null, 2), "\n"), LEDGER_FILE);
+  var actual = detail.actual_comb || null;
+  var event = {
+    schema: "don-combo-ml-event/v0.1",
+    event_id: "".concat(now.getTime(), "-").concat(kolmafia.turnsPlayed(), "-").concat(minute, "-").concat(actual ? "".concat(actual.row, "-").concat(actual.column) : "na"),
+    observed_at: now.toISOString(),
+    turn: kolmafia.turnsPlayed(),
+    minute,
+    outcome,
+    planned_target: detail.planned_target || null,
+    actual_comb: actual,
+    items: detail.items || {},
+    meat: detail.meat || 0,
+    layout,
+    layout_symbols: counts,
+    pre_action_prediction: detail.pre_action_prediction || null
+  };
+  kolmafia.appendBufferToFile("".concat(JSON.stringify(event), "\n"), ML_EVENT_FILE);
+}
+
+var GRID = 1024;
+var LABELS = ["rare", "whale", "sandcastle", "twinkle", "regular", "scratched"];
+var MODEL_KEYS = {
+  A: "rare",
+  B: "whale",
+  C: "sandcastle",
+  D: "twinkle",
+  E: "regular",
+  F: "scratched"
+};
+var WEIGHTS = {
+  rare: 1,
+  whale: 0.86,
+  sandcastle: 0.66,
+  twinkle: 0.38,
+  regular: 0.1,
+  scratched: 0
+};
+var ENDPOINT = "http://127.0.0.1:8766/v1/kolmafia";
+function n(value) {
+  var fallback = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
+  var parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+function round(value) {
+  var places = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 6;
+  var scale = Math.pow(10, places);
+  return Math.round(value * scale) / scale;
+}
+function dFor(minute, row, column) {
+  return (minute - 1) * 100 + (row - 1) * 10 + column;
+}
+function xyFor(d) {
+  var x = 0;
+  var y = 0;
+  var t = d;
+  var s = 1;
+  while (s < GRID) {
+    var rx = t >> 1 & 1;
+    var ry = (t ^ rx) & 1;
+    if (ry === 0) {
+      if (rx === 1) {
+        x = s - 1 - x;
+        y = s - 1 - y;
+      }
+      var temp = x;
+      x = y;
+      y = temp;
+    }
+    x += s * rx;
+    y += s * ry;
+    t >>= 2;
+    s <<= 1;
+  }
+  return [x, y];
+}
+function symbolRates(entry) {
+  var symbols = entry.symbols || {};
+  var visible = Math.max(1, n(symbols.visible));
+  var result = {};
+  for (var _i = 0, _arr = ["whale", "twinkle", "rough", "combed", "other"]; _i < _arr.length; _i++) {
+    var key = _arr[_i];
+    result[key] = round(n(symbols[key]) / visible);
+  }
+  return result;
+}
+function outcomeRates(entry) {
+  var outcomes = entry.outcomes || {};
+  var events = Math.max(1, n(entry.session_events));
+  var result = {};
+  for (var _i2 = 0, _arr2 = ["whale", "rare_target", "false_rare_rough", "twinkle_fallback", "rough_fallback", "exhausted_fallback", "unknown"]; _i2 < _arr2.length; _i2++) {
+    var key = _arr2[_i2];
+    result[key] = round(n(outcomes[key]) / events);
+  }
+  return result;
+}
+function evidenceFor(minute, current, ledger) {
+  var entry = ledger.fronts[String(minute)] || {};
+  var layouts = n(entry.layout_snapshots);
+  var events = n(entry.session_events);
+  var seen = n(entry.last_seen_epoch, 0);
+  var d = dFor(minute, 1, 0);
+  var _xyFor3 = xyFor(d),
+    _xyFor4 = _slicedToArray(_xyFor3, 2),
+    x = _xyFor4[0],
+    y = _xyFor4[1];
+  return {
+    minute_fraction: round((minute - 1) / 9999),
+    hilbert_bucket_256: Math.floor(d / 4096),
+    distance_from_current: current ? Math.abs(minute - current) : null,
+    layout_snapshots: layouts,
+    session_events: events,
+    observation_count: layouts + events,
+    last_seen_age_hours: seen ? round(Math.max(0, Date.now() / 1000 - seen) / 3600, 3) : null,
+    last_seen_turn: entry.last_seen_turn == null ? null : n(entry.last_seen_turn),
+    observed_symbol_rates: symbolRates(entry),
+    observed_outcome_rates: outcomeRates(entry),
+    sand_per_event: events ? round(n((entry.items || {})["grain of sand"]) / events, 4) : 0,
+    representative: {
+      d,
+      x,
+      y,
+      row: 1,
+      column: 0
+    }
+  };
+}
+function waterSheepPayload(candidate) {
+  var evidence = candidate.evidence;
+  return {
+    state: {
+      mode: "shadow-only; no action authorized",
+      evidence_contract: WATERSHEEP_EVIDENCE_CONTRACT,
+      beach_minute: candidate.minute,
+      minute_fraction: evidence.minute_fraction,
+      hilbert_bucket_256: evidence.hilbert_bucket_256,
+      distance_from_current: evidence.distance_from_current,
+      layout_snapshots: evidence.layout_snapshots,
+      session_events: evidence.session_events,
+      last_seen_age_hours: evidence.last_seen_age_hours,
+      observed_symbol_rates: evidence.observed_symbol_rates,
+      sand_per_event: evidence.sand_per_event,
+      current_layout_if_same_front: candidate.minute === n(kolmafia.getProperty("_beachMinutes")) ? kolmafia.getProperty("_beachLayout") : "not observed",
+      withheld: "known rare annotations, Combo target/order, candidate source labels, baseline membership, and rare count are intentionally withheld"
+    },
+    questions: {
+      tile_class: {
+        type: "choice",
+        instructions: "Experimental shadow scoring only. Assign relative score mass to six neutral outcome classes from the supplied weak evidence. Do not choose an action. The class keys are intentionally neutral.",
+        criteria: {
+          A: "rare tile opportunity",
+          B: "whale opportunity",
+          C: "sandcastle opportunity",
+          D: "twinkle or uncommon opportunity",
+          E: "ordinary regular beach opportunity",
+          F: "already exhausted, combed, or low-value opportunity"
+        }
+      }
+    }
+  };
+}
+function askWaterSheep(candidate) {
+  var _parsed$answers;
+  var payload = waterSheepPayload(candidate);
+  var started = Date.now();
+  var url = "".concat(ENDPOINT, "?request=").concat(kolmafia.urlEncode(JSON.stringify(payload)));
+  var raw = String(kolmafia.visitUrl(url, false) || "");
+  var parsed = JSON.parse(raw);
+  if (parsed.error) throw new Error(parsed.error);
+  var probabilities = ((_parsed$answers = parsed.answers) === null || _parsed$answers === void 0 || (_parsed$answers = _parsed$answers.tile_class) === null || _parsed$answers === void 0 ? void 0 : _parsed$answers.probabilities) || {};
+  var scores = {};
+  for (var _i3 = 0, _Object$entries = Object.entries(MODEL_KEYS); _i3 < _Object$entries.length; _i3++) {
+    var _Object$entries$_i = _slicedToArray(_Object$entries[_i3], 2),
+      key = _Object$entries$_i[0],
+      label = _Object$entries$_i[1];
+    scores[label] = n(probabilities[key]);
+  }
+  var total = Object.values(scores).reduce((sum, value) => sum + value, 0);
+  if (total <= 0) {
+    var _iterator6 = _createForOfIteratorHelper(LABELS),
+      _step6;
+    try {
+      for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
+        var _label = _step6.value;
+        scores[_label] = n(probabilities[_label]);
+      }
+    } catch (err) {
+      _iterator6.e(err);
+    } finally {
+      _iterator6.f();
+    }
+    total = Object.values(scores).reduce((sum, value) => sum + value, 0);
+  }
+  if (total <= 0) throw new Error("WaterSheep returned no tile_class score mass");
+  var _iterator7 = _createForOfIteratorHelper(LABELS),
+    _step7;
+  try {
+    for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
+      var _label2 = _step7.value;
+      scores[_label2] = scores[_label2] / total;
+    }
+  } catch (err) {
+    _iterator7.e(err);
+  } finally {
+    _iterator7.f();
+  }
+  return {
+    scores,
+    ms: Date.now() - started
+  };
+}
+function traceTargetPrediction(minute) {
+  var ledger = loadObservationLedger();
+  var current = n(kolmafia.getProperty("_beachMinutes"));
+  var evidence = evidenceFor(minute, current, ledger);
+  var candidate = {
+    minute,
+    evidence,
+    representative: evidence.representative};
+  var _askWaterSheep = askWaterSheep(candidate),
+    scores = _askWaterSheep.scores,
+    ms = _askWaterSheep.ms;
+  var scored = scoreCandidate(candidate, scores);
+  return {
+    schema: "don-combo-target-prediction/v0.1",
+    generated_at: new Date().toISOString(),
+    evidence_contract: WATERSHEEP_EVIDENCE_CONTRACT,
+    minute,
+    model_input: {
+      minute_fraction: evidence.minute_fraction,
+      hilbert_bucket_256: evidence.hilbert_bucket_256,
+      distance_from_current: evidence.distance_from_current,
+      layout_snapshots: evidence.layout_snapshots,
+      session_events: evidence.session_events,
+      last_seen_age_hours: evidence.last_seen_age_hours,
+      observed_symbol_rates: evidence.observed_symbol_rates,
+      sand_per_event: evidence.sand_per_event,
+      current_layout_if_same_front: minute === current ? kolmafia.getProperty("_beachLayout") : "not observed"
+    },
+    score_mass: scores,
+    model_utility: scored.components.model,
+    policy_utility: scored.utility,
+    policy_components: scored.components,
+    ms,
+    calibration: "UNVALIDATED_FOR_KOL_BEACH",
+    authority: "none"
+  };
+}
+function scoreCandidate(candidate, scores) {
+  var evidence = candidate.evidence;
+  var rates = evidence.observed_symbol_rates;
+  var outcomes = evidence.observed_outcome_rates;
+  var model = LABELS.reduce((sum, label) => sum + n(scores[label]) * WEIGHTS[label], 0);
+  var exploration = 0.08 / Math.sqrt(1 + evidence.observation_count);
+  var observed = n(rates.whale) * 0.16 + n(rates.twinkle) * 0.08 - n(rates.combed) * 0.05 + n(outcomes.whale) * 0.16 + n(outcomes.rare_target) * 0.12 + n(outcomes.twinkle_fallback) * 0.08 - n(outcomes.rough_fallback) * 0.02 - n(outcomes.exhausted_fallback) * 0.05;
+  return {
+    utility: round(model + exploration + observed),
+    components: {
+      model: round(model),
+      exploration: round(exploration),
+      observed: round(observed)
+    }
+  };
 }
 
 var _templateObject;
@@ -1640,6 +1913,47 @@ function addFalseRare(tile) {
 // We precede the function name with an underscore to show that it's not a front, user-facing function
 // In this script, really only main is, but we may port this code into libram at some point
 // We'd want to export the comb function, but not _comb
+function mlTraceEnabled() {
+  return ["1", "true", "target", "on"].includes(String(kolmafia.getProperty("don_combo_ml_trace") || "").toLowerCase());
+}
+function captureTargetPrediction(minute) {
+  if (!mlTraceEnabled()) return null;
+  try {
+    return traceTargetPrediction(minute);
+  } catch (error) {
+    var message = error instanceof Error ? error.message : String(error);
+    kolmafia.print("don_combo ML trace unavailable: ".concat(message, " \xB7 Combo continues normally."), "gray");
+    return {
+      schema: "don-combo-target-prediction/v0.1",
+      generated_at: new Date().toISOString(),
+      minute,
+      error: message,
+      authority: "none"
+    };
+  }
+}
+function sessionDelta(before) {
+  var delta = Session.current().diff(before);
+  var items = {};
+  var _iterator = _createForOfIteratorHelper(delta.items),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var _step$value = _slicedToArray(_step.value, 2),
+        item = _step$value[0],
+        quantity = _step$value[1];
+      if (quantity) items[item.name] = quantity;
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  return {
+    meat: delta.meat,
+    items
+  };
+}
 function _comb(tile) {
   // Here, we destructure the BeachTile object into three separate variables
   // It's going to be really tedious to write tile.minute and tile.row all the time
@@ -1660,7 +1974,25 @@ function _comb(tile) {
   // TypeScript doesn't know that! the "as" called a "Type Assertion", which is exactly what it sounds like
   // This way, our compiler and our IDE don't start shouting at us for things that we, the reader, know are fine.
   .map(rowLayout => [parseInt(rowLayout[0]), rowLayout[1].split("")]));
-  var finishObservation = outcome => recordBeachObservation(minute, layoutString, outcome);
+  var preActionPrediction = captureTargetPrediction(minute);
+  var finishObservation = (outcome, actualRow, actualColumn, before) => {
+    var delta = sessionDelta(before);
+    recordBeachObservation(minute, layoutString, outcome, {
+      planned_target: {
+        minute,
+        row,
+        column
+      },
+      actual_comb: {
+        minute,
+        row: actualRow,
+        column: actualColumn
+      },
+      items: delta.items,
+      meat: delta.meat,
+      pre_action_prediction: preActionPrediction
+    });
+  };
 
   // the Array.find() method returnns either an element of the array that fits, or undefined
   // We convert our Map to an Array here to use the .find() method
@@ -1671,8 +2003,9 @@ function _comb(tile) {
     // This is beneficial to us! Arrays are indexed starting at 1, so .findIndex() gets us just what we want
     var whaleColumn = whaleRow[1].findIndex(x => x === "W");
     kolmafia.print("We found a whale. To hey deze's heart, we'll stab at it.", "red");
+    var _before = Session.current();
     kolmafia.cliExecute("beach comb ".concat(whaleRow[0], " ").concat(whaleColumn));
-    finishObservation("whale");
+    finishObservation("whale", whaleRow[0], whaleColumn, _before);
     // By returning partway through, we avoid needing to use "else"
     // With the exception of try...finally shenanigans, using the return keyword will just immediately terminate the function
     return;
@@ -1693,6 +2026,7 @@ function _comb(tile) {
     if (rareRow[column] !== "c") {
       kolmafia.print("Our rare tile is uncombed, so let's go ahead and change that.", "red");
       // Grab the output of our comb and lowercase the resulting text
+      var _before2 = Session.current();
       var output = kolmafia.cliExecuteOutput("beach comb ".concat(row, " ").concat(column)).toLowerCase();
 
       // We exclude grain of sand as it means we didn't comb a twinkle as expected
@@ -1704,7 +2038,7 @@ function _comb(tile) {
       if (hasCommonItem) {
         addFalseRare(tile);
       }
-      finishObservation(falseRareRough ? "false_rare_rough" : "rare_target");
+      finishObservation(falseRareRough ? "false_rare_rough" : hasCommonItem ? "false_rare_item" : "rare_target", row, column, _before2);
       return;
     }
   }
@@ -1712,21 +2046,24 @@ function _comb(tile) {
   if (firstTwinkleRow) {
     kolmafia.print("Our rare tile is combed, but we found a twinkle!", HIGHLIGHT);
     var twinkleColumn = firstTwinkleRow[1].findIndex(x => x === "t");
+    var _before3 = Session.current();
     kolmafia.cliExecute("beach comb ".concat(firstTwinkleRow[0], " ").concat(twinkleColumn));
-    finishObservation("twinkle_fallback");
+    finishObservation("twinkle_fallback", firstTwinkleRow[0], twinkleColumn, _before3);
     return;
   }
   var firstRoughRow = Array.from(layout.entries()).find(rowLayout => rowLayout[1].includes("r"));
   if (firstRoughRow) {
     kolmafia.print("Our rare tile is combed, but we found some rough sand. So I guess there's that.", HIGHLIGHT);
     var roughcolumn = firstRoughRow[1].findIndex(x => x === "r");
+    var _before4 = Session.current();
     kolmafia.cliExecute("beach comb ".concat(firstRoughRow[0], " ").concat(roughcolumn));
-    finishObservation("rough_fallback");
+    finishObservation("rough_fallback", firstRoughRow[0], roughcolumn, _before4);
     return;
   }
   kolmafia.print("We've exhausted all other options, so we're combing an already-combed tile.", HIGHLIGHT);
+  var before = Session.current();
   kolmafia.cliExecute("beach comb ".concat(row, " ").concat(column));
-  finishObservation("exhausted_fallback");
+  finishObservation("exhausted_fallback", row, column, before);
 }
 
 // Alright now this is pretty cool
@@ -1799,19 +2136,19 @@ function printSession(session) {
     return kolmafia.historicalPrice(item2) * amount2 - kolmafia.historicalPrice(item1) * amount1;
   });
   kolmafia.print("-Found ".concat(session.meat, " meat"));
-  var _iterator = _createForOfIteratorHelper(items),
-    _step;
+  var _iterator2 = _createForOfIteratorHelper(items),
+    _step2;
   try {
-    for (_iterator.s(); !(_step = _iterator.n()).done;) {
-      var _step$value = _slicedToArray(_step.value, 2),
-        item = _step$value[0],
-        quantity = _step$value[1];
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      var _step2$value = _slicedToArray(_step2.value, 2),
+        item = _step2$value[0],
+        quantity = _step2$value[1];
       kolmafia.print("-Found ".concat(quantity, " ").concat(item));
     }
   } catch (err) {
-    _iterator.e(err);
+    _iterator2.e(err);
   } finally {
-    _iterator.f();
+    _iterator2.f();
   }
 }
 

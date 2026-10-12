@@ -244,6 +244,58 @@ var TYPE_REFERENCE = {
   repository: "together-science/symtype",
   use: "explicit properties, relations, and indeterminate truth as TypeScript design inspiration only"
 };
+function unescapeAshField(value) {
+  var output = "";
+  var escaped = false;
+  var _iterator = _createForOfIteratorHelper(value),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var ch = _step.value;
+      if (!escaped) {
+        if (ch === "\\") escaped = true;else output += ch;
+        continue;
+      }
+      if (ch === "n") output += "\n";else if (ch === "t") output += "\t";else output += ch;
+      escaped = false;
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  if (escaped) output += "\\";
+  return output;
+}
+function escapeAshField(value) {
+  return value.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/\t/g, "\\t");
+}
+function readFlatAshMap(path) {
+  var raw = String(kolmafia.fileToBuffer(path) || "");
+  var result = {};
+  var _iterator2 = _createForOfIteratorHelper(raw.split(/\r?\n/)),
+    _step2;
+  try {
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      var line = _step2.value;
+      if (!line) continue;
+      var tab = line.indexOf("\t");
+      if (tab < 0) continue;
+      var key = unescapeAshField(line.substring(0, tab));
+      var value = unescapeAshField(line.substring(tab + 1));
+      result[key] = value;
+    }
+  } catch (err) {
+    _iterator2.e(err);
+  } finally {
+    _iterator2.f();
+  }
+  return result;
+}
+function writeFlatAshMap(path, values) {
+  var lines = Object.keys(values).sort().map(key => "".concat(escapeAshField(key), "\t").concat(escapeAshField(values[key])));
+  kolmafia.bufferToFile("".concat(lines.join("\n"), "\n"), path);
+}
 function n(value) {
   var fallback = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
   var parsed = Number(value);
@@ -283,17 +335,17 @@ function xyFor(d) {
 }
 function parseFalseRares() {
   var result = new Set();
-  var _iterator = _createForOfIteratorHelper(String(kolmafia.getProperty("combo_false_rares") || "").split(";")),
-    _step;
+  var _iterator3 = _createForOfIteratorHelper(String(kolmafia.getProperty("combo_false_rares") || "").split(";")),
+    _step3;
   try {
-    for (_iterator.s(); !(_step = _iterator.n()).done;) {
-      var raw = _step.value;
+    for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+      var raw = _step3.value;
       if (/^\d+,\d+,\d+$/.test(raw)) result.add(raw);
     }
   } catch (err) {
-    _iterator.e(err);
+    _iterator3.e(err);
   } finally {
-    _iterator.f();
+    _iterator3.f();
   }
   return result;
 }
@@ -353,8 +405,8 @@ function comboBaseline(points) {
   return null;
 }
 function loadContext() {
-  var map = {};
-  if (kolmafia.fileToMap("kol-goblin-docs/runtime.tsv", map) && map.player_id && map.gameday) {
+  var map = readFlatAshMap("kol-goblin-docs/runtime.tsv");
+  if (map.player_id && map.gameday) {
     return {
       context: {
         player: n(map.player_id),
@@ -456,18 +508,18 @@ function sampleMinutes(ledger, count, current, exclude) {
   });
   observed.sort((a, b) => b.signal - a.signal || b.observations - a.observations || a.minute - b.minute);
   var observedTarget = Math.max(1, Math.floor(count / 3)) + (current ? 1 : 0);
-  var _iterator2 = _createForOfIteratorHelper(observed),
-    _step2;
+  var _iterator4 = _createForOfIteratorHelper(observed),
+    _step4;
   try {
-    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
-      var item = _step2.value;
+    for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+      var item = _step4.value;
       if (selected.length >= observedTarget) break;
       add(item.minute, "observed");
     }
   } catch (err) {
-    _iterator2.e(err);
+    _iterator4.e(err);
   } finally {
-    _iterator2.f();
+    _iterator4.f();
   }
   var seed = n(kolmafia.getProperty("combo_lastTileCombed")) * 2654435761 + current * 2246822519 + Object.keys(ledger.fronts).length * 3266489917 + count >>> 0;
   while (selected.length < count) {
@@ -500,13 +552,13 @@ function candidateFrontier(ledger, baseline) {
     });
   }
   var exclude = new Set(baseline ? [baseline.minute] : []);
-  var _iterator3 = _createForOfIteratorHelper(sampleMinutes(ledger, count, current, exclude)),
-    _step3;
+  var _iterator5 = _createForOfIteratorHelper(sampleMinutes(ledger, count, current, exclude)),
+    _step5;
   try {
-    for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
-      var _step3$value = _slicedToArray(_step3.value, 2),
-        minute = _step3$value[0],
-        source = _step3$value[1];
+    for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+      var _step5$value = _slicedToArray(_step5.value, 2),
+        minute = _step5$value[0],
+        source = _step5$value[1];
       var _evidence = evidenceFor(minute, current, ledger);
       result.push({
         minute,
@@ -520,9 +572,9 @@ function candidateFrontier(ledger, baseline) {
       });
     }
   } catch (err) {
-    _iterator3.e(err);
+    _iterator5.e(err);
   } finally {
-    _iterator3.f();
+    _iterator5.f();
   }
   return result;
 }
@@ -578,32 +630,32 @@ function askWaterSheep(candidate) {
   }
   var total = Object.values(scores).reduce((sum, value) => sum + value, 0);
   if (total <= 0) {
-    var _iterator4 = _createForOfIteratorHelper(LABELS),
-      _step4;
+    var _iterator6 = _createForOfIteratorHelper(LABELS),
+      _step6;
     try {
-      for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
-        var _label = _step4.value;
+      for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
+        var _label = _step6.value;
         scores[_label] = n(probabilities[_label]);
       }
     } catch (err) {
-      _iterator4.e(err);
+      _iterator6.e(err);
     } finally {
-      _iterator4.f();
+      _iterator6.f();
     }
     total = Object.values(scores).reduce((sum, value) => sum + value, 0);
   }
   if (total <= 0) throw new Error("WaterSheep returned no tile_class score mass");
-  var _iterator5 = _createForOfIteratorHelper(LABELS),
-    _step5;
+  var _iterator7 = _createForOfIteratorHelper(LABELS),
+    _step7;
   try {
-    for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
-      var _label2 = _step5.value;
+    for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
+      var _label2 = _step7.value;
       scores[_label2] = scores[_label2] / total;
     }
   } catch (err) {
-    _iterator5.e(err);
+    _iterator7.e(err);
   } finally {
-    _iterator5.f();
+    _iterator7.f();
   }
   return {
     scores,
@@ -656,11 +708,11 @@ function comparison(candidates, baseline, fronts) {
 function layoutCells(minute, raw) {
   if (!minute) return [];
   var result = [];
-  var _iterator6 = _createForOfIteratorHelper(String(raw || "").split(",")),
-    _step6;
+  var _iterator8 = _createForOfIteratorHelper(String(raw || "").split(",")),
+    _step8;
   try {
-    for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
-      var part = _step6.value;
+    for (_iterator8.s(); !(_step8 = _iterator8.n()).done;) {
+      var part = _step8.value;
       var split = part.indexOf(":");
       if (split < 0) continue;
       var row = n(part.substring(0, split));
@@ -683,9 +735,9 @@ function layoutCells(minute, raw) {
       }
     }
   } catch (err) {
-    _iterator6.e(err);
+    _iterator8.e(err);
   } finally {
-    _iterator6.f();
+    _iterator8.f();
   }
   return result;
 }
@@ -796,11 +848,11 @@ function buildRuntime() {
   var candidates = candidateFrontier(ledger, baseline, 6);
   var status = "ready";
   var error = null;
-  var _iterator7 = _createForOfIteratorHelper(candidates),
-    _step7;
+  var _iterator9 = _createForOfIteratorHelper(candidates),
+    _step9;
   try {
-    for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
-      var candidate = _step7.value;
+    for (_iterator9.s(); !(_step9 = _iterator9.n()).done;) {
+      var candidate = _step9.value;
       if (error) break;
       try {
         var _askWaterSheep = askWaterSheep(candidate),
@@ -820,9 +872,9 @@ function buildRuntime() {
       }
     }
   } catch (err) {
-    _iterator7.e(err);
+    _iterator9.e(err);
   } finally {
-    _iterator7.f();
+    _iterator9.f();
   }
   candidates.sort((a, b) => (b.utility == null ? -1 : b.utility) - (a.utility == null ? -1 : a.utility) || a.minute - b.minute);
   var current = n(kolmafia.getProperty("_beachMinutes"));
@@ -904,8 +956,8 @@ function writeRuntime(result) {
   kolmafia.bufferToFile("window.DON_COMBO_MATRIX_RUNTIME=" + encoded + ";\n", "relay/don_combo_matrix_runtime.js");
 }
 function readRequest(path) {
-  var raw = {};
-  if (!kolmafia.fileToMap(path, raw)) throw new Error("unable to read runtime request map: " + path);
+  var raw = readFlatAshMap(path);
+  if (!raw.schema) throw new Error("unable to read runtime request map: " + path);
   return decodeRuntimeRequest(raw);
 }
 function writeResponse(request, response) {
@@ -922,7 +974,7 @@ function writeResponse(request, response) {
     wire.shadow_top_minute = String(response.shadow_top_minute);
   }
   if (response.baseline_rank != null) wire.baseline_rank = String(response.baseline_rank);
-  kolmafia.mapToFile(wire, "agent-runtime/outbox/".concat(request.id, ".txt"));
+  writeFlatAshMap("agent-runtime/outbox/".concat(request.id, ".txt"), wire);
 }
 function processRequest(path) {
   var request;
@@ -994,7 +1046,7 @@ function main(args) {
       meta: request.meta || "",
       page: request.page || ""
     };
-    kolmafia.mapToFile(wire, "agent-runtime/inbox/".concat(request.id, ".txt"));
+    writeFlatAshMap("agent-runtime/inbox/".concat(request.id, ".txt"), wire);
     processRequest("agent-runtime/inbox/".concat(request.id, ".txt"));
     return;
   }

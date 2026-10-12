@@ -61,10 +61,12 @@ const TYPE_REFERENCE = {
 const REPRESENTATION_REFERENCE = {
   repository: "es-3581100/Kotlin-Studio",
   path: "Sacred-Computations-Map",
+  commit: "244b4cf4445abc4026975cdd6d2bbef6ded1591f",
   use: "one semantic dataset projected as linked graph, spatial matrix, inspector, signal profile, and exact readable cross-index",
 };
 const HILBERT_UI_REFERENCE = {
   source: "user-provided hilbert_hashtable.html",
+  sha256: "6d2cb93d716a72789569005e3d41cd4eb3b227602eaace7e96720f45acd9ceac",
   use: "direct cell -> Hilbert d -> bucket -> table inspection and bucket isolation",
 };
 

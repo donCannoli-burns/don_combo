@@ -1,3 +1,5 @@
+export const WATERSHEEP_EVIDENCE_CONTRACT = "don-combo-watersheep-evidence/v1" as const;
+
 export type Truth = true | false | null;
 
 export type EvidenceKind = "FACT" | "MODEL" | "POLICY";

@@ -26,7 +26,7 @@ The downstream release adds a relay-browser entry named `DonComboMatrix`. It dis
 
 WaterSheep remains advisory only. The exact Combo baseline is scored inside the same pool as the dynamic alternatives, but baseline membership, known rare coordinates/counts, candidate source labels, and Combo's route are withheld from model input. Its score mass is explicitly uncalibrated for KoL beach outcomes.
 
-The preferred v0.5 runtime is KoLmafia-native: Combo records observations directly from its TypeScript execution path, a short ASH wrapper emits a flat `string[string]` request with `map_to_file()`, and `don_combo_runtime.js` reads the native tab-delimited map wire with `fileToBuffer()`, validates typed contracts, calls localhost WaterSheep, writes the rich runtime/receipt artifacts, and returns. Goblin Docs remains the read-only player/day context owner. No dedicated Python matrix watcher is required.
+The preferred v0.6 runtime is KoLmafia-native: Combo records observations directly from its TypeScript execution path, a short ASH wrapper emits a flat `string[string]` request with `map_to_file()`, and `don_combo_runtime.js` reads the native tab-delimited map wire with `fileToBuffer()`, validates typed contracts, calls localhost WaterSheep, writes the rich runtime/receipt artifacts, and returns. Goblin Docs remains the read-only player/day context owner. No dedicated Python matrix watcher is required.
 
 Start the downstream KOL-WaterSheep server:
 
@@ -57,6 +57,33 @@ That round-trips an Excavator-shaped `event/meta/page` envelope through the same
 Then open the KoLmafia relay browser and choose `DonComboMatrix` from the `-run script-` dropdown.
 
 The relay also exposes **Export HTML snapshot**. It downloads a self-contained, script-free HTML evidence artifact containing the frozen Hilbert canvas, rendered comparison/evidence UI, agent packet, provenance, and the full runtime object as inert `application/json`. Snapshot filenames include the runtime timestamp and the first 12 characters of the comparison receipt state hash.
+
+### ML trace and all-in-one experiment artifact
+
+The relay now includes an **ML Lab** section inspired by compact research-paper plots. It separates two questions that the earlier snapshot blurred together:
+
+- **model-only history** — WaterSheep score-mass rank for Combo's blinded baseline;
+- **model + policy history** — the final deterministic utility rank after exploration and observed-evidence adjustments;
+- **per-comb target traces** — an optional pre-action WaterSheep score for the exact Combo target, joined after the action to the actual comb coordinate, outcome, meat, and item delta.
+
+Per-comb tracing is opt-in because it adds one localhost WaterSheep inference per successful comb. Enable it from gCLI:
+
+```text
+set don_combo_ml_trace=true
+combo 10
+```
+
+Disable it with:
+
+```text
+set don_combo_ml_trace=false
+```
+
+Trace failures are evidence failures only: Combo continues on its deterministic route and the failed prediction is logged instead of gaining fallback authority. New trace rows append to `data/don_combo_ml_events.jsonl`.
+
+The exported HTML snapshot is self-contained and includes the rendered ML plots, per-comb verification table, current comparison, receipt history summary, and inert machine-readable runtime. Older observations cannot be retroactively assigned a pre-action WaterSheep score; exact prediction-to-loot attribution begins only after tracing is enabled.
+
+WaterSheep input intentionally excludes Combo-derived outcome labels such as `rare_target` and fallback classifications. Those remain available to deterministic policy and evaluation only.
 
 See [docs/WATERSHEEP_MATRIX_PROTOTYPE.md](docs/WATERSHEEP_MATRIX_PROTOTYPE.md) for the prototype boundary and data flow.
 

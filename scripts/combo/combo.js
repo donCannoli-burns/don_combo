@@ -1484,6 +1484,44 @@ function loadObservationLedger() {
     return blankLedger();
   }
 }
+function loadMlTraceEvents() {
+  var limit = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 500;
+  var raw;
+  try {
+    raw = String(kolmafia.fileToBuffer(ML_EVENT_FILE) || "");
+  } catch (_unused2) {
+    raw = "";
+  }
+  var events = [];
+  var total = 0;
+  var _iterator = _createForOfIteratorHelper(raw.split(/\r?\n/)),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var line = _step.value;
+      var trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        var parsed = JSON.parse(trimmed);
+        if (parsed && parsed.schema === "don-combo-ml-event/v0.1") {
+          total++;
+          events.push(parsed);
+        }
+      } catch (_unused3) {
+        // Keep a malformed historical line from breaking live Combo.
+      }
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  return {
+    file: ML_EVENT_FILE,
+    total,
+    events: events.slice(Math.max(0, events.length - limit))
+  };
+}
 function ensureEntry(ledger, minute) {
   var key = String(minute);
   if (!ledger.fronts[key]) {
@@ -2191,7 +2229,11 @@ function main(args) {
   _set("don_combo_last_run_combs", 0);
   _set("don_combo_last_run_end_reason", "running");
   _set("don_combo_last_run_interrupt_consumed", false);
-  _set("logPreferenceChangeFilter", _toConsumableArray(new Set([].concat(_toConsumableArray(oldFilter.split(",")), ["spadingData", "combo_lastTileCombed", "_beachLayout", "_beachMinutes", "_beachCombing", "don_combo_interrupt", "don_combo_running", "don_combo_last_run_status", "don_combo_last_run_requested", "don_combo_last_run_combs", "don_combo_last_run_end_reason", "don_combo_last_run_interrupt_consumed"]))).filter(x => x).join(","));
+  _set("don_combo_last_run_started_at", new Date().toISOString());
+  _set("don_combo_last_run_ended_at", "");
+  _set("don_combo_last_run_ml_events_before", loadMlTraceEvents(0).total);
+  _set("don_combo_last_run_ml_events_after", loadMlTraceEvents(0).total);
+  _set("logPreferenceChangeFilter", _toConsumableArray(new Set([].concat(_toConsumableArray(oldFilter.split(",")), ["spadingData", "combo_lastTileCombed", "_beachLayout", "_beachMinutes", "_beachCombing", "don_combo_interrupt", "don_combo_running", "don_combo_last_run_status", "don_combo_last_run_requested", "don_combo_last_run_combs", "don_combo_last_run_end_reason", "don_combo_last_run_interrupt_consumed", "don_combo_last_run_started_at", "don_combo_last_run_ended_at", "don_combo_last_run_ml_events_before", "don_combo_last_run_ml_events_after"]))).filter(x => x).join(","));
   var completedCombs = 0;
   var interrupted = false;
   var cleanFinish = false;
@@ -2229,6 +2271,8 @@ function main(args) {
     _set("don_combo_last_run_combs", completedCombs);
     _set("don_combo_last_run_status", cleanFinish ? interrupted ? "interrupted" : "completed" : "failed");
     _set("don_combo_last_run_end_reason", cleanFinish ? interrupted ? "user_cooperative_interrupt" : "requested_combs_completed" : "runtime_failure");
+    _set("don_combo_last_run_ended_at", new Date().toISOString());
+    _set("don_combo_last_run_ml_events_after", loadMlTraceEvents(0).total);
   }
 
   // Subtract the original session from our current session

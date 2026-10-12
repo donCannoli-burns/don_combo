@@ -122,6 +122,7 @@ function sessionDelta(before: Session): { meat: number; items: Record<string, nu
 function consumeInterruptRequest(): boolean {
   if (!get("don_combo_interrupt", false)) return false;
   set("don_combo_interrupt", false);
+  set("don_combo_last_run_interrupt_consumed", true);
   return true;
 }
 
@@ -364,7 +365,10 @@ export function main(args?: string | number): void {
   set("don_combo_interrupt", false);
   set("don_combo_running", true);
   set("don_combo_last_run_status", "running");
+  set("don_combo_last_run_requested", combs);
   set("don_combo_last_run_combs", 0);
+  set("don_combo_last_run_end_reason", "running");
+  set("don_combo_last_run_interrupt_consumed", false);
   set(
     "logPreferenceChangeFilter",
     [
@@ -378,7 +382,10 @@ export function main(args?: string | number): void {
         "don_combo_interrupt",
         "don_combo_running",
         "don_combo_last_run_status",
+        "don_combo_last_run_requested",
         "don_combo_last_run_combs",
+        "don_combo_last_run_end_reason",
+        "don_combo_last_run_interrupt_consumed",
       ]),
     ]
       .filter((x) => x)
@@ -427,6 +434,14 @@ export function main(args?: string | number): void {
     set(
       "don_combo_last_run_status",
       cleanFinish ? (interrupted ? "interrupted" : "completed") : "failed",
+    );
+    set(
+      "don_combo_last_run_end_reason",
+      cleanFinish
+        ? interrupted
+          ? "user_cooperative_interrupt"
+          : "requested_combs_completed"
+        : "runtime_failure",
     );
   }
 

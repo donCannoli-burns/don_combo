@@ -3,46 +3,121 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>don_combo · WaterSheep Matrix</title>
+<meta name="color-scheme" content="dark">
+<title>don_combo · Shadow Route Lab</title>
 <style>
-:root{color-scheme:dark;--bg:#0b1118;--panel:#111a24;--ink:#e6edf3;--mut:#93a4b7;--rule:#263445;--hi:#7dd3fc;--rare:#fbbf24;--whale:#60a5fa;--castle:#f59e0b;--twinkle:#c084fc;--regular:#64748b;--scratched:#475569}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}header{padding:18px 22px;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}h1{font-size:20px;margin:0}.sub{color:var(--mut);margin:3px 0 0}.badge{border:1px solid var(--rule);background:var(--panel);padding:5px 8px;border-radius:999px;font-size:12px}.warn{color:#fbbf24}.ok{color:#86efac}.bad{color:#fca5a5}main{display:grid;grid-template-columns:minmax(320px,720px) minmax(320px,1fr);gap:18px;padding:18px}@media(max-width:980px){main{grid-template-columns:1fr}}.box{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:14px}.box h2{font-size:14px;margin:0 0 10px}.canvasWrap{position:relative;max-width:720px;aspect-ratio:1;border:1px solid var(--rule);background:#071018}.canvasWrap canvas{width:100%;height:100%;display:block;image-rendering:pixelated}.legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:9px;color:var(--mut);font-size:12px}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px}.info{margin-top:10px;min-height:44px;color:var(--mut);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}.stats{display:grid;grid-template-columns:repeat(3,minmax(100px,1fr));gap:8px;margin-bottom:12px}.stat{background:#0c141d;border:1px solid var(--rule);border-radius:6px;padding:9px}.stat b{display:block;font-size:16px}.stat span{color:var(--mut);font-size:11px}table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;color:var(--mut);font-weight:600;border-bottom:1px solid var(--rule);padding:6px}td{padding:6px;border-bottom:1px solid #1d2a38;vertical-align:top}.p{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;white-space:nowrap}.bars{display:grid;grid-template-columns:76px 1fr 42px;gap:4px 7px;align-items:center}.bar{height:7px;background:#1e293b;border-radius:8px;overflow:hidden}.fill{height:100%;background:var(--hi)}button{background:#172433;border:1px solid var(--rule);color:var(--ink);padding:6px 9px;border-radius:5px;cursor:pointer}code{color:#bae6fd}.small{color:var(--mut);font-size:12px}.empty{padding:24px;color:var(--mut);text-align:center}.candidate{cursor:pointer}.candidate:hover{background:#152131}
+:root{--bg:#091018;--panel:#101923;--panel2:#14212e;--well:#071018;--line:#26384a;--text:#eef4f8;--muted:#96a8b8;--fact:#72dfa6;--model:#82b7ff;--policy:#f4c56a;--bad:#ff8e88;--rare:#ffd166;--current:#72dfa6;--combo:#ff8e88;--selected:#f7f9fb;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(900px 500px at 0 -10%,rgba(130,183,255,.07),transparent 60%),var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}a{color:inherit}button{font:inherit;cursor:pointer}.mono,code,pre{font-family:var(--mono)}.top{position:sticky;top:0;z-index:20;background:rgba(9,16,24,.94);border-bottom:1px solid var(--line);backdrop-filter:blur(9px)}.topin{max-width:1500px;margin:auto;padding:12px 18px;display:flex;gap:16px;align-items:center;justify-content:space-between}.brand b{font-size:16px}.brand span{display:block;color:var(--muted);font-size:11px}.nav{display:flex;gap:4px;flex-wrap:wrap}.nav a,.btn{padding:6px 9px;border:1px solid var(--line);border-radius:6px;text-decoration:none;background:var(--panel);color:var(--text)}.nav a:hover,.btn:hover{background:var(--panel2)}.shell{max-width:1500px;margin:auto;padding:18px}.eyebrow{font:700 10px/1.4 var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}.hero{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.75fr);gap:14px;align-items:stretch}.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}.claim h1{font-size:clamp(22px,3vw,38px);line-height:1.08;margin:6px 0 9px;letter-spacing:-.025em}.claim p{max-width:72ch;color:#cdd8e1;margin:0}.chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:14px}.chip{border:1px solid var(--line);border-radius:999px;padding:4px 7px;font:11px var(--mono)}.fact{color:var(--fact)}.model{color:var(--model)}.policy{color:var(--policy)}.bad{color:var(--bad)}.compare{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:8px}.route{background:var(--well);border:1px solid var(--line);border-radius:8px;padding:10px;min-height:114px}.route .big{font:800 24px var(--mono);margin:3px 0}.route small{color:var(--muted)}.agreement{margin-top:9px;border-top:1px solid var(--line);padding-top:9px}.section{scroll-margin-top:75px;margin-top:18px}.sectionhead{display:flex;justify-content:space-between;gap:16px;align-items:end;margin-bottom:9px}.sectionhead h2{font-size:16px;margin:2px 0 0}.sectionhead p{margin:0;color:var(--muted);max-width:64ch;font-size:12px}.grid2{display:grid;grid-template-columns:minmax(360px,720px) minmax(360px,1fr);gap:14px}@media(max-width:980px){.hero,.grid2{grid-template-columns:1fr}.nav{display:none}}.canvasWrap{position:relative;aspect-ratio:1;max-width:720px;background:var(--well);border:1px solid var(--line);border-radius:6px;overflow:hidden}.canvasWrap canvas{width:100%;height:100%;display:block;image-rendering:pixelated}.legend{display:flex;gap:11px;flex-wrap:wrap;color:var(--muted);font-size:11px;margin-top:8px}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}.tileinfo{margin-top:9px;min-height:39px;color:var(--muted);font:12px/1.45 var(--mono)}.stats{display:grid;grid-template-columns:repeat(4,minmax(90px,1fr));gap:7px}@media(max-width:680px){.stats{grid-template-columns:1fr 1fr}}.stat{background:var(--well);border:1px solid var(--line);border-radius:7px;padding:9px}.stat b{display:block;font:700 16px var(--mono)}.stat span{font-size:10px;color:var(--muted)}table{width:100%;border-collapse:collapse;font-size:12px}th{text-align:left;color:var(--muted);font-size:10px;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--line);padding:7px}td{padding:8px 7px;border-bottom:1px solid #1d2b39;vertical-align:top}.candidate{cursor:pointer}.candidate:hover,.candidate.sel{background:#162433}.rank{font:700 15px var(--mono)}.source{font:10px var(--mono);border:1px solid var(--line);border-radius:999px;padding:2px 5px;color:var(--muted)}.bars{display:grid;grid-template-columns:70px minmax(80px,1fr) 38px;gap:3px 6px;align-items:center}.bar{height:6px;background:#1d2b39;border-radius:8px;overflow:hidden}.fill{height:100%;background:var(--model)}.muted{color:var(--muted)}.evidence{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}.evidence .item{background:var(--well);border:1px solid var(--line);padding:8px;border-radius:7px}.item b{display:block;font:13px var(--mono)}.item span{color:var(--muted);font-size:10px}.proofgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:760px){.proofgrid{grid-template-columns:1fr}}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--well);border:1px solid var(--line);border-radius:7px;padding:10px;max-height:340px;overflow:auto;color:#cfe0ec;font-size:11px}.callout{border-left:3px solid var(--model);padding:9px 11px;background:var(--well);color:#d8e3eb}.lineage{display:grid;grid-template-columns:130px 1fr;gap:5px 10px;font-size:12px}.lineage dt{color:var(--muted)}.lineage dd{margin:0;font-family:var(--mono);overflow-wrap:anywhere}.footer{color:var(--muted);font-size:11px;padding-bottom:38px}.status{font:10px var(--mono);border:1px solid var(--line);border-radius:999px;padding:4px 7px}.ok{color:var(--fact)}.warn{color:var(--policy)}
 </style>
 </head>
 <body>
-<header>
-<div><h1>don_combo · WaterSheep Beach Matrix</h1><p class="sub">1,000,000 KoL beach tiles mapped into a 1024×1024 Hilbert address space. Shadow assessment only.</p></div>
-<div><span id="mode" class="badge">loading runtime…</span> <button onclick="location.reload()">Refresh</button></div>
-</header>
-<main>
-<section>
-<div class="box">
-<h2>Hilbert probability field</h2>
-<div class="canvasWrap"><canvas id="matrix" width="1024" height="1024"></canvas></div>
-<div class="legend"><span><i class="dot" style="background:var(--rare)"></i>known rare</span><span><i class="dot" style="background:var(--hi)"></i>WaterSheep candidate</span><span><i class="dot" style="background:#22c55e"></i>current front</span></div>
-<div id="tileInfo" class="info">Move over the matrix to inspect a tile address.</div>
-</div>
+<header class="top"><div class="topin"><div class="brand"><b>don_combo · Shadow Route Lab</b><span>dense memory · sparse inference · no model authority</span></div><nav class="nav"><a href="#overview">Overview</a><a href="#matrix">Matrix</a><a href="#candidates">Candidates</a><a href="#evidence">Evidence</a><a href="#packet">Agent packet</a><a href="#runtime">Runtime</a></nav><div><span id="status" class="status">loading</span> <button class="btn" onclick="location.reload()">Refresh</button></div></div></header>
+
+<main class="shell">
+<section id="overview" class="hero">
+<article class="card claim" data-role="claim">
+<div class="eyebrow">Claim / shadow evaluation</div>
+<h1>Does dynamic reassessment beat Combo's deterministic next target?</h1>
+<p>The model is now blind to known rare coordinates and Combo's route. It scores a small mixed frontier from the full 10,000 beachfront space; facts and policy stay outside the model.</p>
+<div class="chips"><span class="chip fact">FACT · local KoLmafia evidence</span><span class="chip model">MODEL · uncalibrated score mass</span><span class="chip policy">POLICY · fixed utility weights</span></div>
+</article>
+<aside class="card" data-role="context">
+<div class="eyebrow">Context / baseline vs shadow</div>
+<div class="compare"><div class="route"><small>FACT · Combo baseline</small><div id="comboTarget" class="big">—</div><div id="comboWhy" class="muted">waiting for player/day context</div></div><div class="route"><small>MODEL + POLICY · shadow top</small><div id="shadowTarget" class="big">—</div><div id="shadowWhy" class="muted">waiting for runtime</div></div></div>
+<div id="agreement" class="agreement muted">Comparison pending.</div>
+</aside>
 </section>
-<section>
-<div class="stats" id="stats"></div>
-<div class="box"><h2>Candidate fronts</h2><div id="candidates" class="empty">No runtime snapshot yet.</div></div>
-<div class="box" style="margin-top:18px"><h2>Runtime</h2><div id="runtime" class="small"></div></div>
+
+<section id="matrix" class="section">
+<div class="sectionhead"><div><div class="eyebrow">Proof / world view</div><h2>Hilbert beach intelligence field</h2></div><p>The million-cell address space remains dense. Only the candidate frontier receives model inference.</p></div>
+<div class="grid2"><article class="card"><div class="canvasWrap"><canvas id="map" width="1024" height="1024"></canvas></div><div class="legend"><span><i class="dot" style="background:var(--rare)"></i>known rare FACT</span><span><i class="dot" style="background:var(--model)"></i>shadow candidate MODEL</span><span><i class="dot" style="background:var(--current)"></i>current front FACT</span><span><i class="dot" style="background:var(--combo)"></i>Combo target FACT</span><span><i class="dot" style="background:var(--selected)"></i>selected</span></div><div id="tileInfo" class="tileinfo">Move over the matrix to inspect an address.</div></article><aside><div id="stats" class="stats"></div><article class="card" style="margin-top:10px"><div class="eyebrow">Reading rule</div><div class="callout"><b>Known truth outranks inference.</b><br>Gold/green/red marks are deterministic local facts. Blue marks are WaterSheep shadow scores. Nothing on this page issues a KoL action.</div></article></aside></div>
 </section>
+
+<section id="candidates" class="section" data-role="decision">
+<div class="sectionhead"><div><div class="eyebrow">Decision / inspect, do not execute</div><h2>Candidate frontier</h2></div><p>Sources are current, observed, or deterministic exploration samples. Known-rare status is deliberately not part of model input.</p></div>
+<article class="card"><div id="candidateTable" class="muted">No runtime snapshot.</div></article>
+</section>
+
+<section id="evidence" class="section">
+<div class="sectionhead"><div><div class="eyebrow">Proof / selected candidate</div><h2>Evidence inspector</h2></div><p>Everything the model saw is visible here, separately from the utility policy applied afterward.</p></div>
+<div class="proofgrid"><article class="card"><div class="eyebrow fact">FACT · model input</div><div id="factEvidence" class="evidence"></div></article><article class="card"><div class="eyebrow model">MODEL · score mass</div><div id="modelEvidence"></div><div class="eyebrow policy" style="margin-top:12px">POLICY · utility composition</div><div id="policyEvidence" class="evidence"></div></article></div>
+</section>
+
+<section id="packet" class="section">
+<div class="sectionhead"><div><div class="eyebrow">Metadata / agent handoff</div><h2>Agent-readable comparison packet</h2></div><p>A compact evidence packet for another model or developer. It names authority boundaries instead of making them infer the UI.</p></div>
+<article class="card"><button id="copyPacket" class="btn">Copy packet</button><pre id="packetText">No runtime snapshot.</pre></article>
+</section>
+
+<section id="runtime" class="section" data-role="metadata">
+<div class="sectionhead"><div><div class="eyebrow">Metadata / provenance</div><h2>Runtime and lineage</h2></div><p>Design reference supplies hierarchy/provenance behavior only; it is not a visual template or runtime authority.</p></div>
+<div class="proofgrid"><article class="card"><dl id="lineage" class="lineage"></dl></article><article class="card"><div class="eyebrow">Raw runtime</div><pre id="rawRuntime"></pre></article></div>
+</section>
+<section class="section footer" data-role="exit">Exit / return to normal KoLmafia navigation. This surface is read-only shadow instrumentation.</section>
 </main>
+
 <script src="don_combo_matrix_runtime.js"></script>
 <script>
-(()=>{
-'use strict';
-const N=1024,REAL=1000000,C=document.getElementById('matrix'),ctx=C.getContext('2d'),R=window.DON_COMBO_MATRIX_RUNTIME||null;
-const colors={rare:'#fbbf24',whale:'#60a5fa',sandcastle:'#f59e0b',twinkle:'#c084fc',regular:'#64748b',scratched:'#475569'};
-function xy2d(n,x,y){let d=0;for(let s=n>>1;s>0;s>>=1){const rx=(x&s)>0?1:0,ry=(y&s)>0?1:0;d+=s*s*((3*rx)^ry);if(ry===0){if(rx===1){x=n-1-x;y=n-1-y}const t=x;x=y;y=t}}return d}
-function tile(d){if(d<0||d>=REAL)return null;const minute=Math.floor(d/100)+1,o=d%100,row=Math.floor(o/10)+1,column=o%10;return{minute,row,column}}
-function base(){ctx.fillStyle='#071018';ctx.fillRect(0,0,N,N);ctx.strokeStyle='#223041';ctx.strokeRect(.5,.5,N-1,N-1)}
-function draw(){base();if(!R)return;ctx.fillStyle=colors.rare;for(const p of R.known_rare_points||[]){ctx.fillRect(p.x,p.y,1,1)}for(const p of R.current_front_cells||[]){ctx.fillStyle=p.symbol==='W'?'#38bdf8':p.symbol==='t'?'#d8b4fe':p.symbol==='c'?'#334155':'#22c55e';ctx.fillRect(p.x-1,p.y-1,3,3)}for(const c of R.candidates||[]){const p=c.representative;if(!p)continue;const u=c.utility==null?0:Math.max(0,Math.min(1.75,c.utility));ctx.beginPath();ctx.fillStyle=`rgba(125,211,252,${.35+.35*Math.min(1,u)})`;ctx.arc(p.x+.5,p.y+.5,3+5*Math.min(1,u),0,Math.PI*2);ctx.fill()}}
-function inspect(evt){const b=C.getBoundingClientRect(),x=Math.max(0,Math.min(N-1,Math.floor((evt.clientX-b.left)*N/b.width))),y=Math.max(0,Math.min(N-1,Math.floor((evt.clientY-b.top)*N/b.height))),d=xy2d(N,x,y),t=tile(d),el=document.getElementById('tileInfo');el.textContent=t?`matrix (${x},${y}) → d=${d} → beach ${t.minute}, row ${t.row}, col ${t.column}`:`matrix (${x},${y}) → d=${d} → unused Hilbert tail`}
-C.addEventListener('mousemove',inspect);
-function bars(probs){if(!probs)return'<span class="small">WaterSheep unavailable</span>';return'<div class="bars">'+Object.keys(colors).map(k=>{const v=Number(probs[k]||0);return`<span>${k}</span><span class="bar"><i class="fill" style="display:block;width:${(v*100).toFixed(1)}%;background:${colors[k]}"></i></span><span class="p">${v.toFixed(3)}</span>`}).join('')+'</div>'}
-function render(){draw();const mode=document.getElementById('mode');if(!R){mode.textContent='NO RUNTIME SNAPSHOT';mode.classList.add('warn');document.getElementById('runtime').innerHTML=`Run <code>python3 scripts/don_combo/watersheep_combo_bridge.py --mock</code> for a smoke test, or start WaterSheep on port 8766 and run the bridge normally.`;return}const ws=R.watersheep||{},status=String(ws.status||'unknown');mode.textContent=`${String(R.mode||'shadow').toUpperCase()} · WATERSHEEP ${status.toUpperCase()}`;mode.classList.add(status==='ready'?'ok':status==='offline'?'bad':'warn');const m=R.matrix||{},combo=R.combo||{};document.getElementById('stats').innerHTML=`<div class="stat"><b>${Number(m.real_tile_cells||0).toLocaleString()}</b><span>real tile cells</span></div><div class="stat"><b>${Number(combo.rare_tile_records||0).toLocaleString()}</b><span>known rare records</span></div><div class="stat"><b>${(R.candidates||[]).length}</b><span>assessed fronts</span></div>`;const rows=R.candidates||[];document.getElementById('candidates').innerHTML=rows.length?`<table><thead><tr><th>Front</th><th>Utility</th><th>Evidence</th><th>WaterSheep distribution</th></tr></thead><tbody>${rows.map((c,i)=>`<tr class="candidate" data-i="${i}"><td><b>${c.minute}</b><br><span class="small">${c.known_rare_count} known rare</span></td><td class="p">${c.utility==null?'—':Number(c.utility).toFixed(3)}</td><td class="small">local rare fronts: ${c.rare_fronts_within_25_minutes}<br>structural: ${Number(c.structural_score).toFixed(3)}</td><td>${bars(c.watersheep&&c.watersheep.probabilities)}</td></tr>`).join('')}</tbody></table>`:'<div class="empty">No candidates.</div>';document.getElementById('runtime').innerHTML=`Generated <code>${R.generated_at}</code><br>Current beach: <code>${combo.current_minute==null?'unknown':combo.current_minute}</code><br>Endpoint: <code>${ws.endpoint||'—'}</code>${ws.error?`<br><span class="bad">${ws.error}</span>`:''}<br><br>${R.note||''}`;document.querySelectorAll('.candidate').forEach(tr=>tr.addEventListener('click',()=>{const c=rows[+tr.dataset.i],p=c.representative;if(!p)return;document.getElementById('tileInfo').textContent=`candidate beach ${c.minute} → representative row ${p.row}, col ${p.column} → d=${p.d} → matrix (${p.x},${p.y})`}))}
+(function(){
+"use strict";
+var R=window.DON_COMBO_MATRIX_RUNTIME||null,N=1024,REAL=1000000,C=document.getElementById("map"),ctx=C.getContext("2d"),selected=0,baseline=null;
+var colors={rare:"#ffd166",model:"#82b7ff",current:"#72dfa6",combo:"#ff8e88",selected:"#f7f9fb"};
+function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(ch){return({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[ch]})}
+function xy2d(n,x,y){var d=0;for(var s=n>>1;s>0;s>>=1){var rx=(x&s)>0?1:0,ry=(y&s)>0?1:0;d+=s*s*((3*rx)^ry);if(ry===0){if(rx===1){x=n-1-x;y=n-1-y}var t=x;x=y;y=t}}return d}
+function tileOf(d){if(d<0||d>=REAL)return null;var m=Math.floor(d/100)+1,o=d%100;return{minute:m,row:Math.floor(o/10)+1,column:o%10}}
+function params(){var q=new URLSearchParams(location.search);return{player:Number(q.get("player")||0),gameday:Number(q.get("gameday")||0)}}
+function comboBaseline(){
+ if(!R)return null;var p=params(),pts=(R.known_rare_points||[]).map(function(x){return{minute:x.minute,row:x.row,column:x.column,false_rare:!!x.false_rare,d:x.d,x:x.x,y:x.y}});
+ if(!p.player||!pts.length)return null;
+ var work=pts.slice(),out=[],seed=p.player;
+ while(work.length){seed++;var index=Math.floor(Math.sin(seed)*work.length);var tail=work.splice(index);for(var j=0;j<tail.length;j++)out.push(tail[j])}
+ if(!out.length)return null;
+ var last=Number((R.combo||{}).last_tile_index||0),day=1+(p.gameday%8),hidden=4-Math.abs(4-day);
+ for(var step=1;step<=out.length;step++){var idx=(last+step)%out.length,t=out[idx];if(t.row>hidden&&!t.false_rare)return{tile:t,index:idx,rowsHidden:hidden,gameday:p.gameday,player:p.player,skipped:step-1}}
+ return null
+}
+function base(){ctx.fillStyle="#071018";ctx.fillRect(0,0,N,N)}
+function circle(x,y,r,color){ctx.beginPath();ctx.fillStyle=color;ctx.arc(x+.5,y+.5,r,0,Math.PI*2);ctx.fill()}
+function draw(){
+ base();if(!R)return;
+ ctx.fillStyle=colors.rare;(R.known_rare_points||[]).forEach(function(p){if(!p.false_rare)ctx.fillRect(p.x,p.y,1,1)});
+ (R.candidates||[]).forEach(function(c,i){var p=c.representative;if(!p)return;var u=Math.max(0,Math.min(1,Number(c.utility||0)));circle(p.x,p.y,3+4*u,i===selected?colors.selected:colors.model)});
+ (R.current_front_cells||[]).forEach(function(p){ctx.fillStyle=colors.current;ctx.fillRect(p.x-1,p.y-1,3,3)});
+ if(baseline&&baseline.tile)circle(baseline.tile.x,baseline.tile.y,6,colors.combo)
+}
+function inspect(ev){var b=C.getBoundingClientRect(),x=Math.max(0,Math.min(N-1,Math.floor((ev.clientX-b.left)*N/b.width))),y=Math.max(0,Math.min(N-1,Math.floor((ev.clientY-b.top)*N/b.height))),d=xy2d(N,x,y),t=tileOf(d);document.getElementById("tileInfo").textContent=t?"matrix ("+x+","+y+") → d="+d+" → beach "+t.minute+", row "+t.row+", col "+t.column:"matrix ("+x+","+y+") → unused Hilbert tail"}
+C.addEventListener("mousemove",inspect);
+function scoreBars(scores){if(!scores)return'<span class="bad">unavailable</span>';return'<div class="bars">'+["rare","whale","sandcastle","twinkle","regular","scratched"].map(function(k){var v=Number(scores[k]||0);return"<span>"+k+"</span><span class='bar'><i class='fill' style='display:block;width:"+(v*100).toFixed(1)+"%'></i></span><span class='mono'>"+v.toFixed(3)+"</span>"}).join("")+"</div>"}
+function evItem(label,value){return"<div class='item'><b>"+esc(value)+"</b><span>"+esc(label)+"</span></div>"}
+function selectCandidate(i){
+ selected=i;var c=(R.candidates||[])[i];if(!c)return;draw();
+ document.querySelectorAll(".candidate").forEach(function(row){row.classList.toggle("sel",Number(row.getAttribute("data-i"))===i)});
+ var e=c.evidence||{},rates=e.observed_symbol_rates||{};
+ document.getElementById("factEvidence").innerHTML=evItem("beach minute",c.minute)+evItem("candidate source",c.source)+evItem("Hilbert bucket / 256",e.hilbert_bucket_256)+evItem("layout snapshots",e.layout_snapshots)+evItem("last seen age hours",e.last_seen_age_hours==null?"never":e.last_seen_age_hours)+evItem("distance from current",e.distance_from_current==null?"unknown":e.distance_from_current)+evItem("observed whale rate",Number(rates.whale||0).toFixed(4))+evItem("observed twinkle rate",Number(rates.twinkle||0).toFixed(4))+evItem("observed combed rate",Number(rates.combed||0).toFixed(4));
+ var ws=c.watersheep||{};document.getElementById("modelEvidence").innerHTML=scoreBars(ws.score_mass)+"<p class='muted'>Calibration: <code>"+esc(ws.calibration||"—")+"</code>. These are relative score masses, not validated KoL probabilities.</p>";
+ var u=c.utility_components||{};document.getElementById("policyEvidence").innerHTML=evItem("total utility",c.utility==null?"—":Number(c.utility).toFixed(4))+evItem("model component",u.model==null?"—":u.model)+evItem("exploration bonus",u.exploration==null?"—":u.exploration)+evItem("observed adjustment",u.observed==null?"—":u.observed);
+ var p=c.representative||{};document.getElementById("tileInfo").textContent="selected beach "+c.minute+" → representative d="+p.d+" → matrix ("+p.x+","+p.y+")"
+ buildPacket()
+}
+function buildPacket(){
+ if(!R)return;var c=(R.candidates||[])[selected]||null,obj={schema:"don-combo-shadow-comparison/v0.2",generated_at:R.generated_at,authority:"none",combo_baseline:baseline?{minute:baseline.tile.minute,row:baseline.tile.row,column:baseline.tile.column,shuffled_index:baseline.index,skipped_inaccessible:baseline.skipped}:null,shadow_top:(R.candidates||[])[0]||null,selected_candidate:c,agreement:baseline&&R.candidates&&R.candidates[0]?baseline.tile.minute===R.candidates[0].minute:null,boundaries:{facts:"KoLmafia local prefs + Combo rare corpus + local observation ledger",model:"WaterSheep receives weak evidence only; known rare annotations and Combo route withheld",policy:"fixed utility weights outside model",execution:"none"},provenance:{runtime_schema:R.schema,design_reference:(R.ui||{}).design_reference}};
+ document.getElementById("packetText").textContent=JSON.stringify(obj,null,2)
+}
+function render(){
+ var st=document.getElementById("status");if(!R){st.textContent="NO RUNTIME";st.className="status warn";return}
+ var ws=R.watersheep||{},combo=R.combo||{},obs=R.observations||{},cands=R.candidates||[];baseline=comboBaseline();
+ st.textContent=String(R.mode||"shadow").toUpperCase()+" · WATERSHEEP "+String(ws.status||"unknown").toUpperCase();st.className="status "+(ws.status==="ready"?"ok":"warn");
+ if(baseline){document.getElementById("comboTarget").textContent=baseline.tile.minute;document.getElementById("comboWhy").textContent="row "+baseline.tile.row+", col "+baseline.tile.column+" · exact seeded Combo order · "+baseline.skipped+" skipped"}
+ else document.getElementById("comboWhy").textContent="open via DonComboMatrix relay entry to supply player/day context";
+ if(cands[0]){document.getElementById("shadowTarget").textContent=cands[0].minute;document.getElementById("shadowWhy").textContent="utility "+Number(cands[0].utility||0).toFixed(4)+" · source "+cands[0].source}
+ var agree=baseline&&cands[0]?baseline.tile.minute===cands[0].minute:null;document.getElementById("agreement").innerHTML=agree===null?"Comparison unavailable.":agree?"<span class='fact'>AGREEMENT · same beachfront</span>":"<span class='model'>DISAGREEMENT · useful shadow test</span>";
+ var m=R.matrix||{};document.getElementById("stats").innerHTML=evItem("real tile cells",Number(m.real_tile_cells||0).toLocaleString())+evItem("known rare records",Number(combo.rare_tile_records||0).toLocaleString())+evItem("observed fronts",Number(obs.fronts_recorded||0).toLocaleString())+evItem("assessed fronts",cands.length);
+ document.getElementById("candidateTable").innerHTML=cands.length?"<table><thead><tr><th>#</th><th>Front</th><th>Source</th><th>Utility</th><th>FACT evidence</th><th>MODEL score mass</th></tr></thead><tbody>"+cands.map(function(c,i){var e=c.evidence||{};return"<tr class='candidate' data-i='"+i+"'><td class='rank'>"+(i+1)+"</td><td><b>"+c.minute+"</b></td><td><span class='source'>"+esc(c.source)+"</span></td><td class='mono'>"+(c.utility==null?"—":Number(c.utility).toFixed(4))+"</td><td class='muted'>snapshots "+e.layout_snapshots+"<br>bucket "+e.hilbert_bucket_256+"<br>age "+(e.last_seen_age_hours==null?"never":e.last_seen_age_hours+"h")+"</td><td>"+scoreBars(c.watersheep&&c.watersheep.score_mass)+"</td></tr>"}).join("")+"</tbody></table>":"No candidates.";
+ document.querySelectorAll(".candidate").forEach(function(row){row.addEventListener("click",function(){selectCandidate(Number(row.getAttribute("data-i")))})});
+ var ref=(R.ui||{}).design_reference||{};document.getElementById("lineage").innerHTML="<dt>Runtime schema</dt><dd>"+esc(R.schema)+"</dd><dt>Generated</dt><dd>"+esc(R.generated_at)+"</dd><dt>Rare corpus</dt><dd>"+esc(combo.raretiles_file)+"</dd><dt>Prefs</dt><dd>"+esc(combo.prefs_file)+"</dd><dt>Observation ledger</dt><dd>"+esc(obs.ledger_file)+"</dd><dt>WaterSheep</dt><dd>"+esc(ws.endpoint)+"</dd><dt>Calibration</dt><dd>"+esc(ws.calibration)+"</dd><dt>UI reference</dt><dd>"+esc(ref.repository)+" @ "+esc(ref.commit)+"</dd><dt>Reference use</dt><dd>"+esc(ref.use)+"</dd>";
+ document.getElementById("rawRuntime").textContent=JSON.stringify({schema:R.schema,generated_at:R.generated_at,mode:R.mode,authority:R.authority,note:R.note,combo:R.combo,observations:R.observations,watersheep:R.watersheep,ui:R.ui},null,2);
+ if(cands.length)selectCandidate(0);draw()
+}
+document.getElementById("copyPacket").addEventListener("click",function(){var text=document.getElementById("packetText").textContent;navigator.clipboard.writeText(text).then(function(){document.getElementById("copyPacket").textContent="Copied";setTimeout(function(){document.getElementById("copyPacket").textContent="Copy packet"},1200)}).catch(function(){})});
 render();
 })();
 </script>

@@ -109,5 +109,5 @@ export function recordBeachObservation(
   entry.last_layout = layout;
   ledger.updated_at = new Date().toISOString();
 
-  bufferToFile(JSON.stringify(ledger, null, 2) + "\n", LEDGER_FILE);
+  bufferToFile(`${JSON.stringify(ledger, null, 2)}\n`, LEDGER_FILE);
 }

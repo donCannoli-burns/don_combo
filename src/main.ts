@@ -17,7 +17,11 @@ import {
 import { $items, get, property, Session, set, sinceKolmafiaRevision } from "libram";
 
 import { traceTargetPrediction } from "./don_combo_runtime";
-import { recordBeachObservation, type BeachOutcome } from "./runtime/observations";
+import {
+  loadMlTraceEvents,
+  recordBeachObservation,
+  type BeachOutcome,
+} from "./runtime/observations";
 
 // Gotta print in a legible colour.
 const HIGHLIGHT = isDarkMode() ? "yellow" : "blue";
@@ -369,6 +373,10 @@ export function main(args?: string | number): void {
   set("don_combo_last_run_combs", 0);
   set("don_combo_last_run_end_reason", "running");
   set("don_combo_last_run_interrupt_consumed", false);
+  set("don_combo_last_run_started_at", new Date().toISOString());
+  set("don_combo_last_run_ended_at", "");
+  set("don_combo_last_run_ml_events_before", loadMlTraceEvents(0).total);
+  set("don_combo_last_run_ml_events_after", loadMlTraceEvents(0).total);
   set(
     "logPreferenceChangeFilter",
     [
@@ -386,6 +394,10 @@ export function main(args?: string | number): void {
         "don_combo_last_run_combs",
         "don_combo_last_run_end_reason",
         "don_combo_last_run_interrupt_consumed",
+        "don_combo_last_run_started_at",
+        "don_combo_last_run_ended_at",
+        "don_combo_last_run_ml_events_before",
+        "don_combo_last_run_ml_events_after",
       ]),
     ]
       .filter((x) => x)
@@ -443,6 +455,8 @@ export function main(args?: string | number): void {
           : "requested_combs_completed"
         : "runtime_failure",
     );
+    set("don_combo_last_run_ended_at", new Date().toISOString());
+    set("don_combo_last_run_ml_events_after", loadMlTraceEvents(0).total);
   }
 
   // Subtract the original session from our current session

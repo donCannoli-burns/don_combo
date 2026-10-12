@@ -22,6 +22,7 @@ import {
   type RuntimeResponseV1,
   type WaterSheepRequest,
   type WaterSheepResponse,
+  WATERSHEEP_EVIDENCE_CONTRACT,
   decodeRuntimeRequest,
   fact,
   relation,
@@ -403,6 +404,7 @@ function waterSheepPayload(candidate: Candidate): WaterSheepRequest {
   return {
     state: {
       mode: "shadow-only; no action authorized",
+      evidence_contract: WATERSHEEP_EVIDENCE_CONTRACT,
       beach_minute: candidate.minute,
       minute_fraction: evidence.minute_fraction,
       hilbert_bucket_256: evidence.hilbert_bucket_256,
@@ -767,6 +769,7 @@ function buildRuntime() {
     },
     watersheep: {
       endpoint: ENDPOINT,
+      evidence_contract: WATERSHEEP_EVIDENCE_CONTRACT,
       status,
       error,
       options: LABELS.slice(),

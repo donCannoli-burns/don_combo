@@ -236,8 +236,7 @@ def parse_session_event(block,turn,minute,source_name):
         "free_walk_to":safe_int(free.group(2)) if free else None,
         "layout":layout_match.group(2) if layout_match and safe_int(layout_match.group(1))==safe_int(minute) else None,
     }
-    basis=[source_name,event["turn"],event["minute"],event["comb_row"],event["comb_column"],event["outcome"],sorted(items.items())]
-    event["event_id"]=hashlib.sha256(json.dumps(basis,separators=(",",":")).encode()).hexdigest()[:20]
+    event["event_id"]=hashlib.sha256((source_name+"\n"+block.strip()).encode()).hexdigest()[:20]
     return event
 
 def parse_session_chunk(text,source_name):
@@ -482,6 +481,8 @@ def emit_receipt(root,result):
         "minute":item["minute"],"source":item["source"],"is_combo_baseline":item.get("is_combo_baseline",False),
         "utility":item.get("utility"),"score_mass":((item.get("watersheep") or {}).get("score_mass")),
         "layout_snapshots":safe_int((item.get("evidence") or {}).get("layout_snapshots"),0),
+        "session_events":safe_int((item.get("evidence") or {}).get("session_events"),0),
+        "observation_count":safe_int((item.get("evidence") or {}).get("observation_count"),0),
     } for item in result.get("candidates") or []]
     state_basis={
         "combo_last_tile_index":(result.get("combo") or {}).get("last_tile_index"),

@@ -287,40 +287,120 @@ def score_candidate(candidate,scores):
     observed=rates.get("whale",0)*.16+rates.get("twinkle",0)*.08-rates.get("combed",0)*.05
     return round(model+exploration+observed,6),{"model":round(model,6),"exploration":round(exploration,6),"observed":round(observed,6)}
 
+def comparison_metrics(candidates,baseline,fronts_recorded):
+    scored=[item for item in candidates if item.get("utility") is not None]
+    top=scored[0] if scored else None; second=scored[1] if len(scored)>1 else None
+    margin=round(top["utility"]-second["utility"],6) if top and second else None
+    observed_candidates=sum(1 for item in scored if safe_int((item.get("evidence") or {}).get("layout_snapshots"),0)>0)
+    observed_fraction=round(observed_candidates/max(1,len(scored)),4)
+    if observed_candidates==0:
+        maturity="COLD_START"
+    elif observed_fraction<0.5 or fronts_recorded<10:
+        maturity="WARMING"
+    else:
+        maturity="EVIDENCE_RICH"
+    if margin is None or margin<0.01: separation="LOW"
+    elif margin<0.03: separation="MEDIUM"
+    else: separation="HIGH"
+    baseline_rank=None; baseline_candidate=None
+    for index,item in enumerate(scored):
+        if item.get("is_combo_baseline"):
+            baseline_rank=index+1; baseline_candidate=item; break
+    delta=round(top["utility"]-baseline_candidate["utility"],6) if top and baseline_candidate else None
+    return {
+        "combo_baseline":baseline,
+        "baseline_rank":baseline_rank,
+        "pool_size":len(scored),
+        "shadow_top_minute":top["minute"] if top else None,
+        "shadow_top_source":top["source"] if top else None,
+        "agreement":bool(top and top.get("is_combo_baseline")),
+        "top_vs_second_margin":margin,
+        "top_vs_baseline_delta":delta,
+        "observed_candidates":observed_candidates,
+        "observed_candidate_fraction":observed_fraction,
+        "evidence_maturity":maturity,
+        "ranking_separation":separation,
+        "readiness_note":"Ranking separation is descriptive, not calibrated confidence.",
+    }
+
+def emit_receipt(root,result):
+    comparison=result.get("comparison") or {}
+    candidate_summary=[{
+        "minute":item["minute"],"source":item["source"],"is_combo_baseline":item.get("is_combo_baseline",False),
+        "utility":item.get("utility"),"score_mass":((item.get("watersheep") or {}).get("score_mass")),
+        "layout_snapshots":safe_int((item.get("evidence") or {}).get("layout_snapshots"),0),
+    } for item in result.get("candidates") or []]
+    state_basis={
+        "combo_last_tile_index":(result.get("combo") or {}).get("last_tile_index"),
+        "current_minute":(result.get("combo") or {}).get("current_minute"),
+        "context":(result.get("combo") or {}).get("context"),
+        "observation_fronts":(result.get("observations") or {}).get("fronts_recorded"),
+        "candidates":candidate_summary,
+    }
+    state_sha=hashlib.sha256(json.dumps(state_basis,sort_keys=True,separators=(",",":")).encode()).hexdigest()
+    last_path=root/"data"/"don_combo_matrix_last_receipt.json"
+    log_path=root/"data"/"don_combo_matrix_receipts.jsonl"
+    try:
+        previous=json.loads(last_path.read_text())
+    except (OSError,json.JSONDecodeError):
+        previous={}
+    appended=previous.get("state_sha256")!=state_sha
+    receipt={
+        "schema":"don-combo-shadow-receipt/v0.3",
+        "generated_at":result["generated_at"],
+        "state_sha256":state_sha,
+        "authority":"none",
+        "comparison":comparison,
+        "candidates":candidate_summary,
+        "observation_fronts":(result.get("observations") or {}).get("fronts_recorded"),
+        "watersheep_calibration":(result.get("watersheep") or {}).get("calibration"),
+    }
+    if appended:
+        log_path.parent.mkdir(parents=True,exist_ok=True)
+        with log_path.open("a") as handle: handle.write(json.dumps(receipt,separators=(",",":"))+"\n")
+        write_atomic(last_path,json.dumps(receipt,indent=2)+"\n")
+    return {"schema":receipt["schema"],"state_sha256":state_sha,"appended_this_run":appended,"last_receipt_file":str(last_path),"jsonl_file":str(log_path)}
+
 def snapshot(root,endpoint,count,timeout,mock):
     rares,rare_source=load_rares(root)
     pref_file,pref=prefs(root)
     points=rare_points(rares,pref)
+    context,context_file=load_context(root)
+    baseline=combo_baseline(points,pref,context)
     ledger,ledger_file,ledger_changed=update_ledger(root,pref)
-    candidates=candidate_frontier(pref,ledger,count)
+    candidates=candidate_frontier(pref,ledger,count,baseline)
     status="mock" if mock else "ready"; error=None
-    for c in candidates:
+    for candidate in candidates:
         scores={}; elapsed=0.0
-        if mock: scores=mock_scores(c["minute"])
+        if mock: scores=mock_scores(candidate["minute"])
         elif error is None:
-            try: scores,elapsed=ask(endpoint,c,pref,timeout)
+            try: scores,elapsed=ask(endpoint,candidate,pref,timeout)
             except Exception as exc:
                 status="offline"; error=f"{type(exc).__name__}: {exc}"
         if scores:
-            c["watersheep"]={"score_mass":scores,"ms":elapsed,"calibration":"UNVALIDATED_FOR_KOL_BEACH"}
-            c["utility"],c["utility_components"]=score_candidate(c,scores)
-    candidates.sort(key=lambda c:(-(c["utility"] if c["utility"] is not None else -1),c["minute"]))
+            candidate["watersheep"]={"score_mass":scores,"ms":elapsed,"calibration":"UNVALIDATED_FOR_KOL_BEACH"}
+            candidate["utility"],candidate["utility_components"]=score_candidate(candidate,scores)
+    candidates.sort(key=lambda item:(-(item["utility"] if item["utility"] is not None else -1),item["minute"]))
     minute=safe_int(pref.get("_beachMinutes"),0)
-    return {
-        "schema":"don-combo-matrix-runtime/v0.2",
+    comparison=comparison_metrics(candidates,baseline,len(ledger.get("fronts") or {}))
+    result={
+        "schema":"don-combo-matrix-runtime/v0.3",
         "generated_at":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
         "mode":"shadow-only","authority":"none",
-        "claim":"Compare Combo's deterministic next target with a blinded WaterSheep shadow route without changing KoL state.",
-        "note":"WaterSheep score mass is experimental and uncalibrated for KoL beach outcomes. Known rare annotations and Combo target/order are withheld from model input. No KoL request or KoLmafia command is executed by this bridge.",
+        "claim":"Score Combo's exact next target inside the same blinded WaterSheep pool as dynamic alternatives, without changing KoL state.",
+        "note":"WaterSheep score mass is experimental and uncalibrated for KoL beach outcomes. Known rare annotations, candidate source labels, baseline membership, and Combo route identity are withheld from model input. No KoL request or KoLmafia command is executed by this bridge.",
         "matrix":{"order":10,"width":GRID,"height":GRID,"total_cells":GRID*GRID,"real_tile_cells":REAL,"unused_cells":GRID*GRID-REAL,"address_rule":"d=(minute-1)*100+(row-1)*10+column; (x,y)=HilbertPoint(d,10)"},
-        "combo":{"rare_tile_records":len(points),"unique_rare_fronts":len({x["minute"] for x in points if not x["false_rare"]}),"false_rare_records":len(false_rares(pref.get("combo_false_rares",""))),"raretiles_file":str(rare_source),"prefs_file":str(pref_file) if pref_file else None,"last_tile_index":safe_int(pref.get("combo_lastTileCombed"),0),"current_minute":minute or None,"current_layout":pref.get("_beachLayout","")},
+        "combo":{"rare_tile_records":len(points),"unique_rare_fronts":len({x["minute"] for x in points if not x["false_rare"]}),"false_rare_records":len(false_rares(pref.get("combo_false_rares",""))),"raretiles_file":str(rare_source),"prefs_file":str(pref_file) if pref_file else None,"last_tile_index":safe_int(pref.get("combo_lastTileCombed"),0),"current_minute":minute or None,"current_layout":pref.get("_beachLayout",""),"context":context,"context_file":str(context_file),"baseline_in_pool":baseline is not None},
         "observations":{"ledger_file":str(ledger_file),"fronts_recorded":len(ledger.get("fronts") or {}),"ledger_updated_this_run":ledger_changed,"rule":"Distinct local _beachLayout snapshots only; repeated identical snapshots are deduplicated."},
-        "watersheep":{"endpoint":endpoint,"status":status,"error":error,"options":list(LABELS),"weights":WEIGHTS,"input_policy":"Known rare coordinates, Combo target/order and rare count withheld.","calibration":"UNVALIDATED_FOR_KOL_BEACH"},
+        "watersheep":{"endpoint":endpoint,"status":status,"error":error,"options":list(LABELS),"weights":WEIGHTS,"input_policy":"Known rare coordinates/counts, Combo target identity/order, candidate source labels, and baseline membership withheld.","calibration":"UNVALIDATED_FOR_KOL_BEACH"},
+        "comparison":comparison,
         "ui":{"design_reference":DESIGN_REFERENCE,"semantic_order":["claim","context","proof","decision","metadata","exit"],"evidence_kinds":["FACT","MODEL","POLICY"]},
         "known_rare_points":points,
         "current_front_cells":layout_cells(minute or None,pref.get("_beachLayout","")),
         "candidates":candidates,
     }
+    result["receipt"]=emit_receipt(root,result)
+    return result
 
 def main():
     ap=argparse.ArgumentParser()
@@ -337,7 +417,8 @@ def main():
         write_atomic(root/"data"/"don_combo_matrix_runtime.json",json.dumps(result,indent=2)+"\n")
         write_atomic(root/"relay"/"don_combo_matrix_runtime.js","window.DON_COMBO_MATRIX_RUNTIME="+encoded+";\n")
         top=result["candidates"][0]["minute"] if result["candidates"] else "none"
-        print(f"don_combo matrix v0.2: {result['watersheep']['status']} | {len(result['candidates'])} candidates | shadow top {top} | {root}")
+        comparison=result.get("comparison") or {}
+        print(f"don_combo matrix v0.3: {result['watersheep']['status']} | pool {len(result['candidates'])} | baseline rank {comparison.get('baseline_rank') or 'n/a'} | shadow top {top} | {root}")
         if result["watersheep"]["error"]: print("WaterSheep:",result["watersheep"]["error"])
         if args.watch<=0: return 0
         time.sleep(max(1.0,args.watch))

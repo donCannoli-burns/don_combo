@@ -1,4 +1,5 @@
 import { bufferToFile, fileToBuffer, turnsPlayed } from "kolmafia";
+
 import type { ObservationEntry, ObservationLedger } from "./contracts";
 
 export type BeachOutcome =

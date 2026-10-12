@@ -15,6 +15,7 @@ import {
   setProperty,
 } from "kolmafia";
 import { $items, get, property, Session, set, sinceKolmafiaRevision } from "libram";
+
 import { recordBeachObservation, type BeachOutcome } from "./runtime/observations";
 
 // Gotta print in a legible colour.
@@ -332,5 +333,4 @@ export function main(args?: string | number): void {
 
   const lifetime = Session.add(final, Session.fromFile("combo_results.json"));
   lifetime.toFile("combo_results.json");
-
 }

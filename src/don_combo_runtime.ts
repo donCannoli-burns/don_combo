@@ -10,6 +10,7 @@ import {
   print,
   visitUrl,
 } from "kolmafia";
+
 import {
   type BeachTile,
   type Candidate,
@@ -225,7 +226,11 @@ function outcomeRates(entry: Record<string, any>): Record<string, number> {
   return result;
 }
 
-function evidenceFor(minute: number, current: number, ledger: ObservationLedger): CandidateEvidence {
+function evidenceFor(
+  minute: number,
+  current: number,
+  ledger: ObservationLedger,
+): CandidateEvidence {
   const entry = (ledger.fronts[String(minute)] || {}) as Record<string, any>;
   const layouts = n(entry.layout_snapshots);
   const events = n(entry.session_events);
@@ -437,14 +442,18 @@ function scoreCandidate(
   };
 }
 
-function comparison(candidates: Candidate[], baseline: ReturnType<typeof comboBaseline>, fronts: number) {
+function comparison(
+  candidates: Candidate[],
+  baseline: ReturnType<typeof comboBaseline>,
+  fronts: number,
+) {
   const scored = candidates.filter((candidate) => candidate.utility != null);
   const top = scored[0];
   const second = scored[1];
-  const margin =
-    top && second ? round((top.utility as number) - (second.utility as number)) : null;
-  const observedCandidates = scored.filter((candidate) => candidate.evidence.observation_count > 0)
-    .length;
+  const margin = top && second ? round((top.utility as number) - (second.utility as number)) : null;
+  const observedCandidates = scored.filter(
+    (candidate) => candidate.evidence.observation_count > 0,
+  ).length;
   const fraction = round(observedCandidates / Math.max(1, scored.length), 4);
   const maturity =
     observedCandidates === 0
@@ -494,7 +503,8 @@ function layoutCells(minute: number, raw: string) {
 }
 
 function sha256(text: string): string {
-  const rightRotate = (value: number, amount: number) => (value >>> amount) | (value << (32 - amount));
+  const rightRotate = (value: number, amount: number) =>
+    (value >>> amount) | (value << (32 - amount));
   let ascii = unescape(encodeURIComponent(text));
   const maxWord = Math.pow(2, 32);
   const words: number[] = [];
@@ -517,7 +527,7 @@ function sha256(text: string): string {
   }
   words[words.length] = ((text.length * 8) / maxWord) | 0;
   words[words.length] = text.length * 8;
-  for (let j = 0; j < words.length; ) {
+  for (let j = 0; j < words.length;) {
     const w = words.slice(j, (j += 16));
     const oldHash = hash.slice(0, 8);
     for (let i = 0; i < 64; i++) {
@@ -642,13 +652,31 @@ function buildRuntime() {
   const proof = {
     facts: [
       fact("FACT", "rare-corpus", "known", points.length, "raretiles.json"),
-      fact("FACT", "observation-fronts", "known", Object.keys(ledger.fronts).length, "native ledger"),
+      fact(
+        "FACT",
+        "observation-fronts",
+        "known",
+        Object.keys(ledger.fronts).length,
+        "native ledger",
+      ),
       fact("MODEL", "kol-beach-calibration", "unknown", null, "WaterSheep"),
       fact("FACT", "baseline-membership-model-input", "withheld", null, "input policy"),
     ],
     relations: [
-      relation("member-of", "combo-baseline", "candidate-pool", baseline ? true : null, "runtime construction"),
-      relation("visible-to-model", "baseline-membership", "WaterSheep", false, "blinded input policy"),
+      relation(
+        "member-of",
+        "combo-baseline",
+        "candidate-pool",
+        baseline ? true : null,
+        "runtime construction",
+      ),
+      relation(
+        "visible-to-model",
+        "baseline-membership",
+        "WaterSheep",
+        false,
+        "blinded input policy",
+      ),
       relation("authorizes", "WaterSheep", "KoL action", false, "authority boundary"),
     ],
     design_reference: TYPE_REFERENCE,
@@ -660,8 +688,7 @@ function buildRuntime() {
     authority: "none",
     claim:
       "Score Combo's exact next successful target inside the same blinded WaterSheep pool as dynamic alternatives, without changing KoL state.",
-    note:
-      "TypeScript/Libram runtime. WaterSheep score mass is experimental and uncalibrated for KoL beach outcomes. Known rare annotations, source labels, baseline membership, and Combo route identity are withheld from model input.",
+    note: "TypeScript/Libram runtime. WaterSheep score mass is experimental and uncalibrated for KoL beach outcomes. Known rare annotations, source labels, baseline membership, and Combo route identity are withheld from model input.",
     matrix: {
       order: 10,
       width: GRID,
@@ -673,7 +700,9 @@ function buildRuntime() {
     },
     combo: {
       rare_tile_records: points.length,
-      unique_rare_fronts: new Set(points.filter((point) => !point.false_rare).map((point) => point.minute)).size,
+      unique_rare_fronts: new Set(
+        points.filter((point) => !point.false_rare).map((point) => point.minute),
+      ).size,
       false_rare_records: parseFalseRares().size,
       raretiles_file: "raretiles.json",
       prefs_file: "KoLmafia native properties",
@@ -689,8 +718,7 @@ function buildRuntime() {
       fronts_recorded: Object.keys(ledger.fronts).length,
       ledger_updated_this_run: false,
       session_tail: { mode: "native-event", events_added: 0, offset: 0, path: null },
-      rule:
-        "Combo records beach observations directly into the local evidence ledger; KoLmafia session logs remain recovery evidence, not the hot-path trigger.",
+      rule: "Combo records beach observations directly into the local evidence ledger; KoLmafia session logs remain recovery evidence, not the hot-path trigger.",
     },
     watersheep: {
       endpoint: ENDPOINT,
@@ -721,7 +749,10 @@ function buildRuntime() {
 function writeRuntime(result: Record<string, any>): void {
   const encoded = JSON.stringify(result);
   bufferToFile(JSON.stringify(result, null, 2) + "\n", "don_combo_matrix_runtime.json");
-  bufferToFile("window.DON_COMBO_MATRIX_RUNTIME=" + encoded + ";\n", "relay/don_combo_matrix_runtime.js");
+  bufferToFile(
+    "window.DON_COMBO_MATRIX_RUNTIME=" + encoded + ";\n",
+    "relay/don_combo_matrix_runtime.js",
+  );
 }
 
 function readRequest(path: string): RuntimeRequestV1 {

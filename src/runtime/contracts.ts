@@ -145,7 +145,8 @@ export function relation(
 }
 
 export function decodeRuntimeRequest(raw: Record<string, string>): RuntimeRequestV1 {
-  if (raw.schema !== "kol-runtime-request/v1") throw new Error("unsupported runtime request schema");
+  if (raw.schema !== "kol-runtime-request/v1")
+    throw new Error("unsupported runtime request schema");
   if (!raw.id) throw new Error("runtime request id is required");
   if (raw.capability !== "don-combo-matrix" && raw.capability !== "excavator-smoke") {
     throw new Error("unsupported runtime capability");

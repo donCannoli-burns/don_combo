@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Shadow-only Combo -> WaterSheep beach matrix. Reads local state; performs no KoL actions."""
 from __future__ import annotations
-import argparse, hashlib, json, math, os, time, urllib.request
+import argparse, hashlib, json, math, os, re, time, urllib.request
 from pathlib import Path
 
 GRID=1024
@@ -82,7 +82,7 @@ def load_context(root):
                 key,value=line.split("\t",1); values[key]=value
         player=safe_int(values.get("player_id"),0); gameday=safe_int(values.get("gameday"),-1)
         if player>0 and gameday>=0:
-            return {"player":player,"gameday":gameday,"captured_at":values.get("generated_at"),"source":"kol-goblin-docs"},goblin
+            return {"player":player,"player_name":values.get("player"),"gameday":gameday,"captured_at":values.get("generated_at"),"source":"kol-goblin-docs"},goblin
     except OSError:
         pass
 

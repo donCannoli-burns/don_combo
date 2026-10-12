@@ -27,7 +27,7 @@ import {
   fact,
   relation,
 } from "./runtime/contracts";
-import { loadObservationLedger } from "./runtime/observations";
+import { loadMlTraceEvents, loadObservationLedger } from "./runtime/observations";
 
 const GRID = 1024;
 const REAL = 1_000_000;
@@ -413,7 +413,6 @@ function waterSheepPayload(candidate: Candidate): WaterSheepRequest {
       session_events: evidence.session_events,
       last_seen_age_hours: evidence.last_seen_age_hours,
       observed_symbol_rates: evidence.observed_symbol_rates,
-      observed_outcome_rates: evidence.observed_outcome_rates,
       sand_per_event: evidence.sand_per_event,
       current_layout_if_same_front:
         candidate.minute === n(getProperty("_beachMinutes"))
@@ -458,6 +457,49 @@ function askWaterSheep(candidate: Candidate): { scores: Record<string, number>; 
   if (total <= 0) throw new Error("WaterSheep returned no tile_class score mass");
   for (const label of LABELS) scores[label] = scores[label] / total;
   return { scores, ms: Date.now() - started };
+}
+
+export function traceTargetPrediction(minute: number): Record<string, unknown> {
+  const ledger = loadObservationLedger();
+  const current = n(getProperty("_beachMinutes"));
+  const evidence = evidenceFor(minute, current, ledger);
+  const candidate: Candidate = {
+    minute,
+    source: "current",
+    is_combo_baseline: false,
+    evidence,
+    representative: evidence.representative,
+    utility: null,
+    utility_components: null,
+    watersheep: null,
+  };
+  const { scores, ms } = askWaterSheep(candidate);
+  const scored = scoreCandidate(candidate, scores);
+  return {
+    schema: "don-combo-target-prediction/v0.1",
+    generated_at: new Date().toISOString(),
+    evidence_contract: WATERSHEEP_EVIDENCE_CONTRACT,
+    minute,
+    model_input: {
+      minute_fraction: evidence.minute_fraction,
+      hilbert_bucket_256: evidence.hilbert_bucket_256,
+      distance_from_current: evidence.distance_from_current,
+      layout_snapshots: evidence.layout_snapshots,
+      session_events: evidence.session_events,
+      last_seen_age_hours: evidence.last_seen_age_hours,
+      observed_symbol_rates: evidence.observed_symbol_rates,
+      sand_per_event: evidence.sand_per_event,
+      current_layout_if_same_front:
+        minute === current ? getProperty("_beachLayout") : "not observed",
+    },
+    score_mass: scores,
+    model_utility: scored.components.model,
+    policy_utility: scored.utility,
+    policy_components: scored.components,
+    ms,
+    calibration: "UNVALIDATED_FOR_KOL_BEACH",
+    authority: "none",
+  };
 }
 
 function scoreCandidate(
@@ -613,6 +655,135 @@ function sha256(text: string): string {
     .join("");
 }
 
+function loadJsonLines(path: string, limit: number): Record<string, any>[] {
+  let raw = "";
+  try {
+    raw = String(fileToBuffer(path) || "");
+  } catch {
+    raw = "";
+  }
+  const rows: Record<string, any>[] = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const parsed = JSON.parse(trimmed) as Record<string, any>;
+      if (parsed && typeof parsed === "object") rows.push(parsed);
+    } catch {
+      // Historical diagnostics must never block live shadow scoring.
+    }
+  }
+  return rows.slice(Math.max(0, rows.length - limit));
+}
+
+function modelUtility(scoreMass: Record<string, number> | null | undefined): number | null {
+  if (!scoreMass) return null;
+  return round(
+    LABELS.reduce((sum, label) => sum + n(scoreMass[label]) * WEIGHTS[label], 0),
+  );
+}
+
+function buildMlLab() {
+  const traceLog = loadMlTraceEvents(500);
+  const tracedEvents = traceLog.events.map((event, index) => {
+    const prediction = (event.pre_action_prediction || null) as Record<string, any> | null;
+    const items = event.items || {};
+    const itemNames = Object.keys(items).filter((name) => n(items[name]) !== 0);
+    return {
+      index: traceLog.total - traceLog.events.length + index + 1,
+      event_id: event.event_id,
+      observed_at: event.observed_at,
+      turn: event.turn,
+      minute: event.minute,
+      outcome: event.outcome,
+      planned_target: event.planned_target,
+      actual_comb: event.actual_comb,
+      items,
+      meat: event.meat,
+      item_names: itemNames,
+      prediction_status: prediction ? (prediction.error ? "error" : "ready") : "untraced",
+      prediction: prediction
+        ? {
+            model_utility: prediction.model_utility ?? null,
+            policy_utility: prediction.policy_utility ?? null,
+            score_mass: prediction.score_mass ?? null,
+            ms: prediction.ms ?? null,
+            calibration: prediction.calibration ?? null,
+            generated_at: prediction.generated_at ?? null,
+          }
+        : null,
+    };
+  });
+  const predicted = tracedEvents.filter((event) => event.prediction_status === "ready");
+  const meanLatency =
+    predicted.length > 0
+      ? round(
+          predicted.reduce((sum, event) => sum + n(event.prediction?.ms), 0) / predicted.length,
+          2,
+        )
+      : null;
+
+  const receiptRows = loadJsonLines("don_combo_matrix_receipts.jsonl", 250);
+  const snapshotHistory = receiptRows.map((receipt, index) => {
+    const candidates = Array.isArray(receipt.candidates) ? receipt.candidates : [];
+    const modelRanked = candidates
+      .map((candidate: Record<string, any>) => ({
+        minute: n(candidate.minute),
+        baseline: Boolean(candidate.is_combo_baseline),
+        utility: modelUtility(candidate.score_mass),
+      }))
+      .filter((candidate: { utility: number | null }) => candidate.utility != null)
+      .sort(
+        (a: { utility: number | null; minute: number }, b: { utility: number | null; minute: number }) =>
+          n(b.utility) - n(a.utility) || a.minute - b.minute,
+      );
+    const modelBaselineIndex = modelRanked.findIndex(
+      (candidate: { baseline: boolean }) => candidate.baseline,
+    );
+    return {
+      index: index + 1,
+      generated_at: receipt.generated_at || null,
+      state_sha256: receipt.state_sha256 || null,
+      baseline_policy_rank: receipt.comparison?.baseline_rank ?? null,
+      baseline_model_rank: modelBaselineIndex >= 0 ? modelBaselineIndex + 1 : null,
+      pool_size: receipt.comparison?.pool_size ?? candidates.length,
+      shadow_top_minute: receipt.comparison?.shadow_top_minute ?? null,
+      top_vs_baseline_delta: receipt.comparison?.top_vs_baseline_delta ?? null,
+    };
+  });
+
+  const outcomeCounts: Record<string, number> = {};
+  const itemCounts: Record<string, number> = {};
+  for (const event of tracedEvents) {
+    outcomeCounts[event.outcome] = (outcomeCounts[event.outcome] || 0) + 1;
+    for (const [name, amount] of Object.entries(event.items)) {
+      itemCounts[name] = (itemCounts[name] || 0) + n(amount);
+    }
+  }
+
+  return {
+    schema: "don-combo-ml-lab/v0.1",
+    trace_property: "don_combo_ml_trace",
+    trace_enabled: ["1", "true", "target", "on"].includes(
+      String(getProperty("don_combo_ml_trace") || "").toLowerCase(),
+    ),
+    event_log_file: traceLog.file,
+    events_total: traceLog.total,
+    events_in_artifact: tracedEvents.length,
+    predicted_events: predicted.length,
+    untraced_events: tracedEvents.length - predicted.length,
+    mean_prediction_latency_ms: meanLatency,
+    outcome_counts: outcomeCounts,
+    item_counts: itemCounts,
+    events: tracedEvents,
+    receipt_log_file: "don_combo_matrix_receipts.jsonl",
+    snapshots_in_artifact: snapshotHistory.length,
+    snapshot_history: snapshotHistory,
+    note:
+      "Per-comb target traces are pre-action WaterSheep scores for the actual Combo target. Snapshot history compares model-only baseline rank with final model+policy rank. Neither grants execution authority.",
+  };
+}
+
 function emitReceipt(result: Record<string, any>) {
   const candidates = (result.candidates as Candidate[]).map((candidate) => ({
     minute: candidate.minute,
@@ -629,6 +800,7 @@ function emitReceipt(result: Record<string, any>) {
     current_minute: result.combo.current_minute,
     context: result.combo.context,
     observation_fronts: result.observations.fronts_recorded,
+    ml_trace_events: result.ml_lab?.events_total ?? 0,
     candidates,
   };
   const stateSha = sha256(JSON.stringify(stateBasis));
@@ -649,6 +821,7 @@ function emitReceipt(result: Record<string, any>) {
     comparison: result.comparison,
     candidates,
     observation_fronts: result.observations.fronts_recorded,
+    ml_trace_events: result.ml_lab?.events_total ?? 0,
     watersheep_calibration: result.watersheep.calibration,
   };
   if (appended) {
@@ -729,7 +902,7 @@ function buildRuntime() {
     design_reference: TYPE_REFERENCE,
   };
   const result: Record<string, any> = {
-    schema: "don-combo-matrix-runtime/v0.5-ts",
+    schema: "don-combo-matrix-runtime/v0.6-ts",
     generated_at: new Date().toISOString(),
     mode: "shadow-only",
     authority: "none",
@@ -775,10 +948,11 @@ function buildRuntime() {
       options: LABELS.slice(),
       weights: WEIGHTS,
       input_policy:
-        "Known rare coordinates/counts, Combo target identity/order, candidate source labels, and baseline membership withheld.",
+        "Known rare coordinates/counts, Combo target identity/order, candidate source labels, baseline membership, and Combo-derived outcome labels are withheld.",
       calibration: "UNVALIDATED_FOR_KOL_BEACH",
     },
     comparison: cmp,
+    ml_lab: buildMlLab(),
     proof_graph: proof,
     ui: {
       design_reference: DESIGN_REFERENCE,

@@ -60,12 +60,26 @@ def layout_cells(minute,raw):
     return out
 
 def load_rares(root):
-    for p in (root/"data"/"raretiles.json",root/"data"/"combo"/"raretiles.json"):
+    candidates=[root/"data"/"raretiles.json",root/"data"/"combo"/"raretiles.json"]
+    git_root=root/"git"
+    if git_root.is_dir():
+        installed=sorted(
+            git_root.glob("*/data/raretiles.json"),
+            key=lambda p: ("don_combo" not in str(p).lower(), str(p)),
+        )
+        candidates.extend(installed)
+    seen=set()
+    for p in candidates:
+        key=str(p)
+        if key in seen: continue
+        seen.add(key)
         try:
             v=json.loads(p.read_text())
-            if isinstance(v,list): return v
+            if isinstance(v,list): return v,p
         except (OSError,json.JSONDecodeError): pass
-    raise FileNotFoundError("raretiles.json not found in KoLmafia data directory")
+    raise FileNotFoundError(
+        "raretiles.json not found in KoLmafia data directory or installed git project directories"
+    )
 
 def frontier(rares,p,count):
     bad=false_rares(p.get("combo_false_rares","")); groups=defaultdict(list); points=[]
@@ -107,7 +121,7 @@ def write_atomic(path,text):
     path.parent.mkdir(parents=True,exist_ok=True); tmp=path.with_suffix(path.suffix+".tmp"); tmp.write_text(text); os.replace(tmp,path)
 
 def snapshot(root,endpoint,count,timeout,mock):
-    rare=load_rares(root); pref_file,p=prefs(root); candidates,points=frontier(rare,p,count)
+    rare,rare_source=load_rares(root); pref_file,p=prefs(root); candidates,points=frontier(rare,p,count)
     status="mock" if mock else "ready"; error=None
     for c in candidates:
         probs={}; ms=0
@@ -120,7 +134,7 @@ def snapshot(root,endpoint,count,timeout,mock):
     candidates.sort(key=lambda c:(-(c["utility"] if c["utility"] is not None else -1),-c["structural_score"],c["minute"]))
     try: minute=int(p.get("_beachMinutes","0") or 0)
     except ValueError: minute=0
-    return {"schema":"don-combo-matrix-runtime/v0.1","generated_at":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),"mode":"shadow-only","authority":"none","note":"WaterSheep estimates only. No KoL request or KoLmafia command is executed by this bridge.","matrix":{"order":10,"width":1024,"height":1024,"total_cells":1048576,"real_tile_cells":1000000,"unused_cells":48576,"address_rule":"d=(minute-1)*100+(row-1)*10+column; (x,y)=HilbertPoint(d,10)"},"combo":{"rare_tile_records":len(points),"unique_rare_fronts":len({x["minute"] for x in points if not x["false_rare"]}),"prefs_file":str(pref_file) if pref_file else None,"current_minute":minute or None,"current_layout":p.get("_beachLayout","")},"watersheep":{"endpoint":endpoint,"status":status,"error":error,"options":list(LABELS),"weights":WEIGHT},"known_rare_points":points,"current_front_cells":layout_cells(minute or None,p.get("_beachLayout","")),"candidates":candidates}
+    return {"schema":"don-combo-matrix-runtime/v0.1","generated_at":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),"mode":"shadow-only","authority":"none","note":"WaterSheep estimates only. No KoL request or KoLmafia command is executed by this bridge.","matrix":{"order":10,"width":1024,"height":1024,"total_cells":1048576,"real_tile_cells":1000000,"unused_cells":48576,"address_rule":"d=(minute-1)*100+(row-1)*10+column; (x,y)=HilbertPoint(d,10)"},"combo":{"rare_tile_records":len(points),"unique_rare_fronts":len({x["minute"] for x in points if not x["false_rare"]}),"raretiles_file":str(rare_source),"prefs_file":str(pref_file) if pref_file else None,"current_minute":minute or None,"current_layout":p.get("_beachLayout","")},"watersheep":{"endpoint":endpoint,"status":status,"error":error,"options":list(LABELS),"weights":WEIGHT},"known_rare_points":points,"current_front_cells":layout_cells(minute or None,p.get("_beachLayout","")),"candidates":candidates}
 
 def main():
     a=argparse.ArgumentParser(); a.add_argument("--mafia-root"); a.add_argument("--endpoint",default="http://127.0.0.1:8766/v1/systemone"); a.add_argument("--candidate-count",type=int,default=6); a.add_argument("--timeout",type=float,default=15); a.add_argument("--watch",type=float,default=0); a.add_argument("--mock",action="store_true"); args=a.parse_args(); root=root_of(args.mafia_root)

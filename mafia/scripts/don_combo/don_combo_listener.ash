@@ -74,8 +74,13 @@ void main(string command) {
             return;
         }
 
-        refresh_context("combo-finished");
-        run_runtime(queue_request("don-combo-matrix", "refresh", "combo-finished", "", "", ""));
+        string finish_reason = "combo-finished";
+        if (get_property("don_combo_last_run_status") == "interrupted") {
+            finish_reason = "combo-interrupted";
+        }
+
+        refresh_context(finish_reason);
+        run_runtime(queue_request("don-combo-matrix", "refresh", finish_reason, "", "", ""));
         return;
     }
 

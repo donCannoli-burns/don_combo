@@ -142,7 +142,7 @@ once observation evidence accumulates?**
 
 ## v0.6 native TypeScript runtime cut
 
-The v0.7 runtime keeps the hot path into the same tested KoLmafia TypeScript/Libram toolchain used by Combo.
+The v0.8 runtime keeps the hot path into the same tested KoLmafia TypeScript/Libram toolchain used by Combo.
 
 Control flow:
 
@@ -216,7 +216,7 @@ ring.
 
 ## ML Lab / frozen experiment artifact
 
-The v0.7 runtime adds an opt-in target-trace stream without changing Combo's authority.
+The v0.8 runtime adds an opt-in target-trace stream without changing Combo's authority.
 
 When `don_combo_ml_trace=true`, Combo asks WaterSheep exactly once for the planned target after the beach layout is known and before any tile is combed. The result is advisory only. The actual comb then records its coordinate plus the Session delta for meat and items into:
 
@@ -247,7 +247,7 @@ The relay's **ML Lab** renders two paper-style SVG plots:
 
 It also renders a per-comb table with front, prediction, actual outcome, actual comb coordinate, loot, and inference latency.
 
-The HTML exporter freezes those plots and tables into `don-combo-html-snapshot/v0.4` and embeds the full v0.7 runtime as inert `application/json`. The artifact is therefore sufficient to answer questions such as “what did WaterSheep say before the driftwood hit?” for events captured after tracing was enabled.
+The HTML exporter freezes those plots and tables into `don-combo-html-snapshot/v0.4` and embeds the full v0.8 runtime as inert `application/json`. The artifact is therefore sufficient to answer questions such as “what did WaterSheep say before the driftwood hit?” for events captured after tracing was enabled.
 
 Older ledger observations remain valid evidence but cannot be retroactively assigned a pre-action prediction.
 
@@ -274,6 +274,28 @@ The runtime and durable receipt include `don-combo-run-control/v0.1`:
 
 The values come from KoLmafia-local preferences written by Combo itself. The state hash includes this envelope, so a receipt changes when the run-control outcome changes even if the candidate pool does not.
 
-Snapshot `don-combo-html-snapshot/v0.5` copies the same fields into visible manifest rows and machine-readable `meta` tags while retaining the complete `run_control` object in inert embedded JSON. This allows one exported artifact to establish that a requested run ended early by cooperative user interrupt, exactly how many combs completed, and whether the ML event span is complete.
+Snapshot `don-combo-html-snapshot/v0.6` copies the same fields into visible manifest rows and machine-readable `meta` tags while retaining the complete `run_control` object in inert embedded JSON. This allows one exported artifact to establish that a requested run ended early by cooperative user interrupt, exactly how many combs completed, and whether the ML event span is complete.
 
 The relay interrupt remains control-plane only. It cannot cancel an in-flight KoL request, and WaterSheep remains advisory with no execution authority.
+
+## v0.8 linked Hilbert evidence atlas
+
+The proof UI now follows a linked-representation pattern rather than treating the map, graph, and tables as unrelated panels.
+
+Reference lineage:
+
+- Math-by-Design `4f3cfebc0bc8f2f243080d9c758290323eeaf595`: semantic claim/context/proof/decision/metadata/exit order plus explicit FACT / MODEL / POLICY separation.
+- Sacred-Computations-Map in Kotlin-Studio `244b4cf4445abc4026975cdd6d2bbef6ded1591f`: one semantic dataset projected simultaneously as graph, spatial matrix, focus inspector, signal profile, and exact readable cross-index.
+- User-provided `hilbert_hashtable.html`, SHA-256 `6d2cb93d716a72789569005e3d41cd4eb3b227602eaace7e96720f45acd9ceac`: direct `(x,y) -> d -> bucket -> row` inspection and bucket isolation.
+
+The runtime exposes `observations.fronts` as compact, read-only summaries of the native observation ledger. For each observed beachfront the projection includes its Hilbert d-range, 1/256 bucket span, observation counts, symbol counts/rates, outcome counts/rates, items, sources, and last layout.
+
+The relay projects that same data three ways:
+
+1. **Spatial Hilbert field** — observed beachfronts paint their real 100-cell d spans; known rare, current-front, candidate, Combo-baseline, and selected-address layers remain visually distinct. Lenses hide layers without changing state.
+2. **Typed relation graph** — the selected address is connected to observed FACT evidence, Hilbert bucket structure, WaterSheep MODEL scoring when the front is in the current pool, deterministic POLICY utility, and the latest recorded real outcome when available.
+3. **Readable cross-index** — observed fronts and current candidates are listed from the same runtime objects used by the map. Candidate rows expose model-only rank and model+policy rank separately.
+
+The 256-bucket register uses contiguous ranges of 4096 Hilbert addresses. Selecting an address highlights its bucket row; clicking the bucket row is the separate action that isolates the bucket. This preserves the small hash-table prototype's distinction between inspection and filtering.
+
+`don-combo-html-snapshot/v0.6` freezes the linked atlas along with its exact tables and inert runtime JSON, so downstream review can reconstruct which data produced the visual representation without executing the UI.

@@ -791,17 +791,28 @@ function buildRunControl() {
     String(getProperty("don_combo_interrupt") || "").toLowerCase() === "true";
   const interruptConsumed =
     String(getProperty("don_combo_last_run_interrupt_consumed") || "").toLowerCase() === "true";
+  const requestedCombs = n(getProperty("don_combo_last_run_requested"));
+  const completedCombs = n(getProperty("don_combo_last_run_combs"));
+  const mlEventsBefore = n(getProperty("don_combo_last_run_ml_events_before"));
+  const mlEventsAfter = n(getProperty("don_combo_last_run_ml_events_after"));
+  const mlEventDelta = Math.max(0, mlEventsAfter - mlEventsBefore);
 
   return {
     schema: "don-combo-run-control/v0.1",
-    requested_combs: n(getProperty("don_combo_last_run_requested")),
-    completed_combs: n(getProperty("don_combo_last_run_combs")),
+    requested_combs: requestedCombs,
+    completed_combs: completedCombs,
     status,
     end_reason: endReason,
     running,
     interrupt_requested: interruptRequested,
     interrupt_consumed: interruptConsumed,
     clean_early_end: status === "interrupted" && endReason === "user_cooperative_interrupt",
+    started_at: getProperty("don_combo_last_run_started_at") || null,
+    ended_at: getProperty("don_combo_last_run_ended_at") || null,
+    ml_events_before: mlEventsBefore,
+    ml_events_after: mlEventsAfter,
+    ml_event_delta: mlEventDelta,
+    ml_trace_span_complete: mlEventDelta === completedCombs,
   };
 }
 

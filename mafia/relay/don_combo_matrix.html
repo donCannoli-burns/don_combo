@@ -254,7 +254,7 @@ function renderBucketTable(){
  var active=focusedBucket==null?null:rows[focusedBucket];document.getElementById("bucketSummary").textContent=active?("bucket "+active.bucket+" · d "+active.start+"–"+active.end+" · "+active.cells+" real cells · "+active.rare+" known rare · "+active.observed.size+" observed fronts · "+active.candidates.length+" candidates"):"256 contiguous buckets · 4096 Hilbert addresses each; final buckets include the unused Hilbert tail."
 }
 function renderAtlasDataTable(){
- var box=document.getElementById("atlasDataTable");if(!box)return,by={};
+ var box=document.getElementById("atlasDataTable");if(!box)return;var by={};
  (((R||{}).observations||{}).fronts||[]).forEach(function(f){by[String(f.minute)]={minute:Number(f.minute),front:f,candidate:null}});
  (R.candidates||[]).forEach(function(c,i){var k=String(c.minute);if(!by[k])by[k]={minute:Number(c.minute),front:null,candidate:null};by[k].candidate={c:c,i:i}});
  var rank=modelRankMap(),rows=Object.keys(by).map(function(k){return by[k]}).filter(function(r){var d=(r.candidate?r.candidate.c.representative.d:(r.front?r.front.d_start:0));return focusedBucket==null||bucketOfD(d)===focusedBucket||r.front&&(Number(r.front.bucket_start_256)<=focusedBucket&&Number(r.front.bucket_end_256)>=focusedBucket)}).sort(function(a,b){var ac=!!a.candidate,bc=!!b.candidate;if(ac!==bc)return ac?-1:1;return a.minute-b.minute});

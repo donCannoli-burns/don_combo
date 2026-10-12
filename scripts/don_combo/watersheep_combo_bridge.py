@@ -556,6 +556,14 @@ def snapshot(root,endpoint,count,timeout,mock):
     result["receipt"]=emit_receipt(root,result)
     return result
 
+def write_runtime(root,result):
+    encoded=json.dumps(result,separators=(",",":"))
+    runtime_json=root/"data"/"don_combo_matrix_runtime.json"
+    runtime_js=root/"relay"/"don_combo_matrix_runtime.js"
+    write_atomic(runtime_json,json.dumps(result,indent=2)+"\n")
+    write_atomic(runtime_js,"window.DON_COMBO_MATRIX_RUNTIME="+encoded+";\n")
+    return {"runtime_json":str(runtime_json),"runtime_js":str(runtime_js)}
+
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--mafia-root")
@@ -567,9 +575,7 @@ def main():
     args=ap.parse_args(); root=root_of(args.mafia_root)
     while True:
         result=snapshot(root,args.endpoint,max(1,args.candidate_count),args.timeout,args.mock)
-        encoded=json.dumps(result,separators=(",",":"))
-        write_atomic(root/"data"/"don_combo_matrix_runtime.json",json.dumps(result,indent=2)+"\n")
-        write_atomic(root/"relay"/"don_combo_matrix_runtime.js","window.DON_COMBO_MATRIX_RUNTIME="+encoded+";\n")
+        write_runtime(root,result)
         top=result["candidates"][0]["minute"] if result["candidates"] else "none"
         comparison=result.get("comparison") or {}
         tail=(result.get("observations") or {}).get("session_tail") or {}

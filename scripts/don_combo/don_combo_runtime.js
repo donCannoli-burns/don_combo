@@ -998,16 +998,27 @@ function buildRunControl() {
   var running = String(kolmafia.getProperty("don_combo_running") || "").toLowerCase() === "true";
   var interruptRequested = String(kolmafia.getProperty("don_combo_interrupt") || "").toLowerCase() === "true";
   var interruptConsumed = String(kolmafia.getProperty("don_combo_last_run_interrupt_consumed") || "").toLowerCase() === "true";
+  var requestedCombs = n(kolmafia.getProperty("don_combo_last_run_requested"));
+  var completedCombs = n(kolmafia.getProperty("don_combo_last_run_combs"));
+  var mlEventsBefore = n(kolmafia.getProperty("don_combo_last_run_ml_events_before"));
+  var mlEventsAfter = n(kolmafia.getProperty("don_combo_last_run_ml_events_after"));
+  var mlEventDelta = Math.max(0, mlEventsAfter - mlEventsBefore);
   return {
     schema: "don-combo-run-control/v0.1",
-    requested_combs: n(kolmafia.getProperty("don_combo_last_run_requested")),
-    completed_combs: n(kolmafia.getProperty("don_combo_last_run_combs")),
+    requested_combs: requestedCombs,
+    completed_combs: completedCombs,
     status,
     end_reason: endReason,
     running,
     interrupt_requested: interruptRequested,
     interrupt_consumed: interruptConsumed,
-    clean_early_end: status === "interrupted" && endReason === "user_cooperative_interrupt"
+    clean_early_end: status === "interrupted" && endReason === "user_cooperative_interrupt",
+    started_at: kolmafia.getProperty("don_combo_last_run_started_at") || null,
+    ended_at: kolmafia.getProperty("don_combo_last_run_ended_at") || null,
+    ml_events_before: mlEventsBefore,
+    ml_events_after: mlEventsAfter,
+    ml_event_delta: mlEventDelta,
+    ml_trace_span_complete: mlEventDelta === completedCombs
   };
 }
 function emitReceipt(result) {

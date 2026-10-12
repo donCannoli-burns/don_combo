@@ -26,7 +26,7 @@ The downstream release adds a relay-browser entry named `DonComboMatrix`. It dis
 
 WaterSheep remains advisory only. The exact Combo baseline is scored inside the same pool as the dynamic alternatives, but baseline membership, known rare coordinates/counts, candidate source labels, and Combo's route are withheld from model input. Its score mass is explicitly uncalibrated for KoL beach outcomes.
 
-The preferred v0.5 runtime is KoLmafia-native: Combo records observations directly from its TypeScript execution path, a short ASH wrapper emits a flat `string[string]` request with `map_to_file()`, and `don_combo_runtime.js` reads that request with `fileToMap()`, validates typed contracts, calls localhost WaterSheep, writes the rich runtime/receipt artifacts, and returns. Goblin Docs remains the read-only player/day context owner. No dedicated Python matrix watcher is required.
+The preferred v0.5 runtime is KoLmafia-native: Combo records observations directly from its TypeScript execution path, a short ASH wrapper emits a flat `string[string]` request with `map_to_file()`, and `don_combo_runtime.js` reads the native tab-delimited map wire with `fileToBuffer()`, validates typed contracts, calls localhost WaterSheep, writes the rich runtime/receipt artifacts, and returns. Goblin Docs remains the read-only player/day context owner. No dedicated Python matrix watcher is required.
 
 Start the downstream KOL-WaterSheep server:
 
@@ -86,3 +86,35 @@ The downstream prototype preserves the original Combo project and its credits. T
 - Veracity
 - The Dictator
 - Playultm8
+
+## Offline deterministic lab
+
+The live runtime stays intentionally small. Offline model evaluation lives in the
+`tokens-of-loathing` compatibility stack:
+
+```text
+tokens-of-loathing SQLite snapshot
+        +
+pinned kolmafia-mock
+        +
+kol.js pure utilities
+        ↓
+explicit labeled beach evidence fixtures
+        ↓
+don-combo-watersheep-evidence/v1
+        ↓
+WaterSheep benchmark
+```
+
+Materialize it from the `tokens-of-loathing` checkout:
+
+```bash
+bash compat/don-combo-watersheep/materialize.sh \
+  --lab-dir /tmp/don-combo-watersheep \
+  --watersheep http://127.0.0.1:8766/v1/systemone \
+  --live-runtime ~/.kolmafia/data/don_combo_matrix_runtime.json
+```
+
+The lab records corpus/mock provenance, SQLite SHA-256, accuracy, multiclass
+Brier, ECE, latency, per-class metrics, and optional cyclic option-order flip
+rate. Lab results are test evidence only and never grant live KoL authority.

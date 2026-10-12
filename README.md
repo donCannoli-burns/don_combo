@@ -26,7 +26,7 @@ The downstream release adds a relay-browser entry named `DonComboMatrix`. It dis
 
 WaterSheep remains advisory only. The exact Combo baseline is scored inside the same pool as the dynamic alternatives, but baseline membership, known rare coordinates/counts, candidate source labels, and Combo's route are withheld from model input. Its score mass is explicitly uncalibrated for KoL beach outcomes.
 
-The preferred v0.6 runtime is KoLmafia-native: Combo records observations directly from its TypeScript execution path, a short ASH wrapper emits a flat `string[string]` request with `map_to_file()`, and `don_combo_runtime.js` reads the native tab-delimited map wire with `fileToBuffer()`, validates typed contracts, calls localhost WaterSheep, writes the rich runtime/receipt artifacts, and returns. Goblin Docs remains the read-only player/day context owner. No dedicated Python matrix watcher is required.
+The preferred v0.7 runtime is KoLmafia-native: Combo records observations directly from its TypeScript execution path, a short ASH wrapper emits a flat `string[string]` request with `map_to_file()`, and `don_combo_runtime.js` reads the native tab-delimited map wire with `fileToBuffer()`, validates typed contracts, calls localhost WaterSheep, writes the rich runtime/receipt artifacts, and returns. Goblin Docs remains the read-only player/day context owner. No dedicated Python matrix watcher is required.
 
 Start the downstream KOL-WaterSheep server:
 
@@ -70,8 +70,17 @@ The relevant local state is:
 don_combo_running
 don_combo_interrupt
 don_combo_last_run_status
+don_combo_last_run_requested
 don_combo_last_run_combs
+don_combo_last_run_end_reason
+don_combo_last_run_interrupt_consumed
+don_combo_last_run_started_at
+don_combo_last_run_ended_at
+don_combo_last_run_ml_events_before
+don_combo_last_run_ml_events_after
 ```
+
+The v0.7 runtime projects those preferences into `run_control` in both the runtime and durable receipt. A clean early stop records `status=interrupted`, `end_reason=user_cooperative_interrupt`, the requested/completed comb counts, and `interrupt_consumed=true`. It also records the ML event count before and after the run and marks `ml_trace_span_complete=true` only when the event delta equals the completed comb count.
 
 If `DonComboInterrupt` is selected while Combo is idle, it clears any stale stop request and performs no action. The relay control itself never issues a KoL action.
 
@@ -100,7 +109,7 @@ set don_combo_ml_trace=false
 
 Trace failures are evidence failures only: Combo continues on its deterministic route and the failed prediction is logged instead of gaining fallback authority. New trace rows append to `data/don_combo_ml_events.jsonl`.
 
-The exported HTML snapshot is self-contained and includes the rendered ML plots, per-comb verification table, current comparison, receipt history summary, and inert machine-readable runtime. Older observations cannot be retroactively assigned a pre-action WaterSheep score; exact prediction-to-loot attribution begins only after tracing is enabled.
+The exported HTML snapshot is self-contained and includes the rendered ML plots, per-comb verification table, current comparison, receipt history summary, run-control proof, and inert machine-readable runtime. Snapshot v0.5 surfaces requested/completed combs, status, end reason, interrupt-consumed state, ML event span, and trace-span completeness directly in the frozen manifest. Older observations cannot be retroactively assigned a pre-action WaterSheep score; exact prediction-to-loot attribution begins only after tracing is enabled.
 
 WaterSheep input intentionally excludes Combo-derived outcome labels such as `rare_target` and fallback classifications. Those remain available to deterministic policy and evaluation only.
 

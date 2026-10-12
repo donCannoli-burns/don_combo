@@ -151,6 +151,7 @@ function _unsupportedIterableToArray(r, a) {
   }
 }
 
+var WATERSHEEP_EVIDENCE_CONTRACT = "don-combo-watersheep-evidence/v1";
 function fact(kind, name, state, value, source) {
   return {
     kind,
@@ -583,6 +584,7 @@ function waterSheepPayload(candidate) {
   return {
     state: {
       mode: "shadow-only; no action authorized",
+      evidence_contract: WATERSHEEP_EVIDENCE_CONTRACT,
       beach_minute: candidate.minute,
       minute_fraction: evidence.minute_fraction,
       hilbert_bucket_256: evidence.hilbert_bucket_256,
@@ -928,6 +930,7 @@ function buildRuntime() {
     },
     watersheep: {
       endpoint: ENDPOINT,
+      evidence_contract: WATERSHEEP_EVIDENCE_CONTRACT,
       status,
       error,
       options: LABELS.slice(),

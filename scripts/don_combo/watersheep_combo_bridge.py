@@ -164,38 +164,165 @@ def write_atomic(path,text):
 def load_ledger(path):
     try:
         value=json.loads(path.read_text())
-        if value.get("schema")=="don-combo-observation-ledger/v0.2": return value
+        if value.get("schema") in ("don-combo-observation-ledger/v0.2","don-combo-observation-ledger/v0.3","don-combo-observation-ledger/v0.4"):
+            value["schema"]="don-combo-observation-ledger/v0.4"
+            value.setdefault("fronts",{})
+            return value
     except (OSError,json.JSONDecodeError,AttributeError): pass
-    return {"schema":"don-combo-observation-ledger/v0.2","fronts":{},"updated_at":None}
+    return {"schema":"don-combo-observation-ledger/v0.4","fronts":{},"updated_at":None}
 
-def update_ledger(root,pref):
-    path=root/"data"/"don_combo_matrix_ledger.json"
-    ledger=load_ledger(path)
-    minute=safe_int(pref.get("_beachMinutes"),0); layout=pref.get("_beachLayout","")
+def record_layout(ledger,minute,layout,source,seen_epoch=None):
+    if not (1<=minute<=10000) or not layout: return False
+    key=hashlib.sha256(f"{minute}|{layout}".encode()).hexdigest()[:20]
+    entry=ledger.setdefault("fronts",{}).setdefault(str(minute),{
+        "layout_snapshots":0,"session_events":0,
+        "symbols":{"whale":0,"twinkle":0,"rough":0,"combed":0,"other":0,"visible":0},
+        "outcomes":{},"items":{},"comb_cells":{},"seen_layout_keys":[],"sources":[],
+        "last_layout_key":None,"last_seen_epoch":None,"last_seen_turn":None,
+    })
+    seen=set(entry.get("seen_layout_keys") or [])
+    if entry.get("last_layout_key"): seen.add(entry["last_layout_key"])
+    if key in seen: return False
+    counts=layout_counts(layout)
+    entry["layout_snapshots"]=safe_int(entry.get("layout_snapshots"))+1
+    for name,value in counts.items():
+        entry.setdefault("symbols",{})[name]=safe_int(entry["symbols"].get(name))+value
+    seen.add(key); entry["seen_layout_keys"]=sorted(seen)
+    sources=set(entry.get("sources") or []); sources.add(source); entry["sources"]=sorted(sources)
+    entry["last_layout_key"]=key; entry["last_seen_epoch"]=int(seen_epoch or time.time())
+    return True
+
+def session_log_path(root,context):
+    sessions=root/"sessions"
+    if not sessions.is_dir(): return None
+    player=((context or {}).get("player_name") or "").replace(" ","_")
+    candidates=list(sessions.glob(f"{player}_*.txt")) if player else []
+    if not candidates: candidates=list(sessions.glob("*.txt"))
+    candidates=[path for path in candidates if path.is_file()]
+    return max(candidates,key=lambda path:(path.stat().st_mtime,path.stat().st_size),default=None)
+
+def load_session_cursor(path):
+    try:
+        value=json.loads(path.read_text())
+        if value.get("schema")=="don-combo-session-cursor/v0.1": return value
+    except (OSError,json.JSONDecodeError,AttributeError): pass
+    return {"schema":"don-combo-session-cursor/v0.1","path":None,"device":None,"inode":None,"offset":0,"carry":"","recent_event_ids":[]}
+
+def classify_session_block(block):
+    if "We found a whale." in block: return "whale"
+    if "Although our rare tile was uncombed, it is actually rough sand." in block: return "false_rare_rough"
+    if "Our rare tile is uncombed, so let's go ahead and change that." in block: return "rare_target"
+    if "Our rare tile is combed, but we found a twinkle!" in block: return "twinkle_fallback"
+    if "Our rare tile is combed, but we found some rough sand." in block: return "rough_fallback"
+    if "We've exhausted all other options" in block: return "exhausted_fallback"
+    return "unknown"
+
+def parse_session_event(block,turn,minute,source_name):
+    comb=re.search(r"Combing square\s+(\d+),(\d+)\s+\((\d+)\s+minutes down the beach\)",block)
+    if not comb: return None
+    items={}
+    for raw in block.splitlines():
+        match=re.match(r"^You acquire(?: an item:)?\s*(.+?)(?:\s+\((\d+)\))?$",raw.strip())
+        if match:
+            name=match.group(1).strip(); qty=safe_int(match.group(2),1)
+            items[name]=items.get(name,0)+qty
+    free=re.search(r"Preference _freeBeachWalksUsed changed from (\d+) to (\d+)",block)
+    layout_match=re.search(r"DON_COMBO_OBSERVATION\s+minute=(\d+)\s+layout=([0-9A-Za-z?:,]+)",block)
+    event={
+        "turn":safe_int(turn),"minute":safe_int(minute),
+        "comb_row":safe_int(comb.group(1)),"comb_column":safe_int(comb.group(2)),
+        "outcome":classify_session_block(block),"items":items,
+        "free_walk_from":safe_int(free.group(1)) if free else None,
+        "free_walk_to":safe_int(free.group(2)) if free else None,
+        "layout":layout_match.group(2) if layout_match and safe_int(layout_match.group(1))==safe_int(minute) else None,
+    }
+    basis=[source_name,event["turn"],event["minute"],event["comb_row"],event["comb_column"],event["outcome"],sorted(items.items())]
+    event["event_id"]=hashlib.sha256(json.dumps(basis,separators=(",",":")).encode()).hexdigest()[:20]
+    return event
+
+def parse_session_chunk(text,source_name):
+    marker=re.compile(r"(?m)^\[(\d+)\]\s+Wandering\s+(\d+)\s+minutes down the beach\s*$")
+    matches=list(marker.finditer(text)); events=[]; carry=""
+    if not matches: return events,text[-65536:]
+    for index,match in enumerate(matches):
+        end=matches[index+1].start() if index+1<len(matches) else len(text)
+        block=text[match.start():end]; last=index==len(matches)-1
+        complete=(not last) or ("=== RESULTS ===" in block) or ("Submitting option 5 for choice 1388" in block)
+        if last and not complete:
+            carry=block[-65536:]; break
+        event=parse_session_event(block,match.group(1),match.group(2),source_name)
+        if event: events.append(event)
+    return events,carry
+
+def record_session_event(ledger,event,seen_epoch):
+    entry=ledger.setdefault("fronts",{}).setdefault(str(event["minute"]),{
+        "layout_snapshots":0,"session_events":0,
+        "symbols":{"whale":0,"twinkle":0,"rough":0,"combed":0,"other":0,"visible":0},
+        "outcomes":{},"items":{},"comb_cells":{},"seen_layout_keys":[],"sources":[],
+        "last_layout_key":None,"last_seen_epoch":None,"last_seen_turn":None,
+    })
+    entry["session_events"]=safe_int(entry.get("session_events"))+1
+    outcome=event.get("outcome") or "unknown"
+    entry.setdefault("outcomes",{})[outcome]=safe_int(entry["outcomes"].get(outcome))+1
+    cell=f"{event['comb_row']},{event['comb_column']}"
+    entry.setdefault("comb_cells",{})[cell]=safe_int(entry["comb_cells"].get(cell))+1
+    for name,qty in (event.get("items") or {}).items():
+        entry.setdefault("items",{})[name]=safe_int(entry["items"].get(name))+safe_int(qty)
+    sources=set(entry.get("sources") or []); sources.add("session-log"); entry["sources"]=sorted(sources)
+    entry["last_seen_turn"]=event.get("turn"); entry["last_seen_epoch"]=int(seen_epoch or time.time())
+    if event.get("layout"): record_layout(ledger,event["minute"],event["layout"],"session-log",seen_epoch)
+    return True
+
+def tail_session_log(root,context,ledger,bootstrap_bytes=262144,max_read_bytes=2097152):
+    cursor_path=root/"data"/"don_combo_matrix_session_cursor.json"
+    log_path=session_log_path(root,context)
+    result={"path":str(log_path) if log_path else None,"bytes_read":0,"events_seen":0,"events_added":0,"offset":0,"bootstrap":False}
+    if not log_path: return result,False
+    cursor=load_session_cursor(cursor_path); stat=log_path.stat()
+    same=(cursor.get("path")==str(log_path) and cursor.get("device")==stat.st_dev and cursor.get("inode")==stat.st_ino and 0<=safe_int(cursor.get("offset"))<=stat.st_size)
+    if same:
+        start=safe_int(cursor.get("offset")); carry=str(cursor.get("carry") or "")
+    else:
+        start=max(0,stat.st_size-max(4096,safe_int(bootstrap_bytes,262144))); carry=""; result["bootstrap"]=True
+    with log_path.open("rb") as handle:
+        handle.seek(start)
+        if not same and start>0: handle.readline()
+        chunk=handle.read(max(4096,safe_int(max_read_bytes,2097152)))
+        offset=handle.tell()
+    result["bytes_read"]=len(chunk); result["offset"]=offset
+    text=carry+chunk.decode("utf-8","replace")
+    events,next_carry=parse_session_chunk(text,log_path.name)
+    recent=list(cursor.get("recent_event_ids") or []) if same else []
+    recent_set=set(recent); fresh=[]
+    for event in events:
+        result["events_seen"]+=1
+        if event["event_id"] in recent_set: continue
+        fresh.append(event); recent.append(event["event_id"]); recent_set.add(event["event_id"])
+    recent=recent[-4096:]
     changed=False
-    if 1<=minute<=10000 and layout:
-        key=hashlib.sha256(f"{minute}|{layout}".encode()).hexdigest()[:20]
-        fronts=ledger.setdefault("fronts",{})
-        entry=fronts.setdefault(str(minute),{
-            "layout_snapshots":0,
-            "symbols":{"whale":0,"twinkle":0,"rough":0,"combed":0,"other":0,"visible":0},
-            "seen_layout_keys":[],"last_layout_key":None,"last_seen_epoch":None,
-        })
-        seen=set(entry.get("seen_layout_keys") or [])
-        if entry.get("last_layout_key"): seen.add(entry["last_layout_key"])
-        if key not in seen:
-            counts=layout_counts(layout)
-            entry["layout_snapshots"]=safe_int(entry.get("layout_snapshots"))+1
-            for name,value in counts.items():
-                entry.setdefault("symbols",{})[name]=safe_int(entry["symbols"].get(name))+value
-            seen.add(key)
-            entry["seen_layout_keys"]=sorted(seen)
-            entry["last_layout_key"]=key
-            entry["last_seen_epoch"]=int(time.time())
-            ledger["updated_at"]=time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())
-            changed=True
-            write_atomic(path,json.dumps(ledger,indent=2)+"\n")
-    return ledger,path,changed
+    if fresh:
+        obs_path=root/"data"/"don_combo_matrix_observations.jsonl"; obs_path.parent.mkdir(parents=True,exist_ok=True)
+        with obs_path.open("a") as handle:
+            for event in fresh:
+                record_session_event(ledger,event,stat.st_mtime)
+                handle.write(json.dumps({"schema":"don-combo-session-observation/v0.4","source_file":str(log_path),**event},separators=(",",":"))+"\n")
+                changed=True
+        result["events_added"]=len(fresh)
+    cursor={"schema":"don-combo-session-cursor/v0.1","path":str(log_path),"device":stat.st_dev,"inode":stat.st_ino,"offset":offset,"carry":next_carry[-65536:],"recent_event_ids":recent}
+    write_atomic(cursor_path,json.dumps(cursor,indent=2)+"\n")
+    result["cursor_file"]=str(cursor_path); result["observation_log"]=str(root/"data"/"don_combo_matrix_observations.jsonl")
+    return result,changed
+
+def update_ledger(root,pref,context):
+    path=root/"data"/"don_combo_matrix_ledger.json"; ledger=load_ledger(path); changed=False
+    minute=safe_int(pref.get("_beachMinutes"),0); layout=pref.get("_beachLayout","")
+    if record_layout(ledger,minute,layout,"live-pref"): changed=True
+    session,session_changed=tail_session_log(root,context,ledger)
+    changed=changed or session_changed
+    if changed:
+        ledger["updated_at"]=time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())
+        write_atomic(path,json.dumps(ledger,indent=2)+"\n")
+    return ledger,path,changed,session
 
 def evidence_for(minute,current,ledger):
     entry=(ledger.get("fronts") or {}).get(str(minute)) or {}

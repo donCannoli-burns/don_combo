@@ -1,3 +1,5 @@
+export {};
+
 // Local KoLmafia runtime declarations verified against live ASHref.
 // These augment the npm bindings when KoLmafia has added a runtime function
 // before the published TypeScript package has caught up.

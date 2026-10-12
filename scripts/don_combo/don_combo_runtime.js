@@ -564,7 +564,7 @@ function askWaterSheep(candidate) {
   var _parsed$answers;
   var payload = waterSheepPayload(candidate);
   var started = Date.now();
-  var url = ENDPOINT + "?request=" + encodeURIComponent(JSON.stringify(payload));
+  var url = "".concat(ENDPOINT, "?request=").concat(kolmafia.urlEncode(JSON.stringify(payload)));
   var raw = String(kolmafia.visitUrl(url, false) || "");
   var parsed = JSON.parse(raw);
   if (parsed.error) throw new Error(parsed.error);
@@ -692,6 +692,7 @@ function layoutCells(minute, raw) {
 function sha256(text) {
   var rightRotate = (value, amount) => value >>> amount | value << 32 - amount;
   var ascii = unescape(encodeURIComponent(text));
+  var byteLength = ascii.length;
   var maxWord = Math.pow(2, 32);
   var words = [];
   var hash = [];
@@ -711,8 +712,8 @@ function sha256(text) {
     var code = ascii.charCodeAt(_i4);
     words[_i4 >> 2] |= code << (3 - _i4) % 4 * 8;
   }
-  words[words.length] = text.length * 8 / maxWord | 0;
-  words[words.length] = text.length * 8;
+  words[words.length] = byteLength * 8 / maxWord | 0;
+  words[words.length] = byteLength * 8;
   for (var j = 0; j < words.length;) {
     var w = words.slice(j, j += 16);
     var oldHash = hash.slice(0, 8);
@@ -777,8 +778,8 @@ function emitReceipt(result) {
     watersheep_calibration: result.watersheep.calibration
   };
   if (appended) {
-    kolmafia.bufferToFile(String(kolmafia.fileToBuffer(logFile) || "") + JSON.stringify(receipt) + "\n", logFile);
-    kolmafia.bufferToFile(JSON.stringify(receipt, null, 2) + "\n", lastFile);
+    kolmafia.appendBufferToFile("".concat(JSON.stringify(receipt), "\n"), logFile);
+    kolmafia.bufferToFile("".concat(JSON.stringify(receipt, null, 2), "\n"), lastFile);
   }
   return {
     schema: receipt.schema,
@@ -908,7 +909,20 @@ function readRequest(path) {
   return decodeRuntimeRequest(raw);
 }
 function writeResponse(request, response) {
-  kolmafia.mapToFile(response, "agent-runtime/outbox/" + request.id + ".txt");
+  var wire = {
+    schema: response.schema,
+    id: response.id,
+    status: response.status,
+    capability: response.capability,
+    detail: response.detail,
+    generated_at: response.generated_at
+  };
+  if (response.runtime_schema != null) wire.runtime_schema = response.runtime_schema;
+  if (response.shadow_top_minute != null) {
+    wire.shadow_top_minute = String(response.shadow_top_minute);
+  }
+  if (response.baseline_rank != null) wire.baseline_rank = String(response.baseline_rank);
+  kolmafia.mapToFile(wire, "agent-runtime/outbox/".concat(request.id, ".txt"));
 }
 function processRequest(path) {
   var request;
@@ -920,13 +934,15 @@ function processRequest(path) {
   }
   if (request.capability === "excavator-smoke") {
     var excavatorConfigured = kolmafia.getProperty("spadingScript").toLowerCase().includes("excavator");
+    var logs = kolmafia.sessionLogs(1);
+    var comboMarkerVisible = logs.some(log => String(log).includes("DON_COMBO_OBSERVATION"));
     var ok = request.event != null && request.meta != null && request.page != null;
     var _response = {
       schema: "kol-runtime-response/v1",
       id: request.id,
       status: ok ? "ok" : "invalid",
       capability: request.capability,
-      detail: "Excavator-compatible event/meta/page envelope " + (ok ? "round-tripped" : "failed") + "; configured=" + excavatorConfigured + "; no spading preference changed and no network request made.",
+      detail: "Excavator-compatible event/meta/page envelope ".concat(ok ? "round-tripped" : "failed", "; configured=").concat(excavatorConfigured, "; sessionLogs=").concat(logs.length, "; comboMarkerVisible=").concat(comboMarkerVisible, "; no spading preference changed and no network request made."),
       generated_at: new Date().toISOString()
     };
     writeResponse(request, _response);
@@ -967,8 +983,19 @@ function main(args) {
       meta: "excavator-compatible",
       page: "<html data-smoke='don_combo'></html>"
     };
-    kolmafia.mapToFile(request, "agent-runtime/inbox/" + request.id + ".txt");
-    processRequest("agent-runtime/inbox/" + request.id + ".txt");
+    var wire = {
+      schema: request.schema,
+      id: request.id,
+      capability: request.capability,
+      action: request.action,
+      reason: request.reason,
+      authority: request.authority,
+      event: request.event || "",
+      meta: request.meta || "",
+      page: request.page || ""
+    };
+    kolmafia.mapToFile(wire, "agent-runtime/inbox/".concat(request.id, ".txt"));
+    processRequest("agent-runtime/inbox/".concat(request.id, ".txt"));
     return;
   }
   var runtime = buildRuntime();

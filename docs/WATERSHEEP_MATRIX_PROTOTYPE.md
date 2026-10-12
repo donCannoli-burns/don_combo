@@ -1,56 +1,71 @@
 # WaterSheep × Combo matrix prototype
 
-This downstream prototype keeps Combo's current rare-tile data and normal Combo script intact while adding a read-only/shadow assessment surface.
+The downstream prototype preserves Combo's normal execution path and rare-tile corpus while adding a read-only shadow-routing lab.
 
-## Boundary
+## v0.2 boundary
 
-- **Dense address space:** all 1,000,000 KoL beach tiles have a deterministic address `d = (minute - 1) * 100 + (row - 1) * 10 + column` inside a 1024×1024 order-10 Hilbert matrix.
-- **Sparse inference:** WaterSheep only receives a small deterministic candidate frontier (default 6 beachfronts per refresh).
-- **Dense memory/UI:** the relay page retains the million-cell coordinate system and overlays known rare points, the current beach layout, and WaterSheep candidate scores.
-- **No authority:** the bridge never makes a KoL request and never executes a KoLmafia command. It reads local files and writes local runtime visualization data only.
-- **Combo remains authoritative:** `scripts/combo/combo.js` and `data/raretiles.json` remain the upstream-compatible execution/data path.
+- **Dense address space:** all 1,000,000 beach tiles retain deterministic order-10 Hilbert addresses inside a 1024 × 1024 matrix.
+- **Sparse inference:** WaterSheep receives only a small mixed frontier of current, previously observed, and deterministic exploration beachfronts.
+- **Blinded route assessment:** known rare coordinates, known-rare counts, Combo's target, and Combo's shuffled order are withheld from WaterSheep input.
+- **Observed evidence ledger:** distinct local `_beachLayout` snapshots are recorded in `data/don_combo_matrix_ledger.json`; repeated layouts are deduplicated by hash.
+- **Uncalibrated model output:** WaterSheep output is labeled **score mass**, not a validated KoL probability.
+- **Policy outside the model:** fixed outcome weights and exploration/observation adjustments are applied after inference.
+- **Exact baseline comparison:** the relay launcher supplies read-only `my_id()` and `gameday_to_int()` context so the browser can reproduce Combo's seeded shuffle and tide-skip behavior without issuing a game action.
+- **No authority:** neither the bridge nor relay page sends a KoL request or executes a KoLmafia command.
 
-## Runtime flow
+## Evidence classes
 
-```text
-Combo raretiles + local KoLmafia prefs
-                |
-                v
-      deterministic frontier
-                |
-                v
-       WaterSheep localhost
-       /v1/systemone :8766
-                |
-                v
- probabilities + fixed weights
-                |
-                v
- relay/don_combo_matrix_runtime.js
-                |
-                v
- KoLmafia relay dropdown -> DonComboMatrix
-```
+The relay UI makes three evidence classes explicit:
+
+- **FACT** — local KoLmafia preferences, Combo's corpus, current layout, and observation ledger.
+- **MODEL** — WaterSheep score mass over rare / whale / sandcastle / twinkle / regular / scratched.
+- **POLICY** — deterministic utility weights and post-model ranking math.
+
+Known facts always outrank model inference.
+
+## Candidate frontier
+
+A default refresh scores six fronts:
+
+1. the current beach, when known;
+2. a bounded set of previously observed fronts with useful signal;
+3. deterministic exploration samples from the full 1..10,000 beachfront space.
+
+This keeps the million-cell world model while avoiding a million model calls.
+
+## UI lineage
+
+The relay surface uses `es-3581100/math-by-design` at commit
+`4f3cfebc0bc8f2f243080d9c758290323eeaf595` as a **reference, not a template**.
+
+Borrowed behavior is limited to semantic hierarchy, evidence/provenance separation, stable inspection destinations, and agent-readable handoff structure. Its visual palette, typography signature, and mathematical branding are not copied.
 
 ## Run
 
-Start WaterSheep locally, then run the installed bridge:
+Start WaterSheep locally:
 
 ```bash
 watersheep --model samratduttaofficial/WaterSheep --serve
-python3 /path/to/kolmafia/scripts/don_combo/watersheep_combo_bridge.py
 ```
 
-For a deterministic UI smoke test with no model:
+Then from the KoLmafia root:
 
 ```bash
-python3 /path/to/kolmafia/scripts/don_combo/watersheep_combo_bridge.py --mock
+python3 scripts/don_combo/watersheep_combo_bridge.py --watch 30
 ```
 
-For periodic reassessment:
+For a deterministic bridge/UI smoke test:
 
 ```bash
-python3 /path/to/kolmafia/scripts/don_combo/watersheep_combo_bridge.py --watch 30
+python3 scripts/don_combo/watersheep_combo_bridge.py --mock
 ```
 
-The model probabilities are experimental priors, not calibrated KoL tile probabilities. Real KoL observations and known Combo rare data should always outrank them in any future execution policy.
+Open the KoLmafia relay browser and select `DonComboMatrix` from the `-run script-` dropdown.
+
+The expected v0.2 terminal line is:
+
+```text
+don_combo matrix v0.2: ready | 6 candidates | shadow top <minute> | <mafia-root>
+```
+
+The first evaluation target is not "does WaterSheep predict rares?" It is: **does a blinded dynamic shadow route produce useful disagreements with Combo that survive comparison against actual observations?**

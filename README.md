@@ -26,7 +26,7 @@ The downstream release adds a relay-browser entry named `DonComboMatrix`. It dis
 
 WaterSheep remains advisory only. The exact Combo baseline is scored inside the same pool as the dynamic alternatives, but baseline membership, known rare coordinates/counts, candidate source labels, and Combo's route are withheld from model input. Its score mass is explicitly uncalibrated for KoL beach outcomes.
 
-The preferred v0.7 runtime is KoLmafia-native: Combo records observations directly from its TypeScript execution path, a short ASH wrapper emits a flat `string[string]` request with `map_to_file()`, and `don_combo_runtime.js` reads the native tab-delimited map wire with `fileToBuffer()`, validates typed contracts, calls localhost WaterSheep, writes the rich runtime/receipt artifacts, and returns. Goblin Docs remains the read-only player/day context owner. No dedicated Python matrix watcher is required.
+The preferred v0.8 runtime is KoLmafia-native: Combo records observations directly from its TypeScript execution path, a short ASH wrapper emits a flat `string[string]` request with `map_to_file()`, and `don_combo_runtime.js` reads the native tab-delimited map wire with `fileToBuffer()`, validates typed contracts, calls localhost WaterSheep, writes the rich runtime/receipt artifacts, and returns. Goblin Docs remains the read-only player/day context owner. No dedicated Python matrix watcher is required.
 
 Start the downstream KOL-WaterSheep server:
 
@@ -84,6 +84,29 @@ The v0.7 runtime projects those preferences into `run_control` in both the runti
 
 If `DonComboInterrupt` is selected while Combo is idle, it clears any stale stop request and performs no action. The relay control itself never issues a KoL action.
 
+### Linked evidence atlas
+
+The relay's primary proof surface now treats the Hilbert field, evidence graph, and readable tables as **projections of the same runtime data** rather than separate widgets.
+
+Representation lineage is explicit:
+
+- `es-3581100/math-by-design` @ `4f3cfebc0bc8f2f243080d9c758290323eeaf595` supplies semantic reading order and FACT / MODEL / POLICY / provenance separation.
+- `es-3581100/Kotlin-Studio/Sacred-Computations-Map` @ `244b4cf4445abc4026975cdd6d2bbef6ded1591f` supplies the representation pattern: one semantic dataset projected into graph, matrix, focus inspector, signal profile, and exact readable cross-index.
+- the user-provided Hilbert hash-table example (SHA-256 `6d2cb93d716a72789569005e3d41cd4eb3b227602eaace7e96720f45acd9ceac`) supplies the direct `(x,y) -> d -> bucket -> table` interaction and bucket-isolation behavior.
+
+The atlas uses actual runtime evidence:
+
+- every observed beachfront paints its real 100-address Hilbert span;
+- known rare tiles, the current front, Combo baseline, and WaterSheep candidates remain separately legended layers;
+- five lenses can show all evidence, observed fronts, candidates, known rares, or the current front;
+- clicking a Hilbert cell resolves its exact `d`, 1/256 contiguous bucket, beach minute, row, and column;
+- clicking a bucket row isolates that contiguous 4096-address Hilbert range without confusing ordinary cell selection with filtering;
+- the relation graph traces the selected address through FACT observation evidence, model-safe WaterSheep scoring, deterministic policy utility, and any later traced outcome;
+- the readable cross-index is built from the same observed-front and candidate objects painted into the matrix, so it remains the auditable fallback rather than a second data source;
+- the candidate table reports both WaterSheep-only rank and final model+policy rank.
+
+Runtime v0.8 therefore exposes compact per-front observation summaries under `observations.fronts` specifically so the spatial map and readable table can represent the ledger rather than merely decorating candidate points.
+
 The relay also exposes **Export HTML snapshot**. It downloads a self-contained, script-free HTML evidence artifact containing the frozen Hilbert canvas, rendered comparison/evidence UI, agent packet, provenance, and the full runtime object as inert `application/json`. Snapshot filenames include the runtime timestamp and the first 12 characters of the comparison receipt state hash.
 
 ### ML trace and all-in-one experiment artifact
@@ -109,7 +132,7 @@ set don_combo_ml_trace=false
 
 Trace failures are evidence failures only: Combo continues on its deterministic route and the failed prediction is logged instead of gaining fallback authority. New trace rows append to `data/don_combo_ml_events.jsonl`.
 
-The exported HTML snapshot is self-contained and includes the rendered ML plots, per-comb verification table, current comparison, receipt history summary, run-control proof, and inert machine-readable runtime. Snapshot v0.5 surfaces requested/completed combs, status, end reason, interrupt-consumed state, ML event span, and trace-span completeness directly in the frozen manifest. Older observations cannot be retroactively assigned a pre-action WaterSheep score; exact prediction-to-loot attribution begins only after tracing is enabled.
+The exported HTML snapshot is self-contained and includes the rendered ML plots, per-comb verification table, current comparison, receipt history summary, run-control proof, and inert machine-readable runtime. Snapshot v0.6 surfaces requested/completed combs, status, end reason, interrupt-consumed state, ML event span, and trace-span completeness directly in the frozen manifest. Older observations cannot be retroactively assigned a pre-action WaterSheep score; exact prediction-to-loot attribution begins only after tracing is enabled.
 
 WaterSheep input intentionally excludes Combo-derived outcome labels such as `rare_target` and fallback classifications. Those remain available to deterministic policy and evaluation only.
 

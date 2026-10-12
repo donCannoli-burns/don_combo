@@ -137,3 +137,22 @@ don_combo matrix v0.3: ready | pool 7 | baseline rank <n> | shadow top <minute> 
 ```
 
 The evaluation target remains: **does a blinded dynamic route consistently rank or discover better real outcomes than the existing deterministic Combo route once observation evidence accumulates?**
+
+
+## Event-driven refresh mode
+
+The preferred v0.4+ runtime no longer requires:
+
+```bash
+python3 scripts/don_combo/watersheep_combo_bridge.py --watch 30
+```
+
+When `kol-goblin-docs` and `kol-ash-it-down` are installed:
+
+1. opening `DonComboMatrix` asks Goblin Docs to refresh with reason `combo-matrix`;
+2. finishing a downstream Combo run asks Goblin Docs to refresh with reason `combo-finished`;
+3. Goblin Docs writes one `don-combo-matrix-refresh` inbox job;
+4. the existing `kol-ash-it-down` worker imports the installed bridge and runs one snapshot;
+5. the relay's existing polling sees the newly written runtime.
+
+KoLmafia/ASH remains the caller and state authority. The local worker only performs advisory scoring and artifact writes.

@@ -56,6 +56,25 @@ That round-trips an Excavator-shaped `event/meta/page` envelope through the same
 
 Then open the KoLmafia relay browser and choose `DonComboMatrix` from the `-run script-` dropdown.
 
+### Clean relay interrupt
+
+The downstream release also adds `DonComboInterrupt` to the same relay-script dropdown. This is a cooperative stop modeled after garbage-collector's relay interrupt: it sets a local `don_combo_interrupt` preference and lets the running Combo invocation consume that request at a safe boundary.
+
+The Shadow Route Lab exposes the same control as **Interrupt after current comb**.
+
+A cooperative interrupt never cuts through an in-flight beach comb. Combo finishes the current comb, writes its observation/ML trace, exits the Beach choice, restores its temporary preference filter, prints partial run results, and returns normally. The listener then refreshes the shadow runtime with reason `combo-interrupted`.
+
+The relevant local state is:
+
+```text
+don_combo_running
+don_combo_interrupt
+don_combo_last_run_status
+don_combo_last_run_combs
+```
+
+If `DonComboInterrupt` is selected while Combo is idle, it clears any stale stop request and performs no action. The relay control itself never issues a KoL action.
+
 The relay also exposes **Export HTML snapshot**. It downloads a self-contained, script-free HTML evidence artifact containing the frozen Hilbert canvas, rendered comparison/evidence UI, agent packet, provenance, and the full runtime object as inert `application/json`. Snapshot filenames include the runtime timestamp and the first 12 characters of the comparison receipt state hash.
 
 ### ML trace and all-in-one experiment artifact

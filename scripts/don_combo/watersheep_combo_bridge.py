@@ -74,14 +74,27 @@ def load_rares(root):
     raise FileNotFoundError("raretiles.json not found in KoLmafia data or installed git projects")
 
 def load_context(root):
-    path=root/"data"/"don_combo_matrix_context.json"
+    goblin=root/"data"/"kol-goblin-docs"/"runtime.tsv"
     try:
-        value=json.loads(path.read_text())
+        values={}
+        for line in goblin.read_text(errors="replace").splitlines():
+            if "\t" in line:
+                key,value=line.split("\t",1); values[key]=value
+        player=safe_int(values.get("player_id"),0); gameday=safe_int(values.get("gameday"),-1)
+        if player>0 and gameday>=0:
+            return {"player":player,"gameday":gameday,"captured_at":values.get("generated_at"),"source":"kol-goblin-docs"},goblin
+    except OSError:
+        pass
+
+    legacy=root/"data"/"don_combo_matrix_context.json"
+    try:
+        value=json.loads(legacy.read_text())
         player=safe_int(value.get("player"),0); gameday=safe_int(value.get("gameday"),-1)
         if player>0 and gameday>=0:
-            return {"player":player,"gameday":gameday,"captured_at":value.get("captured_at")},path
-    except (OSError,json.JSONDecodeError,AttributeError): pass
-    return None,path
+            return {"player":player,"gameday":gameday,"captured_at":value.get("captured_at"),"source":"legacy-context"},legacy
+    except (OSError,json.JSONDecodeError,AttributeError):
+        pass
+    return None,goblin
 
 def combo_shuffle(points,player):
     work=list(points); out=[]; seed=int(player)
@@ -392,7 +405,7 @@ def snapshot(root,endpoint,count,timeout,mock):
         "matrix":{"order":10,"width":GRID,"height":GRID,"total_cells":GRID*GRID,"real_tile_cells":REAL,"unused_cells":GRID*GRID-REAL,"address_rule":"d=(minute-1)*100+(row-1)*10+column; (x,y)=HilbertPoint(d,10)"},
         "combo":{"rare_tile_records":len(points),"unique_rare_fronts":len({x["minute"] for x in points if not x["false_rare"]}),"false_rare_records":len(false_rares(pref.get("combo_false_rares",""))),"raretiles_file":str(rare_source),"prefs_file":str(pref_file) if pref_file else None,"last_tile_index":safe_int(pref.get("combo_lastTileCombed"),0),"current_minute":minute or None,"current_layout":pref.get("_beachLayout",""),"context":context,"context_file":str(context_file),"baseline_in_pool":baseline is not None},
         "observations":{"ledger_file":str(ledger_file),"fronts_recorded":len(ledger.get("fronts") or {}),"ledger_updated_this_run":ledger_changed,"rule":"Distinct local _beachLayout snapshots only; repeated identical snapshots are deduplicated."},
-        "watersheep":{"endpoint":endpoint,"status":status,"error":error,"options":list(LABELS),"weights":WEIGHTS,"input_policy":"Known rare coordinates/counts, Combo target identity/order, candidate source labels, and baseline membership withheld.","calibration":"UNVALIDATED_FOR_KOL_BEACH"},
+        "watersheep":{"endpoint":endpoint,"status":status,"error":error,"options":list(LABELS),"weights":WEIGHTS,"input_policy":"Known rare coordinates/counts, Combo target identity/order, candidate source labels, and baseline membership withheld. Player/day context is read from kol-goblin-docs runtime.tsv when available.","calibration":"UNVALIDATED_FOR_KOL_BEACH"},
         "comparison":comparison,
         "ui":{"design_reference":DESIGN_REFERENCE,"semantic_order":["claim","context","proof","decision","metadata","exit"],"evidence_kinds":["FACT","MODEL","POLICY"]},
         "known_rare_points":points,

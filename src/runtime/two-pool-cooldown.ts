@@ -102,7 +102,7 @@ export function poolForItem(item: string, quantity: number): PoolSignal | null {
   if (n === "piece of driftwood") return tier("pool_2", "piece_of_driftwood", "common_rare", "item-delta", quantity, item);
   if (n === "meteorite fragment") return tier("pool_2", "meteorite_fragment", "rare_rare", "item-delta", quantity, item);
   // Exact restricted equipment family; excludes ordinary swashbuckling loot.
-  if (/^cursed pirate (tricorn|swashbuckle|swashbuckler|cutlass)(?:\b.*)?$/.test(n))
+  if (/^cursed(?: pirate)? (?:tricorn|swash buckle|swashbuckle|swashbuckler|cutlass)$/.test(n))
     return tier("pool_2", "cursed_pirate_gear", "uncommon_rare", "item-delta", quantity, item);
   return null;
 }
@@ -209,9 +209,13 @@ export function buildPoolCooldownIndex(
     if(e.event_id)seen.add(e.event_id);
     matched++;
     if(e.run_context?.run_id)bound++;else legacy++;
-    const plan=e.planned_target;
-    if(plan?.minute===e.minute && symbolAt(e.layout,plan.row,plan.column)==="c"){
-      const c=key(plan);lastCombed.set(c,Date.parse(e.observed_at));
+    // Observe any previously rewarded coordinate in the visible beachfront,
+    // not just the planned target. A c is evidence of still-combed state.
+    for (const oldKey of prior.keys()) {
+      if (!oldKey.startsWith(`${e.minute},`)) continue;
+      const parts = oldKey.split(",").map(Number);
+      if (symbolAt(e.layout,parts[1],parts[2]) === "c")
+        lastCombed.set(oldKey,Date.parse(e.observed_at));
     }
     // Record sandcastle and whale sightings only once per event/location.
     for(const pos of layoutSymbols(e.layout,"C")){

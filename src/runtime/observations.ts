@@ -23,6 +23,7 @@ import {
 } from "./scratch-interest";
 import type { ShadowRunContext } from "./shadow-learning";
 import { poolForItem } from "./two-pool-cooldown";
+import { parseBottleOutput, type BottleObservation } from "./bottle-observer";
 import { recordPoolLabels, type PoolObservation } from "./two-pool-cooldown";
 
 export type BeachOutcome =
@@ -40,6 +41,7 @@ export interface BeachObservationDetail {
   actual_comb?: { minute: number; row: number; column: number } | null;
   items?: Record<string, number>;
   meat?: number;
+  action_output?: string;
   pre_action_prediction?: Record<string, unknown> | null;
   pre_action_observed_at?: string;
   run_context?: ShadowRunContext | null;
@@ -57,6 +59,8 @@ export interface MlTraceEvent {
   actual_comb: BeachObservationDetail["actual_comb"];
   items: Record<string, number>;
   meat: number;
+  special_events?: BottleObservation[];
+  action_output_capture?: "captured" | "empty" | "legacy-unavailable";
   layout: string;
   layout_symbols: Record<string, number>;
   pre_action_prediction: Record<string, unknown> | null;
@@ -315,6 +319,8 @@ export function recordBeachObservation(
     actual_comb: actual,
     items: detail.items || {},
     meat: detail.meat || 0,
+    special_events: parseBottleOutput(detail.action_output || ""),
+    action_output_capture: detail.action_output === undefined ? "legacy-unavailable" : detail.action_output.length ? "captured" : "empty",
     layout,
     layout_symbols: counts,
     pre_action_prediction: detail.pre_action_prediction || null,

@@ -16,17 +16,21 @@ export interface BottleObservation {
 export function parseBottleOutput(output: string): BottleObservation[] {
   // Match the standalone observed success line, not a string describing a
   // failure or the command used. Do not confuse Ocean City fishing items.
-  const found = String(output || "").split(/\r?\n/).some((line) =>
-    /^\s*(?:>\s*)?You found a message in a bottle!\s*$/i.test(line.trim()),
-  );
-  return found ? [{
-    schema: BOTTLE_SCHEMA,
-    kind: "message_in_a_bottle",
-    source: "native-cli-command-output",
-    evidence_text: "You found a message in a bottle!",
-    pool: "unassigned",
-    tier: "unassigned",
-    attribution: "actual-comb-coordinate",
-    weak_pool_context: { pool_1: 0.1, pool_2: 0.1 },
-  }] : [];
+  const found = String(output || "")
+    .split(/\r?\n/)
+    .some((line) => /^\s*(?:>\s*)?You found a message in a bottle!\s*$/i.test(line.trim()));
+  return found
+    ? [
+        {
+          schema: BOTTLE_SCHEMA,
+          kind: "message_in_a_bottle",
+          source: "native-cli-command-output",
+          evidence_text: "You found a message in a bottle!",
+          pool: "unassigned",
+          tier: "unassigned",
+          attribution: "actual-comb-coordinate",
+          weak_pool_context: { pool_1: 0.1, pool_2: 0.1 },
+        },
+      ]
+    : [];
 }

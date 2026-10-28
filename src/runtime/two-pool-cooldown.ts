@@ -317,24 +317,31 @@ export function buildPoolCooldownIndex(
     const actualKey = actual?.minute === e.minute ? key(actual) : null;
     // Count a genuine beach-result message once, even if its text appears
     // more than once in the command output. No synthetic inventory delta.
-    if (e.special_events?.some(x =>
-      x.kind === "message_in_a_bottle" &&
-      x.source === "native-cli-command-output" &&
-      x.pool === "unassigned"
-    )) {
+    if (
+      e.special_events?.some(
+        (x) =>
+          x.kind === "message_in_a_bottle" &&
+          x.source === "native-cli-command-output" &&
+          x.pool === "unassigned",
+      )
+    ) {
       if (actualKey) {
-        const bottle = bottleByCoordinate[actualKey] ?? (bottleByCoordinate[actualKey] = {
-          observed_events: 0,
-          last_observed_at: null,
-          classification: "POOL_UNKNOWN",
-          weak_context_weight: { pool_1: 0.1, pool_2: 0.1 },
-          interpretation: "EXPLORATION_HINT_NOT_POOL_MEMBERSHIP_OR_DROP_PROBABILITY",
-        });
+        const bottle =
+          bottleByCoordinate[actualKey] ??
+          (bottleByCoordinate[actualKey] = {
+            observed_events: 0,
+            last_observed_at: null,
+            classification: "POOL_UNKNOWN",
+            weak_context_weight: { pool_1: 0.1, pool_2: 0.1 },
+            interpretation: "EXPLORATION_HINT_NOT_POOL_MEMBERSHIP_OR_DROP_PROBABILITY",
+          });
         bottle.observed_events++;
         bottle.last_observed_at = e.observed_at;
         bottleEvents.push({
-          kind: "message_in_a_bottle", coordinate: actualKey,
-          observed_at: e.observed_at, event_id: e.event_id || null,
+          kind: "message_in_a_bottle",
+          coordinate: actualKey,
+          observed_at: e.observed_at,
+          event_id: e.event_id || null,
           route_mode: e.run_context?.route_mode || "legacy-unbound",
           source: "native-cli-command-output",
         });
@@ -395,7 +402,14 @@ export function buildPoolCooldownIndex(
     hypothesis:
       "User-proposed two-pool rarity ladder: shorter cooldown may correspond to common/rare, longer to uncommon/rare, longest to rare/rare. NOT CALIBRATED. Recorded deltas and sightings are observations, not a demonstrated cooldown-to-loot relationship.",
   };
-  return { summary, by_coordinate: byCoordinate, bottle_by_coordinate: bottleByCoordinate, bottle_events: bottleEvents, by_front: byFront, observations };
+  return {
+    summary,
+    by_coordinate: byCoordinate,
+    bottle_by_coordinate: bottleByCoordinate,
+    bottle_events: bottleEvents,
+    by_front: byFront,
+    observations,
+  };
 }
 export function cooldownForTarget(
   index: PoolIndex,
@@ -618,12 +632,18 @@ export function buildHistoricalRareCurve(
 }
 
 export function bottleForTarget(
-  index: PoolIndex, minute: number, row: number, column: number,
+  index: PoolIndex,
+  minute: number,
+  row: number,
+  column: number,
 ): BottleTargetContext {
-  return index.bottle_by_coordinate[`${minute},${row},${column}`] || {
-    observed_events: 0, last_observed_at: null,
-    classification: "POOL_UNKNOWN",
-    weak_context_weight: { pool_1: 0.1, pool_2: 0.1 },
-    interpretation: "EXPLORATION_HINT_NOT_POOL_MEMBERSHIP_OR_DROP_PROBABILITY",
-  };
+  return (
+    index.bottle_by_coordinate[`${minute},${row},${column}`] || {
+      observed_events: 0,
+      last_observed_at: null,
+      classification: "POOL_UNKNOWN",
+      weak_context_weight: { pool_1: 0.1, pool_2: 0.1 },
+      interpretation: "EXPLORATION_HINT_NOT_POOL_MEMBERSHIP_OR_DROP_PROBABILITY",
+    }
+  );
 }

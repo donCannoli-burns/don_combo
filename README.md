@@ -219,7 +219,7 @@ This includes ordinary `combo N`, `combo watersheep-free`,
 **Pool remains UNASSIGNED.** One bottle produces one event, not one
 Pool 1 reward plus one Pool 2 reward. The per-target input includes a
 symmetric **weak context coefficient of 0.10 for each pool** (heuristic
-feature, *not* a posterior pool probability or fitted rarity). The
+feature, _not_ a posterior pool probability or fitted rarity). The
 fixed policy exploration bonus is capped at **+0.004** for a coordinate
 with at least one bottle observation, independently of how many bottles
 were seen. The known Pool 1/2 tier counts, tier intervals and assumed
@@ -244,6 +244,7 @@ per-day **scratch** observations do not establish exact rare-tile
 respawn times.
 
 References:
+
 - https://kolmafia.us/threads/beachcomber-fast-and-efficient-beach-combing.23993/page-8
 - https://kolmafia.us/threads/r28508-whats-changed-log-message-when-beach-comb-a-message-in-a-bottle-by-veracity0-in-2897-full-changelog-r28507-r28508.30555/
 - User-supplied 2023 Discord export, The Ascension Speed Society `#kol-🗡🍸` (observation-only external source; not a database of individual game events).

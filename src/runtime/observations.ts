@@ -7,6 +7,7 @@ import {
   turnsPlayed,
 } from "kolmafia";
 
+import { parseBottleOutput, type BottleObservation } from "./bottle-observer";
 import type { ObservationEntry, ObservationLedger } from "./contracts";
 import {
   emptyRecoveryLedger,
@@ -23,7 +24,6 @@ import {
 } from "./scratch-interest";
 import type { ShadowRunContext } from "./shadow-learning";
 import { poolForItem } from "./two-pool-cooldown";
-import { parseBottleOutput, type BottleObservation } from "./bottle-observer";
 import { recordPoolLabels, type PoolObservation } from "./two-pool-cooldown";
 
 export type BeachOutcome =
@@ -320,7 +320,12 @@ export function recordBeachObservation(
     items: detail.items || {},
     meat: detail.meat || 0,
     special_events: parseBottleOutput(detail.action_output || ""),
-    action_output_capture: detail.action_output === undefined ? "legacy-unavailable" : detail.action_output.length ? "captured" : "empty",
+    action_output_capture:
+      detail.action_output === undefined
+        ? "legacy-unavailable"
+        : detail.action_output.length
+          ? "captured"
+          : "empty",
     layout,
     layout_symbols: counts,
     pre_action_prediction: detail.pre_action_prediction || null,

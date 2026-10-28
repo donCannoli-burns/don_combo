@@ -364,7 +364,9 @@ function evidenceFor(
     pool_timescales: timescales ? compactPoolTimeScales(timescales) : null,
     bottle_unknown_pool: bottleForTarget(
       poolIndex || buildPoolCooldownIndex([], Date.now(), n(myId())),
-      minute, tile?.row ?? 0, tile?.column ?? -1,
+      minute,
+      tile?.row ?? 0,
+      tile?.column ?? -1,
     ),
     pool_cooldown: cooldownForTarget(
       poolIndex || buildPoolCooldownIndex([], Date.now(), n(myId())),

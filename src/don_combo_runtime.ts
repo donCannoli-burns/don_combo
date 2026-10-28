@@ -27,7 +27,11 @@ import {
   fact,
   relation,
 } from "./runtime/contracts";
-import { loadMlTraceEvents, loadObservationLedger, loadTileRecoveryLedger } from "./runtime/observations";
+import {
+  loadMlTraceEvents,
+  loadObservationLedger,
+  loadTileRecoveryLedger,
+} from "./runtime/observations";
 import { recoveryFeatures, tileKey, type TileRecoveryLedger } from "./runtime/recovery";
 
 const GRID = 1024;
@@ -305,9 +309,12 @@ function evidenceFor(
     observation_count: layouts + events,
     last_seen_age_hours: seen ? round(Math.max(0, Date.now() / 1000 - seen) / 3600, 3) : null,
     last_seen_turn: entry.last_seen_turn == null ? null : n(entry.last_seen_turn),
-    cooldown: recoveryFeatures(tile && recoveryLedger
-      ? recoveryLedger.tiles[tileKey(tile.minute, tile.row, tile.column)] : undefined,
-      Date.now() / 1000),
+    cooldown: recoveryFeatures(
+      tile && recoveryLedger
+        ? recoveryLedger.tiles[tileKey(tile.minute, tile.row, tile.column)]
+        : undefined,
+      Date.now() / 1000,
+    ),
     observed_symbol_rates: symbolRates(entry),
     observed_outcome_rates: outcomeRates(entry),
     sand_per_event: events ? round(n((entry.items || {})["grain of sand"]) / events, 4) : 0,
@@ -362,20 +369,22 @@ function sampleMinutes(
     }
   };
   if (current) add(current, "current");
-  const observed = Object.entries(ledger.fronts).map(([minuteText, raw]) => {
-    const entry = raw as Record<string, any>;
-    const symbols = (entry.symbols || {}) as Record<string, number>;
-    const outcomes = (entry.outcomes || {}) as Record<string, number>;
-    const visible = Math.max(1, n(symbols.visible));
-    const events = Math.max(1, n(entry.session_events));
-    return {
-      minute: n(minuteText),
-      signal: (n(symbols.whale) * 4 + n(symbols.twinkle) * 2) / visible +
-        (n(outcomes.whale) * 4 + n(outcomes.rare_target) * 3) / events,
-      observations: n(entry.layout_snapshots) + n(entry.session_events),
-    };
-  }).sort((a, b) => b.signal - a.signal ||
-    b.observations - a.observations || a.minute - b.minute);
+  const observed = Object.entries(ledger.fronts)
+    .map(([minuteText, raw]) => {
+      const entry = raw as Record<string, any>;
+      const symbols = (entry.symbols || {}) as Record<string, number>;
+      const outcomes = (entry.outcomes || {}) as Record<string, number>;
+      const visible = Math.max(1, n(symbols.visible));
+      const events = Math.max(1, n(entry.session_events));
+      return {
+        minute: n(minuteText),
+        signal:
+          (n(symbols.whale) * 4 + n(symbols.twinkle) * 2) / visible +
+          (n(outcomes.whale) * 4 + n(outcomes.rare_target) * 3) / events,
+        observations: n(entry.layout_snapshots) + n(entry.session_events),
+      };
+    })
+    .sort((a, b) => b.signal - a.signal || b.observations - a.observations || a.minute - b.minute);
   const observedTarget = Math.max(1, Math.floor(count / 3)) + (current ? 1 : 0);
   for (const item of observed) {
     if (selected.length >= observedTarget) break;
@@ -383,8 +392,12 @@ function sampleMinutes(
   }
   // Explore only tide-visible known-rare beachfronts. The map still shows all
   // 1M cells, but executable suggestions must resolve to real rare coordinates.
-  let seed = (n(getProperty("combo_lastTileCombed")) * 2654435761 +
-    current * 2246822519 + Object.keys(ledger.fronts).length * 3266489917 + count) >>> 0;
+  let seed =
+    (n(getProperty("combo_lastTileCombed")) * 2654435761 +
+      current * 2246822519 +
+      Object.keys(ledger.fronts).length * 3266489917 +
+      count) >>>
+    0;
   const target = Math.min(count, eligibleMinutes.length - exclude.size);
   for (let i = 0; i < eligibleMinutes.length * 3 && selected.length < target; i++) {
     seed = (Math.imul(1664525, seed) + 1013904223) >>> 0;
@@ -395,7 +408,7 @@ function sampleMinutes(
     if (selected.length >= target) break;
     add(minute, "explore");
   }
-  return selected.slice(0, count).map(minute => [minute, sources[String(minute)]]);
+  return selected.slice(0, count).map((minute) => [minute, sources[String(minute)]]);
 }
 
 function candidateFrontier(
@@ -408,7 +421,7 @@ function candidateFrontier(
   const current = n(getProperty("_beachMinutes"));
   const day = 1 + (gamedayToInt() % 8);
   const rowsHidden = 4 - Math.abs(4 - day);
-  const eligible = points.filter(t => !t.false_rare && t.row > rowsHidden);
+  const eligible = points.filter((t) => !t.false_rare && t.row > rowsHidden);
   const grouped = new Map<number, RarePoint[]>();
   for (const tile of eligible) {
     const list = grouped.get(tile.minute) || [];
@@ -418,34 +431,56 @@ function candidateFrontier(
   const chosen = (minute: number): RarePoint | undefined => {
     const list = grouped.get(minute) || [];
     return list.slice().sort((a, b) => {
-      const fa = recoveryFeatures(recoveryLedger.tiles[tileKey(a.minute, a.row, a.column)], Date.now() / 1000);
-      const fb = recoveryFeatures(recoveryLedger.tiles[tileKey(b.minute, b.row, b.column)], Date.now() / 1000);
-      return (fb.revisit_signal ?? -1) - (fa.revisit_signal ?? -1) ||
-        a.row - b.row || a.column - b.column;
+      const fa = recoveryFeatures(
+        recoveryLedger.tiles[tileKey(a.minute, a.row, a.column)],
+        Date.now() / 1000,
+      );
+      const fb = recoveryFeatures(
+        recoveryLedger.tiles[tileKey(b.minute, b.row, b.column)],
+        Date.now() / 1000,
+      );
+      return (
+        (fb.revisit_signal ?? -1) - (fa.revisit_signal ?? -1) ||
+        a.row - b.row ||
+        a.column - b.column
+      );
     })[0];
   };
   const result: Candidate[] = [];
   const push = (minute: number, source: Candidate["source"], isBaseline: boolean) => {
-    const tile = isBaseline && baseline
-      ? eligible.find(t => t.minute === baseline.minute &&
-          t.row === baseline.row && t.column === baseline.column)
-      : chosen(minute);
+    const tile =
+      isBaseline && baseline
+        ? eligible.find(
+            (t) =>
+              t.minute === baseline.minute &&
+              t.row === baseline.row &&
+              t.column === baseline.column,
+          )
+        : chosen(minute);
     if (!tile) return;
     const evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger);
     result.push({
-      minute, source, is_combo_baseline: isBaseline,
-      evidence, representative: {
-        d: tile.d, x: tile.x, y: tile.y, row: tile.row, column: tile.column,
+      minute,
+      source,
+      is_combo_baseline: isBaseline,
+      evidence,
+      representative: {
+        d: tile.d,
+        x: tile.x,
+        y: tile.y,
+        row: tile.row,
+        column: tile.column,
       },
-      utility: null, utility_components: null, watersheep: null,
+      utility: null,
+      utility_components: null,
+      watersheep: null,
     });
   };
   if (baseline) push(baseline.minute, "combo-baseline", true);
-  const exclude = new Set<number>(result.map(x => x.minute));
+  const exclude = new Set<number>(result.map((x) => x.minute));
   const eligibleMinutes = Array.from(grouped.keys()).sort((a, b) => a - b);
-  for (const [minute, source] of sampleMinutes(
-    ledger, eligibleMinutes, count, current, exclude,
-  )) push(minute, source, false);
+  for (const [minute, source] of sampleMinutes(ledger, eligibleMinutes, count, current, exclude))
+    push(minute, source, false);
   return result;
 }
 
@@ -510,7 +545,11 @@ function askWaterSheep(candidate: Candidate): { scores: Record<string, number>; 
   return { scores, ms: Date.now() - started };
 }
 
-export function traceTargetPrediction(minute: number, row?: number, column?: number): Record<string, unknown> {
+export function traceTargetPrediction(
+  minute: number,
+  row?: number,
+  column?: number,
+): Record<string, unknown> {
   const ledger = loadObservationLedger();
   const current = n(getProperty("_beachMinutes"));
   const recoveryLedger = loadTileRecoveryLedger();
@@ -576,7 +615,9 @@ function scoreCandidate(
     n(outcomes.exhausted_fallback) * 0.05 +
     (evidence.cooldown.revisit_signal ?? 0) * 0.08 -
     (evidence.cooldown.still_combed_after_harvest &&
-     (evidence.cooldown.days_since_observed ?? 999) < 1 ? 0.04 : 0);
+    (evidence.cooldown.days_since_observed ?? 999) < 1
+      ? 0.04
+      : 0);
   return {
     utility: round(model + exploration + observed),
     components: {
@@ -1033,8 +1074,10 @@ function buildRuntime() {
       ledger_file: "don_combo_matrix_ledger.json",
       tile_recovery_file: "don_combo_tile_recovery.json",
       tiles_recorded: Object.keys(recoveryLedger.tiles).length,
-      recovery_intervals: Object.values(recoveryLedger.tiles)
-        .reduce((count, entry) => count + (entry.recovery_intervals?.length || 0), 0),
+      recovery_intervals: Object.values(recoveryLedger.tiles).reduce(
+        (count, entry) => count + (entry.recovery_intervals?.length || 0),
+        0,
+      ),
       fronts_recorded: Object.keys(ledger.fronts).length,
       fronts: observationAtlas(ledger),
       ledger_updated_this_run: false,

@@ -17,12 +17,12 @@ import {
 import { $items, get, property, Session, set, sinceKolmafiaRevision } from "libram";
 
 import { traceTargetPrediction } from "./don_combo_runtime";
-import { compileShadowTop11, type ShadowRouteSnapshot } from "./runtime/shadow-route";
 import {
   loadMlTraceEvents,
   recordBeachObservation,
   type BeachOutcome,
 } from "./runtime/observations";
+import { compileShadowTop11, type ShadowRouteSnapshot } from "./runtime/shadow-route";
 
 // Gotta print in a legible colour.
 const HIGHLIGHT = isDarkMode() ? "yellow" : "blue";
@@ -98,7 +98,11 @@ function mlTraceEnabled(): boolean {
   );
 }
 
-function captureTargetPrediction(minute: number, row: number, column: number): Record<string, unknown> | null {
+function captureTargetPrediction(
+  minute: number,
+  row: number,
+  column: number,
+): Record<string, unknown> | null {
   if (!mlTraceEnabled()) return null;
   try {
     return traceTargetPrediction(minute, row, column);
@@ -331,11 +335,17 @@ function loadShadowTop11Route(): BeachTile[] {
   const raw = String(fileToBuffer("don_combo_matrix_runtime.json") || "");
   if (!raw) abort("No frozen Shadow Route Lab snapshot; refresh first.");
   const snapshot = JSON.parse(raw) as ShadowRouteSnapshot;
-  const invalid = new Set(getFalseRares().map(tile =>
-    `${tile.minute},${tile.row},${tile.column}`));
+  const invalid = new Set(
+    getFalseRares().map((tile) => `${tile.minute},${tile.row},${tile.column}`),
+  );
   return compileShadowTop11(
-    snapshot, rareTiles, invalid, Number(myId()), gamedayToInt(),
-    get("_freeBeachWalksUsed", 0), Date.now() / 1000,
+    snapshot,
+    rareTiles,
+    invalid,
+    Number(myId()),
+    gamedayToInt(),
+    get("_freeBeachWalksUsed", 0),
+    Date.now() / 1000,
   );
 }
 
@@ -379,8 +389,11 @@ export function main(args?: string | number): void {
   // Here we collapse our two possibilities into one
   // If args is already a number, combs is a number
   // If args is a string, we convert it to a number
-  const combs = frozenRoute ? frozenRoute.length :
-    (typeof args === "string" ? parseInt(args) : (args ?? 11 - get("_freeBeachWalksUsed")));
+  const combs = frozenRoute
+    ? frozenRoute.length
+    : typeof args === "string"
+      ? parseInt(args)
+      : (args ?? 11 - get("_freeBeachWalksUsed"));
   if (!Number.isInteger(combs) || isNaN(combs)) abort("Invalid argument!");
   if (combs <= 0) return;
   const oldFilter = get("logPreferenceChangeFilter");
@@ -440,13 +453,15 @@ export function main(args?: string | number): void {
         // Free-only guard at the exact action boundary. A changed counter
         // can never authorize paid turns or an unplanned tile.
         const before = get("_freeBeachWalksUsed", 0);
-        if (before < 0 || before >= 11) throw new Error("No free combs remain; paid comb prevented.");
+        if (before < 0 || before >= 11)
+          throw new Error("No free combs remain; paid comb prevented.");
         const target = frozenRoute[completedCombs];
         if (!target || gamedayToInt() !== frozenGameday || Number(myId()) !== frozenPlayer)
           throw new Error("Shadow route day/player changed during execution.");
         _comb(target);
         const after = get("_freeBeachWalksUsed", 0);
-        if (after !== before + 1) throw new Error("Free beach counter did not advance exactly once; stopping.");
+        if (after !== before + 1)
+          throw new Error("Free beach counter did not advance exactly once; stopping.");
         completedCombs++;
       } else {
         // Preserve normal Combo's deterministic shuffled rare route.

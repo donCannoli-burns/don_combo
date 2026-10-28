@@ -34,12 +34,7 @@ export function visibleSandCastles(layout: string, minute: number): SandCastleCo
   return result;
 }
 
-export function castleAt(
-  layout: string,
-  minute: number,
-  row: number,
-  column: number,
-): boolean {
+export function castleAt(layout: string, minute: number, row: number, column: number): boolean {
   return visibleSandCastles(layout, minute).some(
     (spot) => spot.row === row && spot.column === column,
   );
@@ -64,7 +59,8 @@ export function sandCastleAction(
   if (
     !["sand_castle_target", "sand_castle_fallback"].includes(outcome) ||
     !castleAt(layout, minute, row, column)
-  ) return null;
+  )
+    return null;
   const line = String(actionOutput || "")
     .split(/\r?\n/)
     .map((s) => s.trim())

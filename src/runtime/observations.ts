@@ -8,7 +8,6 @@ import {
 } from "kolmafia";
 
 import { parseBottleOutput, type BottleObservation } from "./bottle-observer";
-import { sandCastleAction, type SandCastleAction } from "./sandcastle-observer";
 import type { ObservationEntry, ObservationLedger } from "./contracts";
 import {
   emptyRecoveryLedger,
@@ -17,6 +16,7 @@ import {
   tileKey,
   type TileRecoveryLedger,
 } from "./recovery";
+import { sandCastleAction, type SandCastleAction } from "./sandcastle-observer";
 import {
   addScratchVisit,
   emptyScratchLedger,

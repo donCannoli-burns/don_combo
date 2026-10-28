@@ -19,7 +19,6 @@ import {
 import { $items, get, property, Session, set, sinceKolmafiaRevision } from "libram";
 
 import { prepareWaterSheepRoute, traceTargetPrediction } from "./don_combo_runtime";
-import { firstVisibleSandCastle } from "./runtime/sandcastle-observer";
 import {
   loadMlTraceEvents,
   recordBeachObservation,
@@ -30,6 +29,7 @@ import {
   prescoreWaitPhrase,
   prescoreProgressNotice,
 } from "./runtime/prescore-progress";
+import { firstVisibleSandCastle } from "./runtime/sandcastle-observer";
 import { summarizeShadowRun, type ShadowRunContext } from "./runtime/shadow-learning";
 import {
   compileShadowTop11,

@@ -29,7 +29,13 @@ export interface PoolTraceEvent {
   planned_target?: { minute: number; row: number; column: number } | null;
   actual_comb?: { minute: number; row: number; column: number } | null;
   items?: Record<string, number>;
-  special_events?: ReadonlyArray<{ kind: string; source?: string; pool?: string; coordinate?: string; verification?: string }>;
+  special_events?: ReadonlyArray<{
+    kind: string;
+    source?: string;
+    pool?: string;
+    coordinate?: string;
+    verification?: string;
+  }>;
   action_output_capture?: "captured" | "empty" | "legacy-unavailable";
   run_context?: { player_id?: number; run_id?: string; route_mode?: string } | null;
 }

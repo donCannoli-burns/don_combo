@@ -138,6 +138,7 @@
 <div class="eyebrow">Dual rare-pool observer · experimental cooldown hypothesis</div>
 <p class="muted">Pool 1: sand castles (sighted), beached whales (sighted/combed), rainbow pearls (item drop). Pool 2: driftwood, cursed pirate equipment and meteorite fragments (positive item deltas). Three rarity tiers are a proposed ordering, NOT measured cooldown rules. Repeated same-coordinate rewards provide elapsed/censored intervals, not exact respawn times.</p>
 <div id="mlPoolStats" class="evidence"></div>
+<div id="mlHistoricalCurve" class="mltable muted" style="margin:10px 0">No dated repeat rare observations yet.</div>
 <div id="mlPoolTable" class="mltable muted">No pool observations yet.</div>
 </article>
 <div class="papergrid">
@@ -347,6 +348,20 @@ function renderMlLab(){
  var ml=R.ml_lab||{},events=ml.events||[],history=ml.snapshot_history||[];
  var obs=R.observations||{},scratch=obs.scratch_summary||{},hot=obs.scratch_top_fronts||[];
  var pools=obs.two_pool_cooldown_summary||{},poolRecent=obs.two_pool_observations_tail||[];
+ var rareCurve=obs.historical_rare_curve||{},rareBins=rareCurve.bins||[];
+ document.getElementById("mlHistoricalCurve").innerHTML=
+   "<p><b>Historical known-rare baseline:</b> "+Number(rareCurve.known_rare_coordinates||0).toLocaleString()+
+   " catalogued coordinates · "+Number(rareCurve.exact_rare_target_attempts||0).toLocaleString()+
+   " dated exact-target attempts · "+Number(rareCurve.repeated_attempt_intervals||0).toLocaleString()+
+   " repeat-attempt intervals. "+Number(rareCurve.known_rare_undated_coordinates||0).toLocaleString()+
+   " catalogue coordinates have no dated target attempt. Do not infer cooldown from their absence.</p>"+
+   "<table><thead><tr><th>Observed gap between attempts</th><th>Repeated attempts</th><th>Pool 1 reward</th><th>Pool 2 reward</th><th>Common/rare</th><th>Uncommon/rare</th><th>Rare/rare</th></tr></thead><tbody>"+
+   rareBins.map(function(e){return"<tr><td>"+esc(String(e.lower_days_inclusive)+"–"+(e.upper_days_exclusive==null?"∞":e.upper_days_exclusive)+" days")+
+   "</td><td>"+Number(e.repeat_attempt_intervals||0)+"</td><td>"+Number(e.pool_1_rewards||0)+
+   "</td><td>"+Number(e.pool_2_rewards||0)+"</td><td>"+Number((e.current_reward_tiers||{}).common_rare||0)+
+   "</td><td>"+Number((e.current_reward_tiers||{}).uncommon_rare||0)+
+   "</td><td>"+Number((e.current_reward_tiers||{}).rare_rare||0)+"</td></tr>"}).join("")+
+   "</tbody></table><p class='muted'>Empirical attempt-gap bins, not a fitted cooldown curve. Reward-to-reward intervals are censored. No rare probability or spawn timing inferred.</p>";
  document.getElementById("mlPoolStats").innerHTML=
    evItem("pool 1 sightings",Number(pools.layout_sightings||0).toLocaleString())+
    evItem("pool 1/2 item rewards",Number(pools.item_delta_rewards||0).toLocaleString())+

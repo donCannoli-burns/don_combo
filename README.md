@@ -109,6 +109,29 @@ Runtime v0.8 therefore exposes compact per-front observation summaries under `ob
 
 The relay also exposes **Export HTML snapshot**. It downloads a self-contained, script-free HTML evidence artifact containing the frozen Hilbert canvas, rendered comparison/evidence UI, agent packet, provenance, and the full runtime object as inert `application/json`. Snapshot filenames include the runtime timestamp and the first 12 characters of the comparison receipt state hash.
 
+**Refresh is now a native evidence regeneration, not a browser reload.** The
+**Refresh data** button invokes the read-only `relay_DonComboRefresh.ash`
+endpoint, which synchronously runs the established listener's matrix refresh,
+including KoLmafia observation / ML-trace readback and a new WaterSheep score
+comparison. After the runtime commits its files, the browser requests the
+fresh relay JSON/JS with caching disabled and checks its generation, player,
+game day, ML event total, and last-run status against the native acknowledgement.
+
+**Each Export HTML snapshot** performs that same verified refresh first; it
+does not simply export a previously loaded JS object. If Combo is still
+running, runtime generation fails, or the readback is stale or inconsistent,
+the export **stops with a visible error** instead of creating a misleading
+newly-dated HTML file. A verified export carries
+`don-combo-refresh-verified=true` and the matched runtime generation in its
+HTML metadata. The full model comparison can take longer when many
+WaterSheep candidates are scored. This path never spends beach combs and
+never authorizes model-selected KoL actions.
+
+The October 28, 2026 discrepancy motivating this safeguard was a frozen HTML
+export created after a 12-comb interrupted run, but still containing a
+runtime generated before that run (`ml_lab.events_total=3117` instead
+of `3129`). The regression suite explicitly rejects that mismatch.
+
 ### ML trace and all-in-one experiment artifact
 
 The relay now includes an **ML Lab** section inspired by compact research-paper plots. It separates two questions that the earlier snapshot blurred together:

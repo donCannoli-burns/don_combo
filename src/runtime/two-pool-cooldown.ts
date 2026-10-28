@@ -29,7 +29,7 @@ export interface PoolTraceEvent {
   planned_target?: { minute: number; row: number; column: number } | null;
   actual_comb?: { minute: number; row: number; column: number } | null;
   items?: Record<string, number>;
-  special_events?: ReadonlyArray<{ kind: string; source?: string; pool?: string }>;
+  special_events?: ReadonlyArray<{ kind: string; source?: string; pool?: string; coordinate?: string; verification?: string }>;
   action_output_capture?: "captured" | "empty" | "legacy-unavailable";
   run_context?: { player_id?: number; run_id?: string; route_mode?: string } | null;
 }
@@ -87,6 +87,16 @@ export interface BottleTargetContext {
   weak_context_weight: { pool_1: 0.1; pool_2: 0.1 };
   interpretation: "EXPLORATION_HINT_NOT_POOL_MEMBERSHIP_OR_DROP_PROBABILITY";
 }
+export interface CastleEventEvidence {
+  kind: "sand_castle_action";
+  coordinate: string;
+  observed_at: string;
+  event_id: string | null;
+  route_mode: string;
+  verification: "native-demolition-text" | "pre-action-castle-command-returned";
+  source: "pre-action-layout-and-native-comb";
+}
+
 export interface PoolSummary {
   schema: "don-combo-two-pool-summary/v0.1";
   scanned_events: number;
@@ -101,6 +111,12 @@ export interface PoolSummary {
   distinct_reward_coordinates: number;
   historical_unbound_events: number;
   run_bound_events: number;
+  sand_castle_sightings: number;
+  sand_castle_unique_coordinates: number;
+  sand_castle_unique_minutes: number;
+  sand_castle_actions: number;
+  sand_castle_actions_native_verified: number;
+  sand_castle_actions_unverified: number;
   message_bottle_events: number;
   message_bottle_unbound: number;
   bottle_detection_output_captured: number;
@@ -114,6 +130,7 @@ export interface PoolIndex {
   by_coordinate: Record<string, PoolCooldownEvidence>;
   bottle_by_coordinate: Record<string, BottleTargetContext>;
   bottle_events: BottleEventEvidence[];
+  castle_events: CastleEventEvidence[];
   by_front: Record<string, Record<PoolKind, number>>;
   observations: PoolObservation[];
 }
@@ -190,6 +207,9 @@ export function buildPoolCooldownIndex(
   const byCoordinate: Record<string, PoolCooldownEvidence> = {};
   const bottleByCoordinate: Record<string, BottleTargetContext> = {};
   const bottleEvents: BottleEventEvidence[] = [];
+  const castleEvents: CastleEventEvidence[] = [];
+  const castleCoords = new Set<string>();
+  const castleMinutes = new Set<number>();
   let bottleUnbound = 0;
   let captureCovered = 0,
     captureEmpty = 0,
@@ -249,7 +269,9 @@ export function buildPoolCooldownIndex(
       signal.quantity;
     if (signal.pool === "pool_1") p1[signal.kind] += signal.quantity;
     else p2[signal.kind] += signal.quantity;
-    byTier[signal.tier] += signal.quantity;
+    // Layout-only castle and whale sightings are spatial observations,
+    // not tier rewards or cooldown samples.
+    if (signal.certainty !== "layout-sighting") byTier[signal.tier] += signal.quantity;
     if (signal.certainty === "layout-sighting") layoutSightings += signal.quantity;
     else if (signal.certainty === "action-recorded") actionRecorded += signal.quantity;
     else itemRewards += signal.quantity;
@@ -308,6 +330,8 @@ export function buildPoolCooldownIndex(
     }
     // Record sandcastle and whale sightings only once per event/location.
     for (const pos of layoutSymbols(e.layout, "C")) {
+      castleCoords.add(key({ minute: e.minute, ...pos }));
+      castleMinutes.add(e.minute);
       enrich(
         e,
         key({ minute: e.minute, ...pos }),
@@ -325,6 +349,32 @@ export function buildPoolCooldownIndex(
     }
     const actual = e.actual_comb;
     const actualKey = actual?.minute === e.minute ? key(actual) : null;
+    // Record deliberate native castle actions without treating ordinary
+    // grains-of-sand loot as a special castle reward or respawn interval.
+    const castleReceipt = e.special_events?.find(
+      (x) =>
+        x.kind === "sand_castle_action" &&
+        x.source === "pre-action-layout-and-native-comb" &&
+        x.coordinate === actualKey &&
+        (x.verification === "native-demolition-text" ||
+          x.verification === "pre-action-castle-command-returned"),
+    );
+    if (
+      castleReceipt &&
+      actualKey &&
+      ["sand_castle_target", "sand_castle_fallback"].includes(e.outcome) &&
+      symbolAt(e.layout, actual!.row, actual!.column) === "C"
+    ) {
+      castleEvents.push({
+        kind: "sand_castle_action",
+        coordinate: actualKey,
+        observed_at: e.observed_at,
+        event_id: e.event_id || null,
+        route_mode: e.run_context?.route_mode || "legacy-unbound",
+        source: "pre-action-layout-and-native-comb",
+        verification: castleReceipt.verification as CastleEventEvidence["verification"],
+      });
+    }
     // Count a genuine beach-result message once, even if its text appears
     // more than once in the command output. No synthetic inventory delta.
     if (
@@ -406,6 +456,16 @@ export function buildPoolCooldownIndex(
     distinct_reward_coordinates: rewardedCoords.size,
     historical_unbound_events: legacy,
     run_bound_events: bound,
+    sand_castle_sightings: p1.sand_castle,
+    sand_castle_unique_coordinates: castleCoords.size,
+    sand_castle_unique_minutes: castleMinutes.size,
+    sand_castle_actions: castleEvents.length,
+    sand_castle_actions_native_verified: castleEvents.filter(
+      (x) => x.verification === "native-demolition-text",
+    ).length,
+    sand_castle_actions_unverified: castleEvents.filter(
+      (x) => x.verification === "pre-action-castle-command-returned",
+    ).length,
     message_bottle_events: bottleEvents.length,
     message_bottle_unbound: bottleUnbound,
     bottle_detection_output_captured: captureCovered,
@@ -420,6 +480,7 @@ export function buildPoolCooldownIndex(
     by_coordinate: byCoordinate,
     bottle_by_coordinate: bottleByCoordinate,
     bottle_events: bottleEvents,
+    castle_events: castleEvents,
     by_front: byFront,
     observations,
   };

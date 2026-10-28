@@ -53,6 +53,7 @@ export interface ShadowRunEvent {
   planned_target?: { minute: number; row: number; column: number } | null;
   actual_comb?: { minute: number; row: number; column: number } | null;
   pre_action_prediction?: Record<string, unknown> | null;
+  pool_observations?: Array<{ pool: string; kind: string; certainty: string; quantity: number }>;
   items: Record<string, number>;
 }
 export interface ShadowDailyRunSummary {
@@ -74,6 +75,7 @@ export interface ShadowDailyRunSummary {
   incidental_fallback_rough: number;
   planned_and_actual_match: number;
   rare_target_attempts: number;
+  two_pool_observation_counts: Record<string, number>;
   high_scratch_observations: number;
   very_interesting_scratch_observations: number;
   high_scratch_fronts: number;
@@ -104,6 +106,7 @@ export function summarizeShadowRun(
   );
   const outcomeCounts: Record<string, number> = {};
   const itemCounts: Record<string, number> = {};
+  const poolCounts: Record<string, number> = {};
   const fronts = new Set<number>();
   let ready = 0;
   let error = 0;
@@ -126,6 +129,12 @@ export function summarizeShadowRun(
       veryScratchFronts.add(event.minute);
     }
     outcomeCounts[event.outcome] = (outcomeCounts[event.outcome] || 0) + 1;
+    for (const pool of event.pool_observations || []) {
+      if (pool.quantity > 0 && (pool.pool === "pool_1" || pool.pool === "pool_2")) {
+        const key = `${pool.pool}/${pool.kind}/${pool.certainty}`;
+        poolCounts[key] = (poolCounts[key] || 0) + pool.quantity;
+      }
+    }
     for (const [name, quantity] of Object.entries(event.items || {})) {
       itemCounts[name] = (itemCounts[name] || 0) + quantity;
     }
@@ -163,6 +172,7 @@ export function summarizeShadowRun(
     incidental_fallback_rough: outcomeCounts.rough_fallback || 0,
     planned_and_actual_match: matched,
     rare_target_attempts: outcomeCounts.rare_target || 0,
+    two_pool_observation_counts: poolCounts,
     high_scratch_observations: highScratchEvents,
     very_interesting_scratch_observations: veryScratchEvents,
     high_scratch_fronts: highScratchFronts.size,

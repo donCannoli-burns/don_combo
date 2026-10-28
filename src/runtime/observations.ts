@@ -78,7 +78,7 @@ function captureTileRecovery(minute: number, layout: string, outcome: BeachOutco
   const twinkleVision = getProperty("hasTwinkleVision") === "true";
   for (const tile of matches) {
     // A submerged row absent from the layout is not an observation.
-    if (!layout.split(",").some(part => part.startsWith(tile.row + ":"))) continue;
+    if (!layout.split(",").some(part => part.startsWith(`${tile.row}:`))) continue;
     const key = tileKey(tile.minute, tile.row, tile.column);
     const selected = !!actual && actual.minute === tile.minute &&
       actual.row === tile.row && actual.column === tile.column;

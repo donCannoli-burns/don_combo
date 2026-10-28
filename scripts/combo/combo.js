@@ -1873,9 +1873,10 @@ function backfillScratchHistory(persisted, events, nowMs) {
       if (typeof eventPlayer === "number" && eventPlayer !== persisted.player_id) continue;
       if (event.event_id && seen.has(event.event_id)) continue;
       if (event.event_id) seen.add(event.event_id);
-      var date = Date.parse(event.observed_at);
+      var preAction = event.pre_action_observed_at || event.observed_at;
+      var date = Date.parse(preAction);
       if (!Number.isFinite(date) || date > nowMs) continue;
-      if (addScratchVisit(ledger, event.minute, event.layout, event.observed_at, "historical")) imported++;
+      if (addScratchVisit(ledger, event.minute, event.layout, preAction, "historical")) imported++;
     }
   } catch (err) {
     _iterator2.e(err);
@@ -2201,7 +2202,9 @@ var makeBin = (key, lower, upper) => ({
   },
   empty_or_unclassified_attempts: 0
 });
-var gapBin = days => days < 1 ? 0 : days < 3 ? 1 : days < 7 ? 2 : days < 14 ? 3 : 4;
+// Long-tail resolution preserves the circa two-year hypothesis instead of
+// hiding every 14+ day observation in a single short/long confounded bin.
+var gapBin = days => days < 1 ? 0 : days < 3 ? 1 : days < 7 ? 2 : days < 14 ? 3 : days < 30 ? 4 : days < 90 ? 5 : days < 180 ? 6 : days < 365 ? 7 : days < 730 ? 8 : 9;
 
 // A catalogue tile is a possible observation site, never a negative example.
 // These are INTER-ATTEMPT intervals, not respawn intervals. Pool rewards are
@@ -2225,7 +2228,7 @@ function buildHistoricalRareCurve(points, events, poolIndex, nowMs, playerId) {
   } finally {
     _iterator6.f();
   }
-  var bins = [makeBin("under_1_day", 0, 1), makeBin("1_to_3_days", 1, 3), makeBin("3_to_7_days", 3, 7), makeBin("7_to_14_days", 7, 14), makeBin("14_plus_days", 14, null)];
+  var bins = [makeBin("under_1_day", 0, 1), makeBin("1_to_3_days", 1, 3), makeBin("3_to_7_days", 3, 7), makeBin("7_to_14_days", 7, 14), makeBin("14_to_30_days", 14, 30), makeBin("30_to_90_days", 30, 90), makeBin("90_to_180_days", 90, 180), makeBin("180_to_365_days", 180, 365), makeBin("365_to_730_days", 365, 730), makeBin("730_plus_days", 730, null)];
   var eligible = events.filter(e => {
     var _e$run_context6, _e$run_context7, _e$run_context8;
     var t = Date.parse(e.observed_at);
@@ -2337,7 +2340,7 @@ var LEDGER_FILE = "don_combo_matrix_ledger.json";
 var ML_EVENT_FILE = "don_combo_ml_events.jsonl";
 var RECOVERY_FILE = "don_combo_tile_recovery.json";
 var SCRATCH_FILE = "don_combo_scratch_observations.json";
-var NON_RARE_LOOT = new Set(["grain of sand", "sand dollar", "dull fish scale", "rough fish scale", "lucky rabbitfish fin", "spearfish fishing spear", "waders", "pristine fish scale", "piece of coral", "sea avocado", "sea cucumber", "cyan seashell", "kelp", "bunch of sea grapes"]);
+
 // The live scratch ledger is player-scoped. Legacy unbound ML events are kept
 // separately by the read-only historical backfill and never rewritten here.
 function loadScratchLedger() {
@@ -2374,11 +2377,15 @@ function captureTileRecovery(minute, layout, outcome, detail, atEpoch) {
   if (!matches.length) return;
   var ledger = loadTileRecoveryLedger();
   var actual = detail.actual_comb;
+  // Only explicitly classified rare reward deltas may mark a known tile as
+  // harvested for cooldown calculations. Many ordinary beach items were not
+  // included in the old generic exclusion list, causing false harvests.
+  // Unclassified deltas are still preserved in the immutable ML event log.
   var positiveItems = Object.entries(detail.items || {}).filter(_ref => {
     var _ref2 = _slicedToArray(_ref, 2),
       name = _ref2[0],
       quantity = _ref2[1];
-    return quantity > 0 && !NON_RARE_LOOT.has(name.toLowerCase());
+    return quantity > 0 && poolForItem(name, quantity) !== null;
   }).sort((_ref3, _ref4) => {
     var _ref5 = _slicedToArray(_ref3, 1),
       a = _ref5[0];
@@ -2581,6 +2588,7 @@ function recordBeachObservation(minute, layout, outcome) {
     schema: "don-combo-ml-event/v0.1",
     event_id: "".concat(now.getTime(), "-").concat(kolmafia.turnsPlayed(), "-").concat(minute, "-").concat(actual ? "".concat(actual.row, "-").concat(actual.column) : "na"),
     observed_at: now.toISOString(),
+    pre_action_observed_at: detail.pre_action_observed_at || undefined,
     turn: kolmafia.turnsPlayed(),
     minute,
     outcome,
@@ -2602,7 +2610,7 @@ function recordBeachObservation(minute, layout, outcome) {
   }
   kolmafia.appendBufferToFile("".concat(JSON.stringify(event), "\n"), ML_EVENT_FILE);
   try {
-    recordScratchObservation(minute, layout, now.toISOString());
+    recordScratchObservation(minute, layout, detail.pre_action_observed_at || now.toISOString());
   } catch (_unused7) {
     // Scratch evidence is supplemental; original ML event log is a durable
     // backfill source, and errors cannot cause duplicate beach actions.
@@ -2612,6 +2620,229 @@ function recordBeachObservation(minute, layout, outcome) {
   } catch (_unused8) {
     // Recovery indexing is supplemental; never break the existing Combo path.
   }
+}
+
+// Three proposed category timescales, not three pre-fitted peaks.
+// This reader is deliberately pure: no KoL calls, no writes, no action authority.
+// Separate physical *reward events* from beach-layout sightings and item quantities.
+
+var TIME_BUCKETS = [{
+  key: "under_1_day",
+  min_days: 0,
+  max_days: 1
+}, {
+  key: "1_to_3_days",
+  min_days: 1,
+  max_days: 3
+}, {
+  key: "3_to_7_days",
+  min_days: 3,
+  max_days: 7
+}, {
+  key: "7_to_14_days",
+  min_days: 7,
+  max_days: 14
+}, {
+  key: "14_to_30_days",
+  min_days: 14,
+  max_days: 30
+}, {
+  key: "30_to_90_days",
+  min_days: 30,
+  max_days: 90
+}, {
+  key: "90_to_180_days",
+  min_days: 90,
+  max_days: 180
+}, {
+  key: "180_to_365_days",
+  min_days: 180,
+  max_days: 365
+}, {
+  key: "365_to_730_days",
+  min_days: 365,
+  max_days: 730
+}, {
+  key: "730_plus_days",
+  min_days: 730,
+  max_days: null
+}];
+var findBucket = days => TIME_BUCKETS.find(b => days >= b.min_days && (b.max_days === null || days < b.max_days)).key;
+function cleanEventId(o) {
+  return o.event_id || [o.observed_at, o.coordinate, o.pool, o.kind].join("|");
+}
+function compareTime(a, b) {
+  return Date.parse(a.observed_at) - Date.parse(b.observed_at) || a.coordinate.localeCompare(b.coordinate) || a.kind.localeCompare(b.kind);
+}
+function blankBins() {
+  return Object.fromEntries(TIME_BUCKETS.map(b => [b.key, 0]));
+}
+function buildPoolTimeScaleAudit(index) {
+  // The same comb may award all three cursed equipment pieces. That is one
+  // pirate-hoard reward event, not three independent respawn/cooldown samples.
+  var byEvent = new Map();
+  var collapsed = 0,
+    layout = 0,
+    rawQty = 0;
+  var _iterator = _createForOfIteratorHelper(index.observations),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var o = _step.value;
+      if (o.certainty === "layout-sighting") {
+        layout += o.quantity;
+        continue;
+      }
+      if (o.certainty !== "item-delta" && o.certainty !== "action-recorded") continue;
+      if (o.certainty === "item-delta") rawQty += o.quantity;
+      if (!o.coordinate || !Number.isFinite(Date.parse(o.observed_at))) continue;
+      var identity = "".concat(cleanEventId(o), "|").concat(o.pool, "|").concat(o.kind, "|").concat(o.coordinate);
+      var prior = byEvent.get(identity);
+      if (prior) {
+        prior.item_quantity += o.quantity;
+        collapsed++;
+        continue;
+      }
+      byEvent.set(identity, {
+        observed_at: o.observed_at,
+        minute: o.minute,
+        coordinate: o.coordinate,
+        pool: o.pool,
+        kind: o.kind,
+        tier: o.tier,
+        observation_kind: o.certainty,
+        item_quantity: o.quantity,
+        route_mode: o.route_mode,
+        event_id: o.event_id
+      });
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  var events = _toConsumableArray(byEvent.values()).sort(compareTime);
+  var gaps = [];
+  // Calculate both within-category and across-coordinate sequences. A moved
+  // observation is not evidence of transferring a hidden timer between tiles.
+  var groups = new Map();
+  var _iterator2 = _createForOfIteratorHelper(events),
+    _step2;
+  try {
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      var e = _step2.value;
+      (groups.get(e.kind) || (groups.set(e.kind, []), groups.get(e.kind))).push(e);
+    }
+  } catch (err) {
+    _iterator2.e(err);
+  } finally {
+    _iterator2.f();
+  }
+  var _iterator3 = _createForOfIteratorHelper(groups.values()),
+    _step3;
+  try {
+    for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+      var stream = _step3.value;
+      stream.sort(compareTime);
+      for (var j = 1; j < stream.length; j++) {
+        var prev = stream[j - 1],
+          cur = stream[j];
+        var delta = Date.parse(cur.observed_at) - Date.parse(prev.observed_at);
+        if (delta <= 0) continue;
+        var days = delta / 86400000;
+        gaps.push({
+          pool: cur.pool,
+          tier: cur.tier,
+          kind: cur.kind,
+          previous_at: prev.observed_at,
+          current_at: cur.observed_at,
+          previous_coordinate: prev.coordinate,
+          current_coordinate: cur.coordinate,
+          gap_days: days,
+          bucket: findBucket(days),
+          moved_coordinate: prev.coordinate !== cur.coordinate,
+          interpretation: "INTER_REWARD_OBSERVATION_GAP_NOT_PROVEN_TRANSFER_OR_COOLDOWN"
+        });
+      }
+    }
+  } catch (err) {
+    _iterator3.e(err);
+  } finally {
+    _iterator3.f();
+  }
+  var tiers = [["common_rare", "short"], ["uncommon_rare", "middle"], ["rare_rare", "long"]];
+  // Each pool gets three independent hypothesis lanes. Pool 1 whale actions
+  // and Pool 2 item drops must never be merged into one fitted cooldown.
+  var tier_hypotheses = ["pool_1", "pool_2"].flatMap(pool => tiers.map(_ref => {
+    var _ref2 = _slicedToArray(_ref, 2),
+      tier = _ref2[0],
+      conceptual_peak = _ref2[1];
+    var e = events.filter(q => q.pool === pool && q.tier === tier);
+    var g = gaps.filter(q => q.pool === pool && q.tier === tier);
+    var bins = blankBins();
+    var _iterator4 = _createForOfIteratorHelper(g),
+      _step4;
+    try {
+      for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+        var v = _step4.value;
+        bins[v.bucket]++;
+      }
+    } catch (err) {
+      _iterator4.e(err);
+    } finally {
+      _iterator4.f();
+    }
+    var ordered = g.map(v => v.gap_days).sort((a, b) => a - b);
+    var median = ordered.length ? (ordered[Math.floor((ordered.length - 1) / 2)] + ordered[Math.floor(ordered.length / 2)]) / 2 : null;
+    var modal = TIME_BUCKETS.slice().sort((a, b) => bins[b.key] - bins[a.key])[0];
+    var credible = g.length >= 5 && new Set(e.map(v => v.observed_at.slice(0, 10))).size >= 3 && new Set(e.map(v => v.coordinate)).size >= 3;
+    return {
+      pool,
+      tier,
+      conceptual_peak,
+      event_count: e.length,
+      category_interval_count: g.length,
+      cross_coordinate_interval_count: g.filter(v => v.moved_coordinate).length,
+      median_observed_gap_days: median,
+      modal_gap_bucket: g.length ? modal.key : null,
+      // A sample median cannot itself establish a real cooldown mode.
+      detected_peak_days: null,
+      peak_status: credible ? "OBSERVATIONAL_MODE_ONLY_NOT_COOLDOWN_PEAK" : "INSUFFICIENT_DATED_EVENTS",
+      observation_count_by_bucket: bins
+    };
+  }));
+  return {
+    schema: "don-combo-pool-timescales/v0.1",
+    total_layout_sightings: layout,
+    raw_item_delta_quantity: rawQty,
+    distinct_reward_events: events.length,
+    collapsed_simultaneous_gear_items: collapsed,
+    global_interreward_intervals: gaps.length,
+    same_coordinate_intervals: gaps.filter(v => !v.moved_coordinate).length,
+    cross_coordinate_intervals: gaps.filter(v => v.moved_coordinate).length,
+    events,
+    gaps,
+    tier_hypotheses,
+    prior: "THREE_PROPOSED_TIMESCALES_NOT_THREE_MEASURED_PEAKS",
+    transport_hypothesis: "POSSIBLE_CROSS_COORDINATE_CATEGORY_TRANSFER_UNVALIDATED",
+    note: "Chronological category inter-reward gaps, not observed spawn timers. Sightings are excluded from reward intervals. Multiple pirate items from one comb form one reward event. Short/middle/long are hypotheses; empirical modes are withheld when sample support is weak. Cross-coordinate gaps do not prove timer transport."
+  };
+}
+function compactPoolTimeScales(index) {
+  return {
+    schema: index.schema,
+    total_layout_sightings: index.total_layout_sightings,
+    raw_item_delta_quantity: index.raw_item_delta_quantity,
+    distinct_reward_events: index.distinct_reward_events,
+    collapsed_simultaneous_gear_items: index.collapsed_simultaneous_gear_items,
+    global_interreward_intervals: index.global_interreward_intervals,
+    same_coordinate_intervals: index.same_coordinate_intervals,
+    cross_coordinate_intervals: index.cross_coordinate_intervals,
+    tier_hypotheses: index.tier_hypotheses,
+    prior: index.prior,
+    transport_hypothesis: index.transport_hypothesis,
+    note: index.note
+  };
 }
 
 var GRID = 1024;
@@ -2851,7 +3082,7 @@ function outcomeRates(entry) {
   }
   return result;
 }
-function evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve) {
+function evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve, timescales) {
   var entry = ledger.fronts[String(minute)] || {};
   var layouts = n(entry.layout_snapshots);
   var events = n(entry.session_events);
@@ -2874,6 +3105,7 @@ function evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIn
     historical_rare: tile && historicalIndex ? historicalRareForTile(historicalIndex, tile.minute, tile.row, tile.column) : null,
     scratch_interest: evidenceForScratchFront(scratches || emptyScratchLedger(n(kolmafia.myId())), minute),
     historical_rare_curve: historicalCurve || buildHistoricalRareCurve([], [], buildPoolCooldownIndex([], Date.now(), n(kolmafia.myId())), Date.now(), n(kolmafia.myId())),
+    pool_timescales: timescales ? compactPoolTimeScales(timescales) : null,
     pool_cooldown: cooldownForTarget(poolIndex || buildPoolCooldownIndex([], Date.now(), n(kolmafia.myId())), minute, (tile === null || tile === void 0 ? void 0 : tile.row) ?? 0, (tile === null || tile === void 0 ? void 0 : tile.column) ?? -1),
     pool_front_observations: (poolIndex === null || poolIndex === void 0 ? void 0 : poolIndex.by_front[String(minute)]) || {
       sand_castle: 0,
@@ -2990,8 +3222,8 @@ function sampleMinutes(ledger, eligibleMinutes, count, current, exclude, scratch
   }
   return selected.slice(0, count).map(minute => [minute, sources[String(minute)]]);
 }
-function candidateFrontier(ledger, baseline, points, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve) {
-  var count = arguments.length > 8 && arguments[8] !== undefined ? arguments[8] : 16;
+function candidateFrontier(ledger, baseline, points, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve, timescales) {
+  var count = arguments.length > 9 && arguments[9] !== undefined ? arguments[9] : 16;
   var current = n(kolmafia.getProperty("_beachMinutes"));
   var day = 1 + kolmafia.gamedayToInt() % 8;
   var rowsHidden = 4 - Math.abs(4 - day);
@@ -3023,7 +3255,7 @@ function candidateFrontier(ledger, baseline, points, recoveryLedger, historicalI
   var push = (minute, source, isBaseline) => {
     var tile = isBaseline && baseline ? eligible.find(t => t.minute === baseline.minute && t.row === baseline.row && t.column === baseline.column) : chosen(minute);
     if (!tile) return;
-    var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve);
+    var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve, timescales);
     result.push({
       minute,
       source,
@@ -3077,6 +3309,7 @@ function waterSheepPayload(candidate) {
       historical_rare: evidence.historical_rare,
       scratch_interest: evidence.scratch_interest,
       pool_cooldown: evidence.pool_cooldown,
+      pool_timescales: evidence.pool_timescales,
       historical_rare_curve: evidence.historical_rare_curve,
       pool_front_observations: evidence.pool_front_observations,
       observed_symbol_rates: evidence.observed_symbol_rates,
@@ -3164,7 +3397,8 @@ function traceTargetPrediction(minute, row, column) {
   var scratches = backfillScratchHistory(loadScratchLedger(), fullHistory.events, Date.now()).ledger;
   var poolIndex = buildPoolCooldownIndex(fullHistory.events, Date.now(), n(kolmafia.myId()));
   var historicalCurve = buildHistoricalRareCurve(loadRarePoints(), fullHistory.events, poolIndex, Date.now(), n(kolmafia.myId()));
-  var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve);
+  var timescales = buildPoolTimeScaleAudit(poolIndex);
+  var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve, timescales);
   var candidate = {
     minute,
     evidence,
@@ -3575,8 +3809,9 @@ function buildRuntime() {
   var scratchSummary = summarizeScratchLedger(scratches, scratchBackfill.imported);
   var poolIndex = buildPoolCooldownIndex(fullHistory.events, Date.now(), n(kolmafia.myId()));
   var historicalCurve = buildHistoricalRareCurve(points, fullHistory.events, poolIndex, Date.now(), n(kolmafia.myId()));
+  var timescales = buildPoolTimeScaleAudit(poolIndex);
   var scratchTop = Object.keys(scratches.fronts).map(minute => evidenceForScratchFront(scratches, Number(minute))).filter(x => x.high_scratch_days > 0).sort((a, b) => b.interest_score - a.interest_score || b.very_interesting_days - a.very_interesting_days || b.max_scratch_count - a.max_scratch_count || a.front_minute - b.front_minute).slice(0, 30);
-  var candidates = candidateFrontier(ledger, baseline, points, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve, frontierSize);
+  var candidates = candidateFrontier(ledger, baseline, points, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve, timescales, frontierSize);
   var status = "ready";
   var error = null;
   var _iterator11 = _createForOfIteratorHelper(candidates),
@@ -3657,6 +3892,8 @@ function buildRuntime() {
       tiles_recorded: Object.keys(recoveryLedger.tiles).length,
       historical_rare_baseline: historicalIndex.baseline,
       two_pool_cooldown_summary: poolIndex.summary,
+      pool_timescales: compactPoolTimeScales(timescales),
+      pool_recent_transitions: timescales.gaps.slice(-40),
       historical_rare_curve: historicalCurve,
       two_pool_observations_tail: poolIndex.observations.slice(-60),
       recovery_intervals: Object.values(recoveryLedger.tiles).reduce((count, entry) => {
@@ -4059,6 +4296,7 @@ function _comb(tile) {
     column = tile.column;
   if (!kolmafia.cliExecute("beach wander ".concat(minute, ";"))) throw new Error("Could not visit beach minute ".concat(minute, "; route stopped."));
   var layoutString = getString("_beachLayout");
+  var preActionObservedAt = new Date().toISOString();
   kolmafia.print("DON_COMBO_OBSERVATION minute=".concat(minute, " layout=").concat(layoutString), "gray");
 
   // Mafia's _beachLayout property generates strings that look like
@@ -4087,6 +4325,7 @@ function _comb(tile) {
       items: delta.items,
       meat: delta.meat,
       pre_action_prediction: preActionPrediction,
+      pre_action_observed_at: preActionObservedAt,
       run_context: activeShadowRun
     });
   };

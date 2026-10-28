@@ -46,6 +46,9 @@ jobs:
           console.log(`relay inline JS syntax: PASS (${scripts.length} script block)`);
           NODE
 
+      - name: Offline recovery and top-11 route regressions
+        run: node --experimental-strip-types tests/recovery-route.mjs
+
       - name: Relay DOM target contract
         run: |
           node <<'NODE'

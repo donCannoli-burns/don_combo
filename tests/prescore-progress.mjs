@@ -34,7 +34,7 @@ assert.equal(prescoreProgressNotice(1, 50, initial).message, null);
 const heartbeat = prescoreProgressNotice(10, 50, initial);
 assert.match(heartbeat.message, /10\/50 targets/);
 assert.match(heartbeat.message, /~1 min 30 sec remaining/);
-assert.match(prescoreProgressNotice(10, 51, initial).message, /10\\/51 targets/);
+assert.ok(prescoreProgressNotice(10, 51, initial).message?.includes("10/51 targets"));
 const countdown = prescoreProgressNotice(13, 50, initial);
 assert.match(countdown.message, /13\/50 targets/);
 assert.match(countdown.message, /~1 min 0 sec remaining/);

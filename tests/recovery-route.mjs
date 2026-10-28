@@ -142,40 +142,74 @@ const actualRuntimeSnapshot = {
     minute: tile.minute,
     representative: {
       d: (tile.minute - 1) * 100 + (tile.row - 1) * 10 + tile.column,
-      x: 0, y: 0, row: tile.row, column: tile.column,
+      x: 0,
+      y: 0,
+      row: tile.row,
+      column: tile.column,
     },
     utility: 1 - rank / 100,
     watersheep: { score_mass: { rare: 0.7, regular: 0.3 } },
   })),
 };
 const verifiedRoute = compileWaterSheepRoute(
-  actualRuntimeSnapshot, realRareCorpus, new Set(), 77, gameDay, 0,
-  seconds, 11, true,
+  actualRuntimeSnapshot,
+  realRareCorpus,
+  new Set(),
+  77,
+  gameDay,
+  0,
+  seconds,
+  11,
+  true,
 );
 assert.equal(verifiedRoute.length, 11);
 assert.deepEqual(verifiedRoute[0], realRankedTiles[0]);
 assert.deepEqual(
   compileWaterSheepRoute(
-    actualRuntimeSnapshot, realRareCorpus, new Set(), 77, gameDay,
-    10, seconds, 1, true,
+    actualRuntimeSnapshot,
+    realRareCorpus,
+    new Set(),
+    77,
+    gameDay,
+    10,
+    seconds,
+    1,
+    true,
   ),
   [realRankedTiles[0]],
 );
 assert.throws(
-  () => compileWaterSheepRoute(
-    actualRuntimeSnapshot, realRareCorpus,
-    new Set([`${realRankedTiles[0].minute},${realRankedTiles[0].row},${realRankedTiles[0].column}`]),
-    77, gameDay, 0, seconds, 11, true,
-  ),
+  () =>
+    compileWaterSheepRoute(
+      actualRuntimeSnapshot,
+      realRareCorpus,
+      new Set([
+        `${realRankedTiles[0].minute},${realRankedTiles[0].row},${realRankedTiles[0].column}`,
+      ]),
+      77,
+      gameDay,
+      0,
+      seconds,
+      11,
+      true,
+    ),
   /tide-accessible/,
 );
 const minuteConflict = structuredClone(actualRuntimeSnapshot);
 minuteConflict.candidates[0].representative.minute = realRankedTiles[0].minute + 1;
 assert.throws(
-  () => compileWaterSheepRoute(
-    minuteConflict, realRareCorpus, new Set(), 77, gameDay, 0,
-    seconds, 11, true,
-  ),
+  () =>
+    compileWaterSheepRoute(
+      minuteConflict,
+      realRareCorpus,
+      new Set(),
+      77,
+      gameDay,
+      0,
+      seconds,
+      11,
+      true,
+    ),
   /representative minute conflicts/,
 );
 console.log("runtime-shaped raretiles.json candidate to frozen free route: PASS");

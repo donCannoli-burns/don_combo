@@ -290,7 +290,7 @@ function symbolRates(entry: Record<string, any>): Record<string, number> {
   const symbols = (entry.symbols || {}) as Record<string, number>;
   const visible = Math.max(1, n(symbols.visible));
   const result: Record<string, number> = {};
-  for (const key of ["whale", "twinkle", "rough", "combed", "other"]) {
+  for (const key of ["whale", "sand_castle", "twinkle", "rough", "combed", "other"]) {
     result[key] = round(n(symbols[key]) / visible);
   }
   return result;
@@ -943,6 +943,7 @@ function buildMlLab() {
       gameday: event.run_context?.gameday ?? null,
       route_mode: event.run_context?.route_mode || "legacy-unbound",
       outcome: event.outcome,
+      special_events: event.special_events || [],
       planned_target: event.planned_target,
       actual_comb: event.actual_comb,
       items,
@@ -1287,6 +1288,7 @@ function buildRuntime(frontierSize = 16, onScored?: (completed: number, total: n
       historical_rare_baseline: historicalIndex.baseline,
       two_pool_cooldown_summary: poolIndex.summary,
       bottle_observations_tail: poolIndex.bottle_events.slice(-60),
+      castle_actions_tail: poolIndex.castle_events.slice(-60),
       pool_timescales: compactPoolTimeScales(timescales),
       pool_recent_transitions: timescales.gaps.slice(-40),
       historical_rare_curve: historicalCurve,

@@ -80,6 +80,10 @@ export interface PoolTimeScaleAudit {
   schema: "don-combo-pool-timescales/v0.1";
   total_layout_sightings: number;
   raw_item_delta_quantity: number;
+  unassigned_message_bottle_events: number;
+  unassigned_bottle_category_gaps: number;
+  // Context coefficients are not mixture probabilities or two rewards.
+  unassigned_bottle_weak_pool_context: { pool_1: 0.1; pool_2: 0.1 };
   distinct_reward_events: number;
   collapsed_simultaneous_gear_items: number;
   global_interreward_intervals: number;
@@ -216,6 +220,9 @@ export function buildPoolTimeScaleAudit(index: PoolIndex): PoolTimeScaleAudit {
     schema: "don-combo-pool-timescales/v0.1",
     total_layout_sightings: layout,
     raw_item_delta_quantity: rawQty,
+    unassigned_message_bottle_events: index.bottle_events.length,
+    unassigned_bottle_category_gaps: Math.max(0, index.bottle_events.length - 1),
+    unassigned_bottle_weak_pool_context: { pool_1: 0.1, pool_2: 0.1 },
     distinct_reward_events: events.length,
     collapsed_simultaneous_gear_items: collapsed,
     global_interreward_intervals: gaps.length,
@@ -236,6 +243,9 @@ export function compactPoolTimeScales(index: PoolTimeScaleAudit): PoolTimeScaleS
     schema: index.schema,
     total_layout_sightings: index.total_layout_sightings,
     raw_item_delta_quantity: index.raw_item_delta_quantity,
+    unassigned_message_bottle_events: index.unassigned_message_bottle_events,
+    unassigned_bottle_category_gaps: index.unassigned_bottle_category_gaps,
+    unassigned_bottle_weak_pool_context: index.unassigned_bottle_weak_pool_context,
     distinct_reward_events: index.distinct_reward_events,
     collapsed_simultaneous_gear_items: index.collapsed_simultaneous_gear_items,
     global_interreward_intervals: index.global_interreward_intervals,

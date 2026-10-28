@@ -20,6 +20,46 @@ If the upstream Combo project is already installed, remove that project first so
 
 Normal Combo behavior is unchanged. Run `combo N` in the KoLmafia CLI, where `N` is the number of combs you wish to perform. Combo does not differentiate between free and non-free combs, so `combo 11` performs eleven combs.
 
+## Resolving upstream Combo script collisions
+
+**Use `doncombo` as the reliable downstream command.** Both
+`loathers/combo` and this downstream fork ship
+`scripts/combo/combo.js`. Installing or syncing both Git projects can
+overwrite or select the upstream executable: `combo 1` still works, but
+`combo watersheep-30` then prints `Invalid argument!` without running
+our additional observers. This is **not a WaterSheep model error**.
+
+The release now publishes a separate, unique script,
+`scripts/don_combo/doncombo.js`, built from **the exact same source**
+as `scripts/combo/combo.js`. It doesn't compete with upstream Combo's
+filename. Commands:
+
+```text
+git update donCannoli-burns-don_combo-release
+doncombo info
+doncombo watersheep-30
+doncombo watersheep-free
+doncombo 1
+```
+
+`doncombo info` (also `doncombo help`) is a **read-only** version
+check that prints `DonCombo extended CLI active`. It does not spend
+beach walks or perform pre-scoring. If KoLmafia does not resolve the
+unique basename for any reason, use its explicit relative path:
+
+```text
+call don_combo/doncombo.js info
+call don_combo/doncombo.js watersheep-30
+```
+
+**Do not run `combo 1` to test which implementation is selected: it
+spends a beach comb.** To keep the old `combo` command reliably mapped
+to the downstream variant, remove the upstream `loathers/combo` Git
+project *only after verifying that it is installed and that you want
+to remove that project*. Removing a Git project is not required if you
+use `doncombo`. Do not delete the shared `raretiles.json`, session
+logs, or personal Combo preferences as a collision workaround.
+
 ## Optional live rare-tile sharing via Kmail
 
 **OFF by default.** DonCombo does not send beach observations to any player

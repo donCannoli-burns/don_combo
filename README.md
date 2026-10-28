@@ -202,6 +202,40 @@ highest-interest fronts. Daily shadow-learning cohorts separately count
 their 6+ and 11+ observed scratches. Neither mode changes paid-action gates,
 frozen routes, or model authority.
 
+### Sand castles: layout sightings, selection and verified demolition (2026-10-28)
+
+Sand castles are **uppercase `C`** in KoLmafia's pre-action `_beachLayout`;
+lowercase `c` is already-combed sand. KoLmafia may show multiple castles
+within a beach minute. The native event log records every visible
+`(minute,row,column)` sighting, even if no castle is chosen. Tide-hidden rows
+are never inferred. The ML Lab reports total sightings **and distinct
+coordinates/minutes**, since repeat sightings are not new castles.
+
+Native `combo` and the explicit WaterSheep routes share the same action
+selector. They still prioritize an actual whale and then an available planned
+rare target. When that rare tile is already combed, they now select the first
+visible castle before falling back to twinkles or rough/combed sand. If the
+planned target itself is `C`, its attempt is labeled `sand_castle_target`
+rather than an ordinary rare harvest. The alternative is labeled
+`sand_castle_fallback`. No extra beach action is performed.
+
+For each selected castle, the log keeps the exact coordinate, pre-action
+layout, raw ordinary item/meat deltas, and an independent `sand_castle_action`
+special event. Native demolition response text is distinguished from a
+command that returned without confirmatory text: neither is silently
+promoted into a verified rare reward. Castle sightings and actions do **not**
+enter the six reward-tier samples, rare-reward cooldown or proven-respawn
+calculations. Demolishing a castle gives only ordinary frequent-tile loot
+and grains of sand when successful, not a special castle inventory item;
+the run footer cannot establish the castle's existence.
+
+The beach's castle distribution and sandcastle-minute Morse puzzle are
+research priors. For interpreting the puzzle, use distinct **beach minutes**
+rather than treating repeated sightings or multiple tiles at one minute as
+multiple Morse letters. The known 512-castle population is not taken as
+complete local observational coverage; no coordinates or cooldown times
+are invented.
+
 ### Message in a bottle: pool-unassigned beach encounter (2026-10-28)
 
 The user-provided 2023 Ascension Speed Society beach spading discussion,

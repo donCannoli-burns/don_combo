@@ -16,6 +16,7 @@ import {
   tileKey,
   type TileRecoveryLedger,
 } from "./recovery";
+import { sandCastleAction, type SandCastleAction } from "./sandcastle-observer";
 import {
   addScratchVisit,
   emptyScratchLedger,
@@ -29,6 +30,8 @@ import { recordPoolLabels, type PoolObservation } from "./two-pool-cooldown";
 export type BeachOutcome =
   | "whale"
   | "rare_target"
+  | "sand_castle_target"
+  | "sand_castle_fallback"
   | "false_rare_item"
   | "false_rare_rough"
   | "twinkle_fallback"
@@ -59,7 +62,7 @@ export interface MlTraceEvent {
   actual_comb: BeachObservationDetail["actual_comb"];
   items: Record<string, number>;
   meat: number;
-  special_events?: BottleObservation[];
+  special_events?: Array<BottleObservation | SandCastleAction>;
   action_output_capture?: "captured" | "empty" | "legacy-unavailable";
   layout: string;
   layout_symbols: Record<string, number>;
@@ -253,6 +256,7 @@ function add(map: Record<string, number>, key: string, amount = 1): void {
 function countLayout(layout: string): Record<string, number> {
   const counts: Record<string, number> = {
     whale: 0,
+    sand_castle: 0,
     twinkle: 0,
     rough: 0,
     combed: 0,
@@ -266,6 +270,7 @@ function countLayout(layout: string): Record<string, number> {
     for (const symbol of symbols) {
       counts.visible++;
       if (symbol === "W") counts.whale++;
+      else if (symbol === "C") counts.sand_castle++;
       else if (symbol === "t") counts.twinkle++;
       else if (symbol === "r") counts.rough++;
       else if (symbol === "c") counts.combed++;
@@ -319,7 +324,21 @@ export function recordBeachObservation(
     actual_comb: actual,
     items: detail.items || {},
     meat: detail.meat || 0,
-    special_events: parseBottleOutput(detail.action_output || ""),
+    special_events: [
+      ...parseBottleOutput(detail.action_output || ""),
+      ...(actual
+        ? [
+            sandCastleAction(
+              layout,
+              minute,
+              actual.row,
+              actual.column,
+              outcome,
+              detail.action_output || "",
+            ),
+          ].filter((action): action is SandCastleAction => action !== null)
+        : []),
+    ],
     action_output_capture:
       detail.action_output === undefined
         ? "legacy-unavailable"

@@ -138,6 +138,8 @@ WaterSheep input intentionally excludes Combo-derived outcome labels such as `ra
 
 See [docs/WATERSHEEP_MATRIX_PROTOTYPE.md](docs/WATERSHEEP_MATRIX_PROTOTYPE.md) for the prototype boundary and data flow.
 
+<!-- prettier-ignore-start -->
+
 ## WaterSheep cooldown evidence and free-only top-11 route (experimental)
 
 The native Combo observer writes a per-coordinate `data/don_combo_tile_recovery.json`
@@ -193,6 +195,8 @@ No live KoL actions were performed while developing this feature. The repo's
 CI checks cover the TypeScript build, relay JavaScript syntax/DOM binding,
 and offline cooldown/route invariants. Validate in your own KoLmafia environment
 before using the relay's mutating action.
+
+<!-- prettier-ignore-end -->
 
 ## Rare tile data
 

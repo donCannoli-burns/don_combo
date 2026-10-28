@@ -86,6 +86,7 @@ export interface CandidateEvidence {
   last_seen_age_hours: number | null;
   last_seen_turn: number | null;
   cooldown: import("./recovery").RecoveryFeatures;
+  historical_rare: import("./historical-rares").HistoricalRareTileEvidence | null;
   observed_symbol_rates: Record<string, number>;
   observed_outcome_rates: Record<string, number>;
   sand_per_event: number;

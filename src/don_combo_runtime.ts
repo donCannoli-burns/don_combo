@@ -29,6 +29,11 @@ import {
   relation,
 } from "./runtime/contracts";
 import {
+  buildHistoricalRareIndex,
+  historicalRareForTile,
+  type HistoricalRareIndex,
+} from "./runtime/historical-rares";
+import {
   loadMlTraceEvents,
   loadObservationLedger,
   loadTileRecoveryLedger,
@@ -294,6 +299,7 @@ function evidenceFor(
   ledger: ObservationLedger,
   tile?: BeachTile,
   recoveryLedger?: TileRecoveryLedger,
+  historicalIndex?: HistoricalRareIndex,
 ): CandidateEvidence {
   const entry = (ledger.fronts[String(minute)] || {}) as Record<string, any>;
   const layouts = n(entry.layout_snapshots);
@@ -316,6 +322,10 @@ function evidenceFor(
         : undefined,
       Date.now() / 1000,
     ),
+    historical_rare:
+      tile && historicalIndex
+        ? historicalRareForTile(historicalIndex, tile.minute, tile.row, tile.column)
+        : null,
     observed_symbol_rates: symbolRates(entry),
     observed_outcome_rates: outcomeRates(entry),
     sand_per_event: events ? round(n((entry.items || {})["grain of sand"]) / events, 4) : 0,
@@ -417,6 +427,7 @@ function candidateFrontier(
   baseline: ReturnType<typeof comboBaseline>,
   points: RarePoint[],
   recoveryLedger: TileRecoveryLedger,
+  historicalIndex: HistoricalRareIndex,
   count = 16,
 ): Candidate[] {
   const current = n(getProperty("_beachMinutes"));
@@ -459,7 +470,7 @@ function candidateFrontier(
           )
         : chosen(minute);
     if (!tile) return;
-    const evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger);
+    const evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex);
     result.push({
       minute,
       source,
@@ -499,6 +510,7 @@ function waterSheepPayload(candidate: Candidate): WaterSheepRequest {
       session_events: evidence.session_events,
       last_seen_age_hours: evidence.last_seen_age_hours,
       tile_recovery: evidence.cooldown,
+      historical_rare: evidence.historical_rare,
       observed_symbol_rates: evidence.observed_symbol_rates,
       sand_per_event: evidence.sand_per_event,
       current_layout_if_same_front:
@@ -506,7 +518,7 @@ function waterSheepPayload(candidate: Candidate): WaterSheepRequest {
           ? getProperty("_beachLayout")
           : "not observed",
       withheld:
-        "Combo target/order, candidate source labels, baseline membership, and rare count are withheld; per-coordinate evidence is advisory, uncalibrated, and not an action",
+        "Combo target/order, candidate source labels, baseline membership and complete rare-coordinate catalogue are withheld; per-coordinate historical event summaries are evidence, not proven rare respawns or authorization",
     },
     questions: {
       tile_class: {
@@ -555,7 +567,13 @@ export function traceTargetPrediction(
   const current = n(getProperty("_beachMinutes"));
   const recoveryLedger = loadTileRecoveryLedger();
   const tile = row == null || column == null ? undefined : { minute, row, column };
-  const evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger);
+  const fullHistory = loadMlTraceEvents(Number.MAX_SAFE_INTEGER);
+  const historicalIndex = buildHistoricalRareIndex(
+    loadRarePoints(),
+    fullHistory.events,
+    Date.now(),
+  );
+  const evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex);
   const candidate: Candidate = {
     minute,
     source: "current",
@@ -581,6 +599,7 @@ export function traceTargetPrediction(
       session_events: evidence.session_events,
       last_seen_age_hours: evidence.last_seen_age_hours,
       tile_recovery: evidence.cooldown,
+      historical_rare: evidence.historical_rare,
       observed_symbol_rates: evidence.observed_symbol_rates,
       sand_per_event: evidence.sand_per_event,
       current_layout_if_same_front:
@@ -989,7 +1008,18 @@ function buildRuntime(frontierSize = 16) {
   const baseline = comboBaseline(points);
   const ledger = loadObservationLedger();
   const recoveryLedger = loadTileRecoveryLedger();
-  const candidates = candidateFrontier(ledger, baseline, points, recoveryLedger, frontierSize);
+  // ALL legacy + run-bound local observations, not just the 500-event UI tail.
+  // The historic coordinate catalogue is not assigned invented event dates.
+  const fullHistory = loadMlTraceEvents(Number.MAX_SAFE_INTEGER);
+  const historicalIndex = buildHistoricalRareIndex(points, fullHistory.events, Date.now());
+  const candidates = candidateFrontier(
+    ledger,
+    baseline,
+    points,
+    recoveryLedger,
+    historicalIndex,
+    frontierSize,
+  );
   let status = "ready";
   let error: string | null = null;
   for (const candidate of candidates) {
@@ -1058,7 +1088,7 @@ function buildRuntime(frontierSize = 16) {
     authority: "none",
     claim:
       "Score Combo's exact next successful target inside the same blinded WaterSheep pool as dynamic alternatives, without changing KoL state.",
-    note: "TypeScript/Libram runtime. WaterSheep score mass is experimental and uncalibrated for KoL beach outcomes. Known rare annotations, source labels, baseline membership, and Combo route identity are withheld from model input.",
+    note: "TypeScript/Libram runtime. WaterSheep score mass is experimental and uncalibrated for KoL beach outcomes. Raw coordinate catalogue, source labels, baseline membership and Combo route identity are withheld from model input; past per-coordinate observed rare attempts (with provenance) are included as uncalibrated history.",
     matrix: {
       order: 10,
       width: GRID,
@@ -1088,6 +1118,7 @@ function buildRuntime(frontierSize = 16) {
       ledger_file: "don_combo_matrix_ledger.json",
       tile_recovery_file: "don_combo_tile_recovery.json",
       tiles_recorded: Object.keys(recoveryLedger.tiles).length,
+      historical_rare_baseline: historicalIndex.baseline,
       recovery_intervals: Object.values(recoveryLedger.tiles).reduce(
         (count, entry) => count + (entry.recovery_intervals?.length || 0),
         0,

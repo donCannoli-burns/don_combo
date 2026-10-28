@@ -349,7 +349,7 @@ function renderRankChart(rows){
 function renderMlLab(){
  var ml=R.ml_lab||{},events=ml.events||[],history=ml.snapshot_history||[];
  var obs=R.observations||{},scratch=obs.scratch_summary||{},hot=obs.scratch_top_fronts||[];
- var pools=obs.two_pool_cooldown_summary||{},poolRecent=obs.two_pool_observations_tail||[],bottles=obs.bottle_observations_tail||[];
+ var pools=obs.two_pool_cooldown_summary||{},poolRecent=obs.two_pool_observations_tail||[],bottles=obs.bottle_observations_tail||[],castles=obs.castle_actions_tail||[];
  var rareCurve=obs.historical_rare_curve||{},rareBins=rareCurve.bins||[];
  var timeScale=obs.pool_timescales||{},peakLanes=timeScale.tier_hypotheses||[];
  document.getElementById("mlThreeTimescales").innerHTML=
@@ -380,6 +380,12 @@ function renderMlLab(){
    "</td><td>"+Number((e.current_reward_tiers||{}).rare_rare||0)+"</td></tr>"}).join("")+
    "</tbody></table><p class='muted'>Empirical attempt-gap bins, not a fitted cooldown curve. Reward-to-reward intervals are censored. No rare probability or spawn timing inferred.</p>";
  document.getElementById("mlPoolStats").innerHTML=
+   evItem("Castle sightings",Number(pools.sand_castle_sightings||0).toLocaleString())+
+   evItem("Distinct castle coordinates",Number(pools.sand_castle_unique_coordinates||0).toLocaleString())+
+   evItem("Distinct castle minutes",Number(pools.sand_castle_unique_minutes||0).toLocaleString())+
+   evItem("Castle action attempts",Number(pools.sand_castle_actions||0).toLocaleString())+
+   evItem("Native demolition text verified",Number(pools.sand_castle_actions_native_verified||0).toLocaleString())+
+   evItem("Castle command unverified",Number(pools.sand_castle_actions_unverified||0).toLocaleString())+
    evItem("pool 1 sightings",Number(pools.layout_sightings||0).toLocaleString())+
    evItem("pool 1/2 item rewards",Number(pools.item_delta_rewards||0).toLocaleString())+
    evItem("whales combed",Number(pools.action_recorded||0).toLocaleString())+
@@ -392,7 +398,7 @@ function renderMlLab(){
    evItem("New empty output",Number(pools.bottle_detection_output_empty||0).toLocaleString());
  document.getElementById("mlPoolTable").innerHTML=
    "<table><thead><tr><th>Pool</th><th>Tier hypothesis</th><th>Observed finding</th><th>Count</th></tr></thead><tbody>"+
-   [["pool_1","common/rare","Sand castle sightings","sand_castle"],["pool_1","uncommon/rare","Beached whale sights + actions","beached_whale"],
+   [["pool_1","layout-only","Sand castle sightings","sand_castle"],["pool_1","uncommon/rare","Beached whale sights + actions","beached_whale"],
     ["pool_1","rare/rare","Rainbow pearl drops","rainbow_pearl"],["pool_2","common/rare","Piece of driftwood","piece_of_driftwood"],
     ["pool_2","uncommon/rare","Cursed pirate gear","cursed_pirate_gear"],["pool_2","rare/rare","Meteorite fragment","meteorite_fragment"]]
    .map(function(row){return"<tr><td>"+row[0]+"</td><td>"+row[1]+"</td><td>"+row[2]+"</td><td>"+
@@ -400,6 +406,10 @@ function renderMlLab(){
    "</tbody></table>"+
    "<p class='muted'>Unassigned / tier unknown: "+Number(pools.message_bottle_events||0)+
    " message-in-a-bottle encounters. This is <b>one</b> observed category, with 0.10 weak context in each pool, not a doubled reward or assigned cooldown tier.</p>"+
+   (castles.length?"<p class='muted'>Recent castle actions: C observed before comb, with distinct output verification</p><table><thead><tr><th>UTC</th><th>Coordinate</th><th>Verification</th><th>Route</th></tr></thead><tbody>"+
+   castles.slice(-20).reverse().map(function(e){return"<tr><td>"+esc(e.observed_at)+"</td><td class='mono'>"+
+   esc(e.coordinate)+"</td><td>"+esc(e.verification)+"</td><td>"+esc(e.route_mode)+"</td></tr>"}).join("")+"</tbody></table>":"")+
+   "<p class='muted'>Castle sightings and chosen demolitions are not scarce item rewards or confirmed respawn timings. Ordinary castle loot remains in item deltas.</p>"+
    (bottles.length?"<p class='muted'>Recent verified bottle encounters (exact comb coordinate)</p><table><thead><tr><th>UTC</th><th>Coordinate</th><th>Route</th></tr></thead><tbody>"+
    bottles.slice(-20).reverse().map(function(e){return"<tr><td>"+esc(e.observed_at)+"</td><td class='mono'>"+
    esc(e.coordinate)+"</td><td>"+esc(e.route_mode)+"</td></tr>"}).join("")+"</tbody></table>":"")+

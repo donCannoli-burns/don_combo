@@ -1,7 +1,6 @@
 import { appendBufferToFile, bufferToFile, fileToBuffer, getProperty, turnsPlayed } from "kolmafia";
 
 import type { ObservationEntry, ObservationLedger } from "./contracts";
-import type { ShadowRunContext } from "./shadow-learning";
 import {
   emptyRecoveryLedger,
   observeTile,
@@ -9,6 +8,7 @@ import {
   tileKey,
   type TileRecoveryLedger,
 } from "./recovery";
+import type { ShadowRunContext } from "./shadow-learning";
 
 export type BeachOutcome =
   | "whale"

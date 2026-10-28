@@ -12,10 +12,17 @@ const context = {
   started_at: "2026-10-28T05:02:45.560Z",
 };
 const outcomes = [
-  "rough_fallback", "rough_fallback", "twinkle_fallback",
-  "rough_fallback", "twinkle_fallback", "twinkle_fallback",
-  "rough_fallback", "rough_fallback", "twinkle_fallback",
-  "twinkle_fallback", "twinkle_fallback",
+  "rough_fallback",
+  "rough_fallback",
+  "twinkle_fallback",
+  "rough_fallback",
+  "twinkle_fallback",
+  "twinkle_fallback",
+  "rough_fallback",
+  "rough_fallback",
+  "twinkle_fallback",
+  "twinkle_fallback",
+  "twinkle_fallback",
 ];
 const events = outcomes.map((outcome, i) => ({
   event_id: String(i),
@@ -29,12 +36,24 @@ const events = outcomes.map((outcome, i) => ({
   pre_action_prediction: { score_mass: { rare: 0.3 }, authority: "none" },
 }));
 const olderRun = { ...context, run_id: "30-42-prior" };
-const eventsWithOld = [...events, {
-  ...events[0], event_id: "other", run_context: olderRun, items: { "rainbow pearl": 1 },
-}];
+const eventsWithOld = [
+  ...events,
+  {
+    ...events[0],
+    event_id: "other",
+    run_context: olderRun,
+    items: { "rainbow pearl": 1 },
+  },
+];
 const report = summarizeShadowRun(
-  eventsWithOld, context, "2026-10-28T05:03:59.250Z",
-  "completed", 11, 11, 11, 0,
+  eventsWithOld,
+  context,
+  "2026-10-28T05:03:59.250Z",
+  "completed",
+  11,
+  11,
+  11,
+  0,
 );
 assert.equal(report.schema, "don-combo-shadow-learning-run/v0.1");
 assert.equal(report.context.gameday, 30);
@@ -59,12 +78,20 @@ const failures = structuredClone(events);
 failures[0].pre_action_prediction = { error: "endpoint offline", authority: "none" };
 failures[1].pre_action_prediction = null;
 const incomplete = summarizeShadowRun(
-  failures, context, "2026-10-28T05:03:59.250Z",
-  "interrupted", 11, 9, 9, 0,
+  failures,
+  context,
+  "2026-10-28T05:03:59.250Z",
+  "interrupted",
+  11,
+  9,
+  9,
+  0,
 );
 assert.equal(incomplete.prediction_ready, 9);
 assert.equal(incomplete.prediction_error, 1);
 assert.equal(incomplete.prediction_untraced, 1);
 assert.equal(incomplete.events_match_completed, false);
 assert.equal(incomplete.result, "interrupted");
-console.log("daily shadow cohort: PASS (11 free actions, 6 incidental twinkles, zero verified rare respawns)");
+console.log(
+  "daily shadow cohort: PASS (11 free actions, 6 incidental twinkles, zero verified rare respawns)",
+);

@@ -870,7 +870,9 @@ function buildMlLab() {
     daily_run_file: "don_combo_daily_shadow_runs.jsonl",
     daily_run_count_in_artifact: dailyLearningRuns.length,
     daily_run_history: dailyLearningRuns.slice(-30),
-    last_daily_run: dailyLearningRuns.length ? dailyLearningRuns[dailyLearningRuns.length - 1] : null,
+    last_daily_run: dailyLearningRuns.length
+      ? dailyLearningRuns[dailyLearningRuns.length - 1]
+      : null,
     trace_enabled: ["1", "true", "target", "on"].includes(
       String(getProperty("don_combo_ml_trace") || "").toLowerCase(),
     ),

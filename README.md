@@ -164,7 +164,6 @@ The **ML Lab → Daily shadow-learning cohorts** table displays recent run
 receipts by KoL game day. Earlier events remain readable but cannot
 retroactively acquire a run ID or pre-action predictions.
 
-
 The exported HTML snapshot is self-contained and includes the rendered ML plots, per-comb verification table, current comparison, receipt history summary, run-control proof, and inert machine-readable runtime. Snapshot v0.6 surfaces requested/completed combs, status, end reason, interrupt-consumed state, ML event span, and trace-span completeness directly in the frozen manifest. Older observations cannot be retroactively assigned a pre-action WaterSheep score; exact prediction-to-loot attribution begins only after tracing is enabled.
 
 WaterSheep input intentionally excludes Combo-derived outcome labels such as `rare_target` and fallback classifications. Those remain available to deterministic policy and evaluation only.

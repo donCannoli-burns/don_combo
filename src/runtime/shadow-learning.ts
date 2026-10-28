@@ -68,10 +68,12 @@ export function summarizeShadowRun(
 ): ShadowDailyRunSummary {
   // Exact-run identity avoids accidentally attributing a previous day's
   // final observation to this run after a midnight / rollover transition.
-  const events = source.filter((event) =>
-    event.run_context?.run_id === context.run_id &&
-    event.run_context.gameday === context.gameday &&
-    event.run_context.player_id === context.player_id);
+  const events = source.filter(
+    (event) =>
+      event.run_context?.run_id === context.run_id &&
+      event.run_context.gameday === context.gameday &&
+      event.run_context.player_id === context.player_id,
+  );
   const outcomeCounts: Record<string, number> = {};
   const itemCounts: Record<string, number> = {};
   const fronts = new Set<number>();
@@ -91,10 +93,15 @@ export function summarizeShadowRun(
     else untraced++;
     const target = event.planned_target;
     const actual = event.actual_comb;
-    if (target && plannedWasPreviouslyCombed(event.layout, target))
-      previouslyCombed++;
-    if (target && actual && target.minute === actual.minute &&
-        target.row === actual.row && target.column === actual.column) matched++;
+    if (target && plannedWasPreviouslyCombed(event.layout, target)) previouslyCombed++;
+    if (
+      target &&
+      actual &&
+      target.minute === actual.minute &&
+      target.row === actual.row &&
+      target.column === actual.column
+    )
+      matched++;
   }
   return {
     schema: "don-combo-shadow-learning-run/v0.1",

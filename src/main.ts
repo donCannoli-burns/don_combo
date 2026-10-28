@@ -444,7 +444,6 @@ export function main(args?: string | number): void {
         const target = frozenRoute[completedCombs];
         if (!target || gamedayToInt() !== frozenGameday || Number(myId()) !== frozenPlayer)
           throw new Error("Shadow route day/player changed during execution.");
-        if (handlingChoice()) throw new Error("Unexpected active choice before shadow route action.");
         _comb(target);
         const after = get("_freeBeachWalksUsed", 0);
         if (after !== before + 1) throw new Error("Free beach counter did not advance exactly once; stopping.");

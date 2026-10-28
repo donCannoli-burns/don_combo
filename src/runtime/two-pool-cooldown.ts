@@ -30,6 +30,7 @@ export interface PoolTraceEvent {
   actual_comb?: { minute: number; row: number; column: number } | null;
   items?: Record<string, number>;
   special_events?: ReadonlyArray<{ kind: string; source?: string; pool?: string }>;
+  action_output_capture?: "captured" | "empty" | "legacy-unavailable";
   run_context?: { player_id?: number; run_id?: string; route_mode?: string } | null;
 }
 export interface PoolObservation {
@@ -102,6 +103,9 @@ export interface PoolSummary {
   run_bound_events: number;
   message_bottle_events: number;
   message_bottle_unbound: number;
+  bottle_detection_output_captured: number;
+  bottle_detection_output_empty: number;
+  bottle_detection_legacy_unavailable: number;
   unclassified_item_deltas: Record<string, number>;
   hypothesis: string;
 }
@@ -187,6 +191,7 @@ export function buildPoolCooldownIndex(
   const bottleByCoordinate: Record<string, BottleTargetContext> = {};
   const bottleEvents: BottleEventEvidence[] = [];
   let bottleUnbound = 0;
+  let captureCovered = 0, captureEmpty = 0, captureLegacy = 0;
   const byFront: Record<string, Record<PoolKind, number>> = {};
   const observations: PoolObservation[] = [];
   const p1 = emptyCounts(),
@@ -286,6 +291,9 @@ export function buildPoolCooldownIndex(
     if (e.event_id && seen.has(e.event_id)) continue;
     if (e.event_id) seen.add(e.event_id);
     matched++;
+    if (e.action_output_capture === "captured") captureCovered++;
+    else if (e.action_output_capture === "empty") captureEmpty++;
+    else captureLegacy++;
     if (e.run_context?.run_id) bound++;
     else legacy++;
     // Observe any previously rewarded coordinate in the visible beachfront,
@@ -398,6 +406,9 @@ export function buildPoolCooldownIndex(
     run_bound_events: bound,
     message_bottle_events: bottleEvents.length,
     message_bottle_unbound: bottleUnbound,
+    bottle_detection_output_captured: captureCovered,
+    bottle_detection_output_empty: captureEmpty,
+    bottle_detection_legacy_unavailable: captureLegacy,
     unclassified_item_deltas: unclassified,
     hypothesis:
       "User-proposed two-pool rarity ladder: shorter cooldown may correspond to common/rare, longer to uncommon/rare, longest to rare/rare. NOT CALIBRATED. Recorded deltas and sightings are observations, not a demonstrated cooldown-to-loot relationship.",

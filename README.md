@@ -132,6 +132,14 @@ export created after a 12-comb interrupted run, but still containing a
 runtime generated before that run (`ml_lab.events_total=3117` instead
 of `3129`). The regression suite explicitly rejects that mismatch.
 
+### Future-agent reference: historical KoLmafia session logs
+
+For **future research only** (no active import or runtime changes), see
+[KoLmafia session-log recall and run boundary notes](docs/agent-notes/kolmafia-session-log-recall.md).
+The note records the `/sessions/<player_name>_<YYYYMMDD>` convention, `don_combo_running`
+start/end markers, `combo N` line-window heuristic, sample beach/event/footer
+format, and safeguards for a potential read-only Python historical parser.
+
 ### ML trace and all-in-one experiment artifact
 
 The relay now includes an **ML Lab** section inspired by compact research-paper plots. It separates two questions that the earlier snapshot blurred together:

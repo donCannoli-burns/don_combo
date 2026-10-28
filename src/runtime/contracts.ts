@@ -85,6 +85,7 @@ export interface CandidateEvidence {
   observation_count: number;
   last_seen_age_hours: number | null;
   last_seen_turn: number | null;
+  cooldown: import("./recovery").RecoveryFeatures;
   observed_symbol_rates: Record<string, number>;
   observed_outcome_rates: Record<string, number>;
   sand_per_event: number;

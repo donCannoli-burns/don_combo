@@ -1,6 +1,13 @@
-import { appendBufferToFile, bufferToFile, fileToBuffer, turnsPlayed } from "kolmafia";
+import { appendBufferToFile, bufferToFile, fileToBuffer, getProperty, turnsPlayed } from "kolmafia";
 
 import type { ObservationEntry, ObservationLedger } from "./contracts";
+import {
+  emptyRecoveryLedger,
+  observeTile,
+  stateAt,
+  tileKey,
+  type TileRecoveryLedger,
+} from "./recovery";
 
 export type BeachOutcome =
   | "whale"
@@ -44,6 +51,83 @@ export interface MlTraceLog {
 
 const LEDGER_FILE = "don_combo_matrix_ledger.json";
 const ML_EVENT_FILE = "don_combo_ml_events.jsonl";
+const RECOVERY_FILE = "don_combo_tile_recovery.json";
+const NON_RARE_LOOT = new Set([
+  "grain of sand",
+  "sand dollar",
+  "dull fish scale",
+  "rough fish scale",
+  "lucky rabbitfish fin",
+  "spearfish fishing spear",
+  "waders",
+  "pristine fish scale",
+  "piece of coral",
+  "sea avocado",
+  "sea cucumber",
+  "cyan seashell",
+  "kelp",
+  "bunch of sea grapes",
+]);
+export function loadTileRecoveryLedger(): TileRecoveryLedger {
+  try {
+    const raw = String(fileToBuffer(RECOVERY_FILE) || "").trim();
+    if (!raw) return emptyRecoveryLedger();
+    const parsed = JSON.parse(raw) as TileRecoveryLedger;
+    if (
+      parsed.schema !== "don-combo-tile-recovery/v0.1" ||
+      !parsed.tiles ||
+      typeof parsed.tiles !== "object"
+    )
+      return emptyRecoveryLedger();
+    return parsed;
+  } catch {
+    return emptyRecoveryLedger();
+  }
+}
+function captureTileRecovery(
+  minute: number,
+  layout: string,
+  outcome: BeachOutcome,
+  detail: BeachObservationDetail,
+  atEpoch: number,
+): void {
+  const corpus = JSON.parse(String(fileToBuffer("raretiles.json") || "[]")) as Array<{
+    minute: number;
+    row: number;
+    column: number;
+  }>;
+  const matches = corpus.filter((tile) => tile.minute === minute);
+  if (!matches.length) return;
+  const ledger = loadTileRecoveryLedger();
+  const actual = detail.actual_comb;
+  const positiveItems = Object.entries(detail.items || {})
+    .filter(([name, quantity]) => quantity > 0 && !NON_RARE_LOOT.has(name.toLowerCase()))
+    .sort(([a], [b]) => a.localeCompare(b));
+  const twinkleVision = getProperty("hasTwinkleVision") === "true";
+  for (const tile of matches) {
+    // A submerged row absent from the layout is not an observation.
+    if (!layout.split(",").some((part) => part.startsWith(`${tile.row}:`))) continue;
+    const key = tileKey(tile.minute, tile.row, tile.column);
+    const selected =
+      !!actual &&
+      actual.minute === tile.minute &&
+      actual.row === tile.row &&
+      actual.column === tile.column;
+    // A rare_target is an ATTEMPT, never sufficient for a harvest event alone.
+    const harvested =
+      selected && outcome === "rare_target" && positiveItems.length > 0
+        ? positiveItems[0][0]
+        : null;
+    ledger.tiles[key] = observeTile(
+      ledger.tiles[key],
+      atEpoch,
+      stateAt(layout, tile.row, tile.column, twinkleVision),
+      harvested,
+    );
+  }
+  ledger.updated_at = new Date(atEpoch * 1000).toISOString();
+  bufferToFile(`${JSON.stringify(ledger)}\n`, RECOVERY_FILE);
+}
 
 function blankLedger(): ObservationLedger {
   return {
@@ -197,4 +281,9 @@ export function recordBeachObservation(
     pre_action_prediction: detail.pre_action_prediction || null,
   };
   appendBufferToFile(`${JSON.stringify(event)}\n`, ML_EVENT_FILE);
+  try {
+    captureTileRecovery(minute, layout, outcome, detail, Math.floor(now.getTime() / 1000));
+  } catch {
+    // Recovery indexing is supplemental; never break the existing Combo path.
+  }
 }

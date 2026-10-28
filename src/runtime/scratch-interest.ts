@@ -164,7 +164,7 @@ export function backfillScratchHistory(
   const seen = new Set<string>();
   let imported = 0;
   for (const event of events) {
-    if (event.run_context?.player_id != null &&
+    if (event.run_context?.player_id !== null &&
         event.run_context.player_id !== persisted.player_id) continue;
     if (event.event_id && seen.has(event.event_id)) continue;
     if (event.event_id) seen.add(event.event_id);

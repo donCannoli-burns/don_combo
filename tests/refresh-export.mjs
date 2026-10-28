@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const html = readFileSync(new URL("../mafia/relay/don_combo_matrix.html", import.meta.url), "utf8");
-const ash = readFileSync(new URL("../mafia/relay/relay_DonComboRefresh.ash", import.meta.url), "utf8");
+const ash = readFileSync(
+  new URL("../mafia/relay/relay_DonComboRefresh.ash", import.meta.url),
+  "utf8",
+);
 const native = readFileSync(new URL("../src/don_combo_runtime.ts", import.meta.url), "utf8");
 
 assert.match(html, /id="refreshMatrix"/);
@@ -55,12 +58,23 @@ const stale = {
   run_control: { status: "completed", completed_combs: 50 },
 };
 assert.throws(() => validate(stale, receipt), /generation/);
-assert.throws(() => validate({ ...newer, ml_lab: { events_total: 3117 } }, receipt), /ML event count/);
-assert.throws(() => validate({ ...newer, run_control: { status: "completed" } }, receipt), /Run status/);
+assert.throws(
+  () => validate({ ...newer, ml_lab: { events_total: 3117 } }, receipt),
+  /ML event count/,
+);
+assert.throws(
+  () => validate({ ...newer, run_control: { status: "completed" } }, receipt),
+  /Run status/,
+);
 assert.throws(() => validate({ ...newer, gameday: 31 }, receipt), /game day/);
 assert.throws(() => validate({ ...newer, player_id: 1 }, receipt), /player/);
-assert.throws(() => validate(newer, { ...receipt, previousGeneration: newer.generated_at }), /unchanged/);
+assert.throws(
+  () => validate(newer, { ...receipt, previousGeneration: newer.generated_at }),
+  /unchanged/,
+);
 assert.throws(() => validate(null, receipt), /schema/);
 assert.throws(() => validate(newer, { ...receipt, generation: null }), /generation/);
 
-console.log("native relay refresh + verified export regression: PASS (stale 3117 vs 3129 rejected)");
+console.log(
+  "native relay refresh + verified export regression: PASS (stale 3117 vs 3129 rejected)",
+);

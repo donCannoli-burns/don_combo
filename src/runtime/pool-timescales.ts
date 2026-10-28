@@ -167,3 +167,21 @@ export function buildPoolTimeScaleAudit(index:PoolIndex):PoolTimeScaleAudit {
     note:"Chronological category inter-reward gaps, not observed spawn timers. Sightings are excluded from reward intervals. Multiple pirate items from one comb form one reward event. Short/middle/long are hypotheses; empirical modes are withheld when sample support is weak. Cross-coordinate gaps do not prove timer transport.",
   };
 }
+
+export type PoolTimeScaleSummary = Omit<PoolTimeScaleAudit,"events"|"gaps">;
+export function compactPoolTimeScales(index:PoolTimeScaleAudit):PoolTimeScaleSummary {
+  return {
+    schema:index.schema,
+    total_layout_sightings:index.total_layout_sightings,
+    raw_item_delta_quantity:index.raw_item_delta_quantity,
+    distinct_reward_events:index.distinct_reward_events,
+    collapsed_simultaneous_gear_items:index.collapsed_simultaneous_gear_items,
+    global_interreward_intervals:index.global_interreward_intervals,
+    same_coordinate_intervals:index.same_coordinate_intervals,
+    cross_coordinate_intervals:index.cross_coordinate_intervals,
+    tier_hypotheses:index.tier_hypotheses,
+    prior:index.prior,
+    transport_hypothesis:index.transport_hypothesis,
+    note:index.note,
+  };
+}

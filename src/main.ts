@@ -3,11 +3,15 @@ import {
   appendBufferToFile,
   cliExecute,
   cliExecuteOutput,
+  choiceFollowsFight,
+  currentRound,
+  fightFollowsChoice,
   fileToBuffer,
   gamedayToInt,
   getProperty,
   handlingChoice,
   historicalPrice,
+  inMultiFight,
   isDarkMode,
   Item,
   myAdventures,
@@ -16,7 +20,7 @@ import {
   runChoice,
   setProperty,
 } from "kolmafia";
-import { $items, get, property, Session, set, sinceKolmafiaRevision } from "libram";
+import { $items, get, Kmail, property, Session, set, sinceKolmafiaRevision } from "libram";
 
 import { prepareWaterSheepRoute, traceTargetPrediction } from "./don_combo_runtime";
 import {
@@ -30,6 +34,13 @@ import {
   prescoreProgressNotice,
 } from "./runtime/prescore-progress";
 import { firstVisibleSandCastle } from "./runtime/sandcastle-observer";
+import {
+  LIVE_RARE_SHARE_PREF,
+  LIVE_RARE_SHARE_RECIPIENT,
+  liveRareFromAction,
+  liveRareKmailBatches,
+  type LiveRareShareRow,
+} from "./runtime/live-rare-share";
 import { summarizeShadowRun, type ShadowRunContext } from "./runtime/shadow-learning";
 import {
   compileShadowTop11,
@@ -108,6 +119,18 @@ function addFalseRare(tile: BeachTile) {
 // We'd want to export the comb function, but not _comb
 let activeShadowRun: ShadowRunContext | null = null;
 let autoTraceWaterSheepRun = false;
+// Per-run memory only. Never populated from saved ML events or session history.
+let activeLiveRareShare: LiveRareShareRow[] | null = null;
+
+function shareDataEnabled(): boolean {
+  return getProperty(LIVE_RARE_SHARE_PREF) === "true";
+}
+
+function safeToKmail(): boolean {
+  // Match Excavator's no-combat/no-choice transport boundary.
+  return currentRound() === 0 && !handlingChoice() &&
+    !fightFollowsChoice() && !choiceFollowsFight() && !inMultiFight();
+}
 
 function mlTraceEnabled(): boolean {
   return ["1", "true", "target", "on"].includes(
@@ -196,6 +219,20 @@ function _comb(tile: BeachTile): void {
       pre_action_observed_at: preActionObservedAt,
       run_context: activeShadowRun,
     });
+    // Only this just-completed native comb's delta can enter a sharing run.
+    if (activeLiveRareShare !== null && shareDataEnabled()) {
+      const sighting = liveRareFromAction({
+        minute,
+        row: actualRow,
+        column: actualColumn,
+        pre_action_layout: layoutString,
+        outcome,
+        items: delta.items,
+        action_output: actionOutput,
+        observed_at_utc: new Date().toISOString(),
+      });
+      if (sighting) activeLiveRareShare.push(sighting);
+    }
   };
 
   // the Array.find() method returnns either an element of the array that fits, or undefined
@@ -471,6 +508,28 @@ export function main(args?: string | number): void {
     abort(wsFree ? "No free beach combs remain." : "WaterSheep route must request 1–100 combs.");
   if (wsPaid && wsCount > freeRemaining + myAdventures())
     abort("Insufficient remaining free combs and adventures for this explicit paid route.");
+
+  // Warn BEFORE scoring, routing and beach actions, not after they have
+  // produced data. Changes from OFF -> ON during a run never auto-enroll.
+  set("don_combo_interrupt", false);
+  let shareThisRun = shareDataEnabled();
+  if (shareThisRun) {
+    print("'don_combo_share_data=true' Your current beach findings are set to share.", "red");
+    print(
+      "If this is a mistake, hit Interrupt Comb in the relay for a safe stop, or Esc for a hard stop. In gCLI enter 'set don_combo_share_data=false' to turn off.",
+      "red",
+    );
+    if (!cliExecute("wait 5")) {
+      print("don_combo: share warning wait interrupted; no combs or Kmails sent.", "red");
+      return;
+    }
+    if (consumeInterruptRequest()) {
+      print("don_combo: interrupted during share warning; no combs or Kmails sent.", "red");
+      return;
+    }
+    shareThisRun = shareDataEnabled();
+    if (!shareThisRun) print("don_combo: sharing disabled before the run.", "gray");
+  }
   if (wsFree || wsPaid) {
     print(
       `WaterSheep: pre-scoring ${wsCount} rare-front targets (${wsFree ? "free-only" : "adventure-cost allowed"})... please wait ${prescoreWaitPhrase(wsCount)} (estimated)`,
@@ -512,7 +571,6 @@ export function main(args?: string | number): void {
   if (!Number.isInteger(combs) || isNaN(combs)) abort("Invalid argument!");
   if (combs <= 0) return;
   const oldFilter = get("logPreferenceChangeFilter");
-  set("don_combo_interrupt", false);
   set("don_combo_running", true);
   set("don_combo_last_run_status", "running");
   set("don_combo_last_run_requested", combs);
@@ -565,6 +623,7 @@ export function main(args?: string | number): void {
   };
   const freeBefore = get("_freeBeachWalksUsed", 0);
   activeShadowRun = runContext;
+  activeLiveRareShare = shareThisRun ? [] : null;
   // Routed WaterSheep gets a pre-action prediction per target automatically;
   // vanilla Combo keeps the existing opt-in don_combo_ml_trace property.
   autoTraceWaterSheepRun = shadow11 || wsFree || wsPaid;
@@ -627,8 +686,35 @@ export function main(args?: string | number): void {
     // Always leave the Beach choice cleanly, including cooperative interrupts.
     if (handlingChoice()) runChoice(5);
     if (get("spadingScript").toLowerCase().includes("excavator")) cliExecute("spade autoconfirm");
+    // A late relay interrupt must also suppress external sharing.
+    if (consumeInterruptRequest()) interrupted = true;
     cleanFinish = true;
+    if (!interrupted && shareThisRun && shareDataEnabled() && activeLiveRareShare?.length) {
+      const batches = liveRareKmailBatches(activeLiveRareShare);
+      let sent = 0;
+      if (!safeToKmail()) {
+        print("don_combo: sharing skipped (combat/choice state); no retry queued.", "red");
+      } else {
+        for (const batch of batches) {
+          if (!shareDataEnabled() || get("don_combo_interrupt", false) || !safeToKmail())
+            break;
+          let delivered = false;
+          try {
+            delivered = Kmail.send(LIVE_RARE_SHARE_RECIPIENT, batch);
+          } catch {
+            delivered = false;
+          }
+          if (!delivered) {
+            print("don_combo: sharing Kmail failed; no retry queued.", "red");
+            break;
+          }
+          sent++;
+        }
+        if (sent) print(`don_combo: sent ${sent} opt-in live rare-tile Kmail batch${sent === 1 ? "" : "es"}.`, "gray");
+      }
+    }
   } finally {
+    activeLiveRareShare = null; // discard, never persist for replay
     set("logPreferenceChangeFilter", oldFilter);
     set("don_combo_running", false);
     set("don_combo_interrupt", false);

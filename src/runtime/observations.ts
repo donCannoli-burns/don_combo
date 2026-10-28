@@ -41,6 +41,7 @@ export interface BeachObservationDetail {
   items?: Record<string, number>;
   meat?: number;
   pre_action_prediction?: Record<string, unknown> | null;
+  pre_action_observed_at?: string;
   run_context?: ShadowRunContext | null;
 }
 
@@ -48,6 +49,7 @@ export interface MlTraceEvent {
   schema: "don-combo-ml-event/v0.1";
   event_id: string;
   observed_at: string;
+  pre_action_observed_at?: string;
   turn: number;
   minute: number;
   outcome: BeachOutcome;
@@ -305,6 +307,7 @@ export function recordBeachObservation(
       actual ? `${actual.row}-${actual.column}` : "na"
     }`,
     observed_at: now.toISOString(),
+    pre_action_observed_at: detail.pre_action_observed_at || undefined,
     turn: turnsPlayed(),
     minute,
     outcome,
@@ -326,7 +329,7 @@ export function recordBeachObservation(
   }
   appendBufferToFile(`${JSON.stringify(event)}\n`, ML_EVENT_FILE);
   try {
-    recordScratchObservation(minute, layout, now.toISOString());
+    recordScratchObservation(minute, layout, detail.pre_action_observed_at || now.toISOString());
   } catch {
     // Scratch evidence is supplemental; original ML event log is a durable
     // backfill source, and errors cannot cause duplicate beach actions.

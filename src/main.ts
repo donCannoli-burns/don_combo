@@ -601,8 +601,9 @@ export function main(args?: string | number): void {
   set("don_combo_last_run_interrupt_consumed", false);
   set("don_combo_last_run_started_at", new Date().toISOString());
   set("don_combo_last_run_ended_at", "");
-  set("don_combo_last_run_ml_events_before", loadMlTraceEvents(0).total);
-  set("don_combo_last_run_ml_events_after", loadMlTraceEvents(0).total);
+  const mlEventsBefore = loadMlTraceEvents(0).total;
+  set("don_combo_last_run_ml_events_before", mlEventsBefore);
+  set("don_combo_last_run_ml_events_after", mlEventsBefore);
   set(
     "logPreferenceChangeFilter",
     [
@@ -703,6 +704,7 @@ export function main(args?: string | number): void {
       );
     }
 
+    print("don_combo: beach combing finished; closing choice and finalizing results.", "gray");
     // Always leave the Beach choice cleanly, including cooperative interrupts.
     if (handlingChoice()) runChoice(5);
     if (get("spadingScript").toLowerCase().includes("excavator")) cliExecute("spade autoconfirm");
@@ -755,11 +757,12 @@ export function main(args?: string | number): void {
         : "runtime_failure",
     );
     set("don_combo_last_run_ended_at", new Date().toISOString());
-    set("don_combo_last_run_ml_events_after", loadMlTraceEvents(0).total);
+    // One readback supplies both the final counter and the run-scoped tail.
+    const finalTrace = loadMlTraceEvents(Math.max(100, completedCombs + 12));
+    set("don_combo_last_run_ml_events_after", finalTrace.total);
     try {
-      const tail = loadMlTraceEvents(Math.max(100, completedCombs + 12)).events;
       const learned = summarizeShadowRun(
-        tail,
+        finalTrace.events,
         runContext,
         getProperty("don_combo_last_run_ended_at"),
         cleanFinish ? (interrupted ? "interrupted" : "completed") : "failed",
@@ -796,4 +799,5 @@ export function main(args?: string | number): void {
 
   const lifetime = Session.add(final, Session.fromFile("combo_results.json"));
   lifetime.toFile("combo_results.json");
+  print("don_combo: results saved; script finished.", "gray");
 }

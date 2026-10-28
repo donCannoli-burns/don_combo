@@ -138,6 +138,62 @@ WaterSheep input intentionally excludes Combo-derived outcome labels such as `ra
 
 See [docs/WATERSHEEP_MATRIX_PROTOTYPE.md](docs/WATERSHEEP_MATRIX_PROTOTYPE.md) for the prototype boundary and data flow.
 
+## WaterSheep cooldown evidence and free-only top-11 route (experimental)
+
+The native Combo observer writes a per-coordinate \`data/don_combo_tile_recovery.json\`
+index alongside the existing ML trace and beachfront aggregate ledger. For every
+known rare coordinate on a visited visible beachfront, the index records its
+last observed state, observation count, last positive *loot-inferred* rare
+harvest, observed still-combed states, and bounded intervals between a combed
+observation and a subsequently observed twinkle.
+
+**Evidence caveat:** A \`rare_target\` action is an attempt, not proof of a rare
+drop. Candidate harvests require a positive inventory item delta and may still
+need item-class verification; they are marked \`loot-inferred\`. Observing an
+available tile bounds a cooldown interval; it does not establish the exact
+respawn time. A 12-day revisit signal is an uncalibrated deterministic
+exploration heuristic **not a probability or a claimed game mechanic**.
+The special-event vs ordinary-rare pool theory is not treated as established
+fact. Older aggregate ledger rows and per-comb traces are not retroactively
+asserted to contain full tile-state histories.
+
+Shadow scoring now samples 17 tide-accessible, known-rare beachfronts (including
+the Combo baseline when available), not arbitrary empty fronts. WaterSheep sees
+tile-level recovery evidence but remains advisory: exact Combo baseline membership,
+candidate source labels and target order remain withheld. The candidate table
+shows final model-plus-policy rank separately from model-only rank.
+
+### Relay: run WaterSheep's top 11 with free beach combs only
+
+Open **DonComboMatrix** and scroll to **WaterSheep top 11 · free-only route**.
+The visible ranked route includes the chosen coordinate, cooldown age,
+observed state, and uncalibrated revisit signal. Choose
+**Review top 11 and run free Combo**, then use the explicit confirmation on
+the next page.
+
+- KoLmafia's \`_freeBeachWalksUsed\` provides the daily budget: at most
+  \`11 - _freeBeachWalksUsed\` combs can be executed. The guard is checked
+  before **each** action and verified after the action. It never pays for
+  additional combs.
+- The saved scoring snapshot must be from the same player and in-game day,
+  no older than 20 minutes, and have ready WaterSheep scores. The list
+  must resolve to distinct, tide-accessible non-false known rare coordinates.
+  If any check fails, refresh the matrix and review again.
+- The confirmation token is single-use. The model cannot supply arbitrary
+  tile coordinates, rerank during a run or cause fallback paid actions.
+- The normal \`combo N\` shuffle/cursor path is unchanged. The special
+  \`combo shadow11\` argument uses a frozen route and does **not** advance
+  \`combo_lastTileCombed\`. A clean cooperative interrupt is still supported.
+  If a target is already combed, Combo's existing in-front twinkle/rough
+  fallback logic still applies. Execution can finish with fewer than 11
+  actual rare harvests; this is an experimental route, not a guarantee.
+- Results and observed loot feed the same existing run-control/ML history.
+
+No live KoL actions were performed while developing this feature. The repo's
+CI checks cover the TypeScript build, relay JavaScript syntax/DOM binding,
+and offline cooldown/route invariants. Validate in your own KoLmafia environment
+before using the relay's mutating action.
+
 ## Rare tile data
 
 The rare-tile list is in [mafia/data/raretiles.json](mafia/data/raretiles.json). The formatting follows KoLmafia's beach coordinates: rows are 1-indexed and columns are 0-indexed.

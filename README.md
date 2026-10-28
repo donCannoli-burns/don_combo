@@ -155,6 +155,45 @@ set don_combo_ml_trace=false
 
 Trace failures are evidence failures only: Combo continues on its deterministic route and the failed prediction is logged instead of gaining fallback authority. New trace rows append to `data/don_combo_ml_events.jsonl`.
 
+### Scratch-density observations (live, shadow and historical)
+
+Every visited beach front contributes a **pre-action scratch-density observation**:
+the number of visible already-combed squares (the `c` glyph in KoLmafia's
+`_beachLayout`) across its currently visible rows. Hidden rows are excluded
+rather than treated as scratch-free. We call 6–10 scratches **high interest**;
+11 or more **very interesting**. This is a heuristic about a visited front's
+history, **not proof of a rare tile, rare respawn, or predictive probability**.
+
+The live path records the layout once per comb into
+`data/don_combo_scratch_observations.json` (alongside the existing
+`data/don_combo_ml_events.jsonl`). A read-only historical pass also derives
+scratch density from **the full already-recorded ML event log**, including
+legacy unbound events, without requiring a new beach visit or inventing
+timestamps. Run-bound events from other players are excluded from this
+player-specific scratch history; old unbound observations retain their
+uncertain provenance.
+
+A day is one UTC calendar date because legacy events generally have UTC
+timestamps but no reliable KoL game-day ID. The tracker stores the maximum
+observed pre-action scratch count **once per front per UTC day**: repeated
+observations within a day can improve its maximum but **cannot compound**
+interest merely by refreshing or re-running the same beachfront. Independent
+high-scratch days increase a bounded `interest_score` (0–1); 11+ days are
+weighted more strongly. Scores also feed a small bounded policy exploration
+bonus (maximum +0.06 utility) and raise consideration of observed high-scratch
+fronts during candidate discovery. WaterSheep receives the explicit
+`scratch_interest` evidence input, with `interest_kind` identifying it as
+an uncalibrated **exploration heuristic, not a rare probability**.
+
+This applies to both ordinary `combo N` and
+`combo watersheep-N` / `combo watersheep-free`: all actual completed
+comb observations are recorded; routed runs continue to get automatic
+pre-action WaterSheep predictions. The **ML Lab → Scratch-density watch**
+shows high/very-interesting and repeat-day front counts, followed by the
+highest-interest fronts. Daily shadow-learning cohorts separately count
+their 6+ and 11+ observed scratches. Neither mode changes paid-action gates,
+frozen routes, or model authority.
+
 ### Historical rare baseline (read-only; all existing local records)
 
 WaterSheep now receives a **per-coordinate historical evidence summary** for

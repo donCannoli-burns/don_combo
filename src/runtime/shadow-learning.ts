@@ -1,3 +1,27 @@
+// Run-cohort counting stays self-contained for direct Node regression tests.
+function scratchCount(layout: string): { scratches: number; visible: number } | null {
+  const seen = new Set<number>();
+  let scratches = 0;
+  for (const part of layout.split(",")) {
+    const colon = part.indexOf(":");
+    if (colon < 1) return null;
+    const row = Number(part.slice(0, colon));
+    const symbols = part.slice(colon + 1);
+    if (
+      !Number.isInteger(row) ||
+      row < 1 ||
+      row > 10 ||
+      seen.has(row) ||
+      symbols.length !== 10 ||
+      !/^[A-Za-z?]+$/.test(symbols)
+    )
+      return null;
+    seen.add(row);
+    scratches += (symbols.match(/[cC]/g) || []).length;
+  }
+  return seen.size ? { scratches, visible: seen.size * 10 } : null;
+}
+
 // Pure, passive evidence accounting: no model training or KoL actions.
 // A run's front-level prediction must not be mistaken for a verified rare
 // coordinate respawn when Combo falls back to an unrelated twinkle.
@@ -50,6 +74,10 @@ export interface ShadowDailyRunSummary {
   incidental_fallback_rough: number;
   planned_and_actual_match: number;
   rare_target_attempts: number;
+  high_scratch_observations: number;
+  very_interesting_scratch_observations: number;
+  high_scratch_fronts: number;
+  very_interesting_scratch_fronts: number;
   verified_rare_harvests: null;
   outcome_counts: Record<string, number>;
   item_counts: Record<string, number>;
@@ -82,8 +110,21 @@ export function summarizeShadowRun(
   let untraced = 0;
   let previouslyCombed = 0;
   let matched = 0;
+  let highScratchEvents = 0;
+  let veryScratchEvents = 0;
+  const highScratchFronts = new Set<number>();
+  const veryScratchFronts = new Set<number>();
   for (const event of events) {
     fronts.add(event.minute);
+    const scratch = scratchCount(event.layout);
+    if (scratch && scratch.scratches >= 6) {
+      highScratchEvents++;
+      highScratchFronts.add(event.minute);
+    }
+    if (scratch && scratch.scratches >= 11) {
+      veryScratchEvents++;
+      veryScratchFronts.add(event.minute);
+    }
     outcomeCounts[event.outcome] = (outcomeCounts[event.outcome] || 0) + 1;
     for (const [name, quantity] of Object.entries(event.items || {})) {
       itemCounts[name] = (itemCounts[name] || 0) + quantity;
@@ -122,6 +163,10 @@ export function summarizeShadowRun(
     incidental_fallback_rough: outcomeCounts.rough_fallback || 0,
     planned_and_actual_match: matched,
     rare_target_attempts: outcomeCounts.rare_target || 0,
+    high_scratch_observations: highScratchEvents,
+    very_interesting_scratch_observations: veryScratchEvents,
+    high_scratch_fronts: highScratchFronts.size,
+    very_interesting_scratch_fronts: veryScratchFronts.size,
     // A positive inventory change alone is insufficient to certify rare-spawn
     // recovery; see the separate per-coordinate recovery index for provenance.
     verified_rare_harvests: null,

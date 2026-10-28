@@ -164,8 +164,7 @@ export function backfillScratchHistory(
     const preAction = event.pre_action_observed_at || event.observed_at;
     const date = Date.parse(preAction);
     if (!Number.isFinite(date) || date > nowMs) continue;
-    if (addScratchVisit(ledger, event.minute, event.layout, preAction, "historical"))
-      imported++;
+    if (addScratchVisit(ledger, event.minute, event.layout, preAction, "historical")) imported++;
   }
   return { ledger, imported };
 }

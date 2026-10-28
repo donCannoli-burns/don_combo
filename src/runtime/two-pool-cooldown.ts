@@ -361,9 +361,16 @@ export function recordPoolLabels(event: PoolTraceEvent, playerId: number): PoolO
 }
 
 export type CurveBinKey =
-  "under_1_day" | "1_to_3_days" | "3_to_7_days" | "7_to_14_days" |
-  "14_to_30_days" | "30_to_90_days" | "90_to_180_days" |
-  "180_to_365_days" | "365_to_730_days" | "730_plus_days";
+  | "under_1_day"
+  | "1_to_3_days"
+  | "3_to_7_days"
+  | "7_to_14_days"
+  | "14_to_30_days"
+  | "30_to_90_days"
+  | "90_to_180_days"
+  | "180_to_365_days"
+  | "365_to_730_days"
+  | "730_plus_days";
 export interface HistoricalCurveBin {
   key: CurveBinKey;
   lower_days_inclusive: number;
@@ -411,9 +418,25 @@ const makeBin = (key: CurveBinKey, lower: number, upper: number | null): Histori
 // Long-tail resolution preserves the circa two-year hypothesis instead of
 // hiding every 14+ day observation in a single short/long confounded bin.
 const gapBin = (days: number): number =>
-  days < 1 ? 0 : days < 3 ? 1 : days < 7 ? 2 : days < 14 ? 3 :
-  days < 30 ? 4 : days < 90 ? 5 : days < 180 ? 6 :
-  days < 365 ? 7 : days < 730 ? 8 : 9;
+  days < 1
+    ? 0
+    : days < 3
+      ? 1
+      : days < 7
+        ? 2
+        : days < 14
+          ? 3
+          : days < 30
+            ? 4
+            : days < 90
+              ? 5
+              : days < 180
+                ? 6
+                : days < 365
+                  ? 7
+                  : days < 730
+                    ? 8
+                    : 9;
 
 // A catalogue tile is a possible observation site, never a negative example.
 // These are INTER-ATTEMPT intervals, not respawn intervals. Pool rewards are

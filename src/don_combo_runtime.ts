@@ -39,6 +39,11 @@ import {
   loadObservationLedger,
   loadTileRecoveryLedger,
 } from "./runtime/observations";
+import {
+  buildPoolTimeScaleAudit,
+  compactPoolTimeScales,
+  type PoolTimeScaleAudit,
+} from "./runtime/pool-timescales";
 import { recoveryFeatures, tileKey, type TileRecoveryLedger } from "./runtime/recovery";
 import {
   backfillScratchHistory,
@@ -47,11 +52,6 @@ import {
   summarizeScratchLedger,
   type ScratchLedger,
 } from "./runtime/scratch-interest";
-import {
-  buildPoolTimeScaleAudit,
-  compactPoolTimeScales,
-  type PoolTimeScaleAudit,
-} from "./runtime/pool-timescales";
 import {
   buildPoolCooldownIndex,
   buildHistoricalRareCurve,

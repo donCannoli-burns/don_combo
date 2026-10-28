@@ -7,8 +7,15 @@ function scratchCount(layout: string): { scratches: number; visible: number } | 
     if (colon < 1) return null;
     const row = Number(part.slice(0, colon));
     const symbols = part.slice(colon + 1);
-    if (!Number.isInteger(row) || row < 1 || row > 10 || seen.has(row) ||
-        symbols.length !== 10 || !/^[A-Za-z?]+$/.test(symbols)) return null;
+    if (
+      !Number.isInteger(row) ||
+      row < 1 ||
+      row > 10 ||
+      seen.has(row) ||
+      symbols.length !== 10 ||
+      !/^[A-Za-z?]+$/.test(symbols)
+    )
+      return null;
     seen.add(row);
     scratches += (symbols.match(/[cC]/g) || []).length;
   }

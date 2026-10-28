@@ -383,6 +383,30 @@ export function main(args?: string | number): void {
     return;
   }
 
+  if (args === "watersheep-preview") {
+    // Read-only relay validation. It cannot wander, comb or request paid actions.
+    setProperty("don_combo_shadow11_preview_status", "blocked");
+    setProperty("don_combo_shadow11_preview_snapshot", "");
+    try {
+      if (get("don_combo_running", false))
+        throw new Error("Combo is already running.");
+      const route = loadShadowTop11Route();
+      const snapshot = JSON.parse(String(fileToBuffer("don_combo_matrix_runtime.json")))
+        as ShadowRouteSnapshot;
+      setProperty("don_combo_shadow11_preview_status", "ready");
+      setProperty("don_combo_shadow11_preview_snapshot", snapshot.generated_at);
+      setProperty("don_combo_shadow11_preview_message",
+        `Ready: ${route.length} free-only WaterSheep targets from snapshot ${snapshot.generated_at}.`);
+      print(`WaterSheep preview: ${route.length} ranked free combs available; no KoL actions taken.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setProperty("don_combo_shadow11_preview_message", message);
+      print(`WaterSheep preview blocked: ${message}`, "red");
+    }
+    return;
+  }
+
+
   // Use a wrapper around session tracking to record our results
   // We do this by first tracking what the session results are right now
   // Later, we will subtract these items and meat from our final results

@@ -20,6 +20,80 @@ If the upstream Combo project is already installed, remove that project first so
 
 Normal Combo behavior is unchanged. Run `combo N` in the KoLmafia CLI, where `N` is the number of combs you wish to perform. Combo does not differentiate between free and non-free combs, so `combo 11` performs eleven combs.
 
+## Optional live rare-tile sharing via Kmail
+
+**OFF by default.** DonCombo does not send beach observations to any player
+unless that character explicitly enables this KoLmafia preference in gCLI:
+
+```text
+set don_combo_share_data=true
+```
+
+To disable it immediately for subsequent sends (and future runs):
+
+```text
+set don_combo_share_data=false
+```
+
+When a combing run starts with the preference exactly `true`, DonCombo prints
+this **red warning before any WaterSheep pre-scoring or beach action**:
+
+> 'don_combo_share_data=true' Your current beach findings are set to share.
+> If this is a mistake, hit Interrupt Comb in the relay for a safe stop, or Esc
+> for a hard stop. In gCLI enter 'set don_combo_share_data=false' to turn off.
+
+The command then waits **five seconds**. The relay interrupt can cancel before
+any combs; a cooperative interruption later in the run suppresses the queued
+sharing. Turning the preference off before dispatch also prevents transmission.
+Read-only `lifetime` and `watersheep-preview` commands do not send anything.
+A previously OFF run cannot enable sharing midway without a new invocation.
+
+**What qualifies as a live finding:** a just-executed beach comb at a currently
+visible non-combed tile, whose own item delta contains a positively identified
+scarce-tile reward (piece of driftwood, cursed pirate gear, meteorite fragment
+or rainbow pearl), or whose native command output contains the exact
+message-in-a-bottle encounter. Seeing a twinkle alone, visiting a preloaded
+known-rare coordinate, finding an infrequent/common item, a whale, an existing
+castle, or an historical result **does not** count as a shareable confirmed
+scarce-tile finding. Bottles remain pool-unassigned in the ML Lab; this share
+format does not claim a pool or a measured cooldown.
+
+After a **clean, uninterrupted** run, outside combat/choice, DonCombo batches
+only these freshly observed coordinates to KoL
+[stICKYrICKY (#3773192)](https://www.kingdomofloathing.com/showplayer.php?who=3773192)
+using normal `Kmail.send`. The Kmail body is a restricted CSV-like envelope,
+for example:
+
+```text
+don_combo_live_rare_v1
+timestamp_utc,minute,row,column
+2026-10-28T09:30:06.000Z,6463,4,4
+```
+
+These are UTC *observation* timestamps and KoLmafia's zero-indexed columns.
+Duplicate coordinates within one run are sent once. The body contains **no
+player name or player ID, run ID, account state, items, meat, session log, or
+full beach layout**. There is no historical scan, persistent outbound queue,
+retry on a later run, or automatic upload to GitHub. Failed or interrupted
+sends are dropped and reported without interrupting the beach-run results.
+
+**Kmail itself is not anonymous.** KoL exposes the **sender's account** to the
+recipient in Kmail metadata, even though DonCombo never puts it in the body.
+A specific timestamp and coordinate can also sometimes be correlated with
+other activity. The intended later public data export must strip all Kmail
+headers and sender metadata before creating the public coordinate dataset;
+that pipeline has **not** been built or audited here.
+
+**Removal requests:** Players who want a sent submission removed should Kmail
+[DOncAnNOli (#1079721)](https://www.kingdomofloathing.com/showplayer.php?who=1079721)
+**within the approximately two-week vanilla Kmail retention window**, while
+the incoming message can still be attributed to its sender. After the Kmail
+has been removed and no player identity is retained in the coordinate dataset,
+it may be impossible to determine which observations belonged to that player.
+Disabling the preference prevents future sends; it cannot retract already
+delivered Kmail or guarantee removal from a future public export. No
+long-term sender mapping is created by this script.
+
 ## WaterSheep matrix prototype
 
 The downstream release adds a relay-browser entry named `DonComboMatrix`. It displays the complete 1,000,000-tile beach address space inside a 1024 x 1024 order-10 Hilbert matrix, overlays known rare positions and the currently observed beach front, and shows WaterSheep score-mass reports for a small mixed candidate frontier drawn from current, observed, and deterministic exploration fronts.

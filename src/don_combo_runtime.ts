@@ -41,6 +41,9 @@ import {
 } from "./runtime/observations";
 import { recoveryFeatures, tileKey, type TileRecoveryLedger } from "./runtime/recovery";
 import {
+  buildPoolCooldownIndex, cooldownForTarget, type PoolIndex,
+} from "./runtime/two-pool-cooldown";
+import {
   backfillScratchHistory,
   emptyScratchLedger,
   evidenceForScratchFront,
@@ -309,6 +312,7 @@ function evidenceFor(
   recoveryLedger?: TileRecoveryLedger,
   historicalIndex?: HistoricalRareIndex,
   scratches?: ScratchLedger,
+  poolIndex?: PoolIndex,
 ): CandidateEvidence {
   const entry = (ledger.fronts[String(minute)] || {}) as Record<string, any>;
   const layouts = n(entry.layout_snapshots);
@@ -336,6 +340,14 @@ function evidenceFor(
         ? historicalRareForTile(historicalIndex, tile.minute, tile.row, tile.column)
         : null,
     scratch_interest: evidenceForScratchFront(scratches || emptyScratchLedger(n(myId())), minute),
+    pool_cooldown: cooldownForTarget(
+      poolIndex || buildPoolCooldownIndex([], Date.now(), n(myId())),
+      minute, tile?.row ?? 0, tile?.column ?? -1,
+    ),
+    pool_front_observations: poolIndex?.by_front[String(minute)] || {
+      sand_castle: 0, beached_whale: 0, rainbow_pearl: 0,
+      piece_of_driftwood: 0, cursed_pirate_gear: 0, meteorite_fragment: 0,
+    },
     observed_symbol_rates: symbolRates(entry),
     observed_outcome_rates: outcomeRates(entry),
     sand_per_event: events ? round(n((entry.items || {})["grain of sand"]) / events, 4) : 0,
@@ -448,6 +460,7 @@ function candidateFrontier(
   recoveryLedger: TileRecoveryLedger,
   historicalIndex: HistoricalRareIndex,
   scratches: ScratchLedger,
+  poolIndex: PoolIndex,
   count = 16,
 ): Candidate[] {
   const current = n(getProperty("_beachMinutes"));
@@ -498,6 +511,7 @@ function candidateFrontier(
       recoveryLedger,
       historicalIndex,
       scratches,
+      poolIndex,
     );
     result.push({
       minute,
@@ -547,6 +561,8 @@ function waterSheepPayload(candidate: Candidate): WaterSheepRequest {
       tile_recovery: evidence.cooldown,
       historical_rare: evidence.historical_rare,
       scratch_interest: evidence.scratch_interest,
+      pool_cooldown: evidence.pool_cooldown,
+      pool_front_observations: evidence.pool_front_observations,
       observed_symbol_rates: evidence.observed_symbol_rates,
       sand_per_event: evidence.sand_per_event,
       current_layout_if_same_front:
@@ -614,6 +630,7 @@ export function traceTargetPrediction(
     fullHistory.events,
     Date.now(),
   ).ledger;
+  const poolIndex = buildPoolCooldownIndex(fullHistory.events, Date.now(), n(myId()));
   const evidence = evidenceFor(
     minute,
     current,
@@ -622,6 +639,7 @@ export function traceTargetPrediction(
     recoveryLedger,
     historicalIndex,
     scratches,
+    poolIndex,
   );
   const candidate: Candidate = {
     minute,
@@ -650,6 +668,8 @@ export function traceTargetPrediction(
       tile_recovery: evidence.cooldown,
       historical_rare: evidence.historical_rare,
       scratch_interest: evidence.scratch_interest,
+      pool_cooldown: evidence.pool_cooldown,
+      pool_front_observations: evidence.pool_front_observations,
       observed_symbol_rates: evidence.observed_symbol_rates,
       sand_per_event: evidence.sand_per_event,
       current_layout_if_same_front:
@@ -1072,6 +1092,7 @@ function buildRuntime(frontierSize = 16) {
   );
   const scratches = scratchBackfill.ledger;
   const scratchSummary = summarizeScratchLedger(scratches, scratchBackfill.imported);
+  const poolIndex = buildPoolCooldownIndex(fullHistory.events, Date.now(), n(myId()));
   const scratchTop = Object.keys(scratches.fronts)
     .map((minute) => evidenceForScratchFront(scratches, Number(minute)))
     .filter((x) => x.high_scratch_days > 0)
@@ -1090,6 +1111,7 @@ function buildRuntime(frontierSize = 16) {
     recoveryLedger,
     historicalIndex,
     scratches,
+    poolIndex,
     frontierSize,
   );
   let status = "ready";
@@ -1194,6 +1216,8 @@ function buildRuntime(frontierSize = 16) {
       scratch_top_fronts: scratchTop,
       tiles_recorded: Object.keys(recoveryLedger.tiles).length,
       historical_rare_baseline: historicalIndex.baseline,
+      two_pool_cooldown_summary: poolIndex.summary,
+      two_pool_observations_tail: poolIndex.observations.slice(-60),
       recovery_intervals: Object.values(recoveryLedger.tiles).reduce(
         (count, entry) => count + (entry.recovery_intervals?.length || 0),
         0,
@@ -1212,7 +1236,7 @@ function buildRuntime(frontierSize = 16) {
       options: LABELS.slice(),
       weights: WEIGHTS,
       input_policy:
-        "Known tile cooldown evidence supplied; Combo target identity/order, source labels, baseline membership, and Combo-derived outcome labels withheld.",
+        "Known tile cooldown evidence and two-pool item/encounter chronology supplied as hypotheses, not calibrated rates; Combo target identity/order, source labels, baseline membership, and Combo-derived outcome labels withheld.",
       calibration: "UNVALIDATED_FOR_KOL_BEACH",
     },
     comparison: cmp,

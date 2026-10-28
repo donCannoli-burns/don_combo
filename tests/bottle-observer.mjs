@@ -49,9 +49,16 @@ const events = [
   event("future", t0 + 100 * 86400000, 2200),
   event("no-bottle", t0 + 2000, 1300, 42, "Combing square 4,10"),
 ];
+events[0].action_output_capture = "captured";
+events[1].action_output_capture = "captured";
+events[2].action_output_capture = "captured";
+events[5].action_output_capture = "empty";
 const index = buildPoolCooldownIndex(events, t0 + 2 * 86400000, 42);
 assert.equal(index.summary.message_bottle_events, 2);
 assert.equal(index.summary.message_bottle_unbound, 0);
+assert.equal(index.summary.bottle_detection_output_captured, 2);
+assert.equal(index.summary.bottle_detection_output_empty, 1);
+assert.equal(index.summary.bottle_detection_legacy_unavailable, 0);
 assert.equal(index.summary.item_delta_rewards, 0);
 assert.equal(index.summary.action_recorded, 0);
 assert.equal(index.summary.by_tier.common_rare, 0);

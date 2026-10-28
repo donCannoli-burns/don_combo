@@ -88,6 +88,8 @@ export interface CandidateEvidence {
   cooldown: import("./recovery").RecoveryFeatures;
   historical_rare: import("./historical-rares").HistoricalRareTileEvidence | null;
   scratch_interest: import("./scratch-interest").ScratchEvidence;
+  pool_cooldown: import("./two-pool-cooldown").PoolCooldownEvidence;
+  pool_front_observations: Record<import("./two-pool-cooldown").PoolKind, number>;
   observed_symbol_rates: Record<string, number>;
   observed_outcome_rates: Record<string, number>;
   sand_per_event: number;

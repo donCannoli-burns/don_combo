@@ -970,12 +970,12 @@ function emitReceipt(result: Record<string, any>) {
   };
 }
 
-function buildRuntime() {
+function buildRuntime(frontierSize = 16) {
   const points = loadRarePoints();
   const baseline = comboBaseline(points);
   const ledger = loadObservationLedger();
   const recoveryLedger = loadTileRecoveryLedger();
-  const candidates = candidateFrontier(ledger, baseline, points, recoveryLedger, 16);
+  const candidates = candidateFrontier(ledger, baseline, points, recoveryLedger, frontierSize);
   let status = "ready";
   let error: string | null = null;
   for (const candidate of candidates) {
@@ -1113,6 +1113,22 @@ function buildRuntime() {
   };
   result.receipt = emitReceipt(result);
   return result;
+}
+
+// Explicit CLI execution first prepares a fresh, immutable ranked snapshot.
+// The execution owner validates and freezes it before the first KoL action.
+// Never quietly fall back to Combo's shuffled route if WaterSheep is offline.
+export function prepareWaterSheepRoute(requestedCombs: number): void {
+  if (!Number.isInteger(requestedCombs) || requestedCombs < 1 || requestedCombs > 100)
+    throw new Error("WaterSheep comb count must be between 1 and 100.");
+  const result = buildRuntime(Math.max(16, requestedCombs));
+  if (result.watersheep.status !== "ready" ||
+      result.candidates.length < requestedCombs ||
+      result.candidates.slice(0, requestedCombs).some(
+        (candidate: Candidate) => candidate.utility == null || candidate.watersheep == null,
+      ))
+    throw new Error("WaterSheep unavailable or insufficient fully scored rare fronts; no combs started.");
+  writeRuntime(result);
 }
 
 function writeRuntime(result: Record<string, any>): void {

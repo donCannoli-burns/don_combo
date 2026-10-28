@@ -77,6 +77,9 @@ const baseSettings = {
 
 export default [
   { "scripts/combo/combo": "src/main.ts" },
+  // Upstream loathers/combo ships scripts/combo/combo.js too. Keep a
+  // unique basename so 'doncombo' cannot silently invoke upstream code.
+  { "scripts/don_combo/doncombo": "src/main.ts" },
   { "scripts/don_combo/don_combo_runtime": "src/don_combo_runtime.ts" },
 ].map((input) => ({
   input,

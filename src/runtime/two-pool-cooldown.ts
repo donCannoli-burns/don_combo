@@ -32,6 +32,7 @@ export interface PoolTraceEvent {
   run_context?: { player_id?: number; run_id?: string; route_mode?: string } | null;
 }
 export interface PoolObservation {
+  minute: number;
   observed_at: string;
   event_id: string | null;
   coordinate: string | null;
@@ -89,6 +90,7 @@ export interface PoolSummary {
 export interface PoolIndex {
   summary: PoolSummary;
   by_coordinate: Record<string, PoolCooldownEvidence>;
+  by_front: Record<string, Record<PoolKind, number>>;
   observations: PoolObservation[];
 }
 const tier = (pool: PoolName, kind: PoolKind, grade: RewardTier, certainty: ObservationCertainty, quantity: number, item_name: string | null): PoolSignal =>
@@ -143,6 +145,7 @@ export function buildPoolCooldownIndex(
   playerId: number,
 ): PoolIndex {
   const byCoordinate: Record<string,PoolCooldownEvidence> = {};
+  const byFront: Record<string,Record<PoolKind,number>> = {};
   const observations:PoolObservation[] = [];
   const p1=emptyCounts(),p2=emptyCounts();
   const byTier:Record<RewardTier,number>={common_rare:0,uncommon_rare:0,rare_rare:0};
@@ -160,6 +163,7 @@ export function buildPoolCooldownIndex(
   }).slice().sort((a,b)=>Date.parse(a.observed_at)-Date.parse(b.observed_at));
   const enrich = (e:PoolTraceEvent, c:string|null, signal:PoolSignal, state:"combed"|"twinkle"|"unknown") => {
     const o:PoolObservation={
+      minute:e.minute,
       observed_at:e.observed_at,event_id:e.event_id||null,coordinate:c,
       pool:signal.pool,kind:signal.kind,tier:signal.tier,certainty:signal.certainty,
       item_name:signal.item_name,quantity:signal.quantity,
@@ -167,6 +171,7 @@ export function buildPoolCooldownIndex(
       target_preaction_state:state,
     };
     observations.push(o);
+    (byFront[String(e.minute)]??(byFront[String(e.minute)]=emptyCounts()))[signal.kind]+=signal.quantity;
     if(signal.pool==="pool_1")p1[signal.kind]+=signal.quantity;
     else p2[signal.kind]+=signal.quantity;
     byTier[signal.tier]+=signal.quantity;
@@ -248,8 +253,14 @@ export function buildPoolCooldownIndex(
     historical_unbound_events:legacy,run_bound_events:bound,unclassified_item_deltas:unclassified,
     hypothesis:"User-proposed two-pool rarity ladder: shorter cooldown may correspond to common/rare, longer to uncommon/rare, longest to rare/rare. NOT CALIBRATED. Recorded deltas and sightings are observations, not a demonstrated cooldown-to-loot relationship.",
   };
-  return {summary,by_coordinate:byCoordinate,observations};
+  return {summary,by_coordinate:byCoordinate,by_front:byFront,observations};
 }
 export function cooldownForTarget(index:PoolIndex,minute:number,row:number,column:number):PoolCooldownEvidence {
   return index.by_coordinate[`${minute},${row},${column}`] || blank(`${minute},${row},${column}`);
+}
+
+// One-event decoration makes both live and routed ML JSONL entries explicitly
+// inspectable. Complete historical replay still uses original raw fields.
+export function recordPoolLabels(event: PoolTraceEvent, playerId: number): PoolObservation[] {
+  return buildPoolCooldownIndex([event], Date.parse(event.observed_at), playerId).observations;
 }

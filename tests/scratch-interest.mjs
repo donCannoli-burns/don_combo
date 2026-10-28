@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+
 import {
   SCRATCH_LEDGER_SCHEMA,
   addScratchVisit,
@@ -51,8 +52,7 @@ e = evidenceForScratchFront(l, 1216);
 assert.equal(e.high_scratch_days, 3);
 assert.equal(e.very_interesting_days, 2);
 assert.equal(e.interest_score, 0.91);
-for (let i = 0; i < 25; i++)
-  addScratchVisit(l, 1216, eleven, "2026-10-30T03:00:00Z", "live"); // same day only
+for (let i = 0; i < 25; i++) addScratchVisit(l, 1216, eleven, "2026-10-30T03:00:00Z", "live"); // same day only
 assert.equal(evidenceForScratchFront(l, 1216).interest_score, 0.91);
 assert.equal(addScratchVisit(l, 1216, eleven, "2026-11-01T03:00:00Z", "live"), true);
 assert.equal(addScratchVisit(l, 1216, eleven, "2026-11-02T03:00:00Z", "live"), true);
@@ -104,24 +104,41 @@ assert.equal(evidenceForScratchFront(oldLedger, 5447).max_scratch_count, 6); // 
 assert.equal(summarizeScratchLedger(imported.ledger, imported.imported).fronts_repeated_high, 1);
 
 const context = {
-  run_id: "30-42-abc", gameday: 30, player_id: 42,
-  route_mode: "watersheep-paid", started_at: "2026-10-28T01:00:00Z",
+  run_id: "30-42-abc",
+  gameday: 30,
+  player_id: 42,
+  route_mode: "watersheep-paid",
+  started_at: "2026-10-28T01:00:00Z",
 };
 const base = {
-  run_context: context, outcome: "rough_fallback",
-  items: {}, pre_action_prediction: { score_mass: { rare: 0.1 } },
-  planned_target: null, actual_comb: null,
+  run_context: context,
+  outcome: "rough_fallback",
+  items: {},
+  pre_action_prediction: { score_mass: { rare: 0.1 } },
+  planned_target: null,
+  actual_comb: null,
 };
 const outcomeEvents = [
   { ...base, event_id: "a", minute: 1216, layout: five },
   { ...base, event_id: "b", minute: 1216, layout: six },
   { ...base, event_id: "c", minute: 5447, layout: eleven },
-  { ...base, event_id: "other", minute: 505, layout: eleven,
-    run_context: { ...context, run_id: "different" } },
+  {
+    ...base,
+    event_id: "other",
+    minute: 505,
+    layout: eleven,
+    run_context: { ...context, run_id: "different" },
+  },
 ];
 const cohort = summarizeShadowRun(
-  outcomeEvents, context, "2026-10-28T01:10:00Z",
-  "completed", 3, 3, 0, 3,
+  outcomeEvents,
+  context,
+  "2026-10-28T01:10:00Z",
+  "completed",
+  3,
+  3,
+  0,
+  3,
 );
 assert.equal(cohort.recorded_events, 3);
 assert.equal(cohort.prediction_ready, 3);
@@ -130,12 +147,18 @@ assert.equal(cohort.very_interesting_scratch_observations, 1);
 assert.equal(cohort.high_scratch_fronts, 2);
 assert.equal(cohort.very_interesting_scratch_fronts, 1);
 
-const observations = readFileSync(new URL("../src/runtime/observations.ts", import.meta.url), "utf8");
+const observations = readFileSync(
+  new URL("../src/runtime/observations.ts", import.meta.url),
+  "utf8",
+);
 const runtime = readFileSync(new URL("../src/don_combo_runtime.ts", import.meta.url), "utf8");
 const html = readFileSync(new URL("../mafia/relay/don_combo_matrix.html", import.meta.url), "utf8");
 assert.match(observations, /recordScratchObservation\(minute, layout, now\.toISOString\(\)\)/);
 assert.match(observations, /don_combo_scratch_observations\.json/);
-assert.match(runtime, /backfillScratchHistory\(loadScratchLedger\(\), fullHistory\.events, Date\.now\(\)\)/);
+assert.match(
+  runtime,
+  /backfillScratchHistory\(loadScratchLedger\(\), fullHistory\.events, Date\.now\(\)\)/,
+);
 assert.match(runtime, /scratch_interest: evidence\.scratch_interest/);
 assert.match(runtime, /evidence\.scratch_interest\.interest_score \* 0\.06/);
 assert.match(runtime, /evidenceForScratchFront\(scratches, n\(minuteText\)\)\.interest_score \* 2/);

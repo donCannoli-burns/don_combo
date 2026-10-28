@@ -95,11 +95,7 @@ export function addScratchVisit(
   const day = timestamp.slice(0, 10);
   const front = (ledger.fronts[String(minute)] ??= { days: {} });
   const existing = front.days[day];
-  const source = existing
-    ? existing.provenance === provenance
-      ? provenance
-      : "both"
-    : provenance;
+  const source = existing ? (existing.provenance === provenance ? provenance : "both") : provenance;
   front.days[day] = {
     max_scratches: Math.max(existing?.max_scratches ?? 0, observation.scratches),
     visible_cells_at_max:
@@ -107,9 +103,7 @@ export function addScratchVisit(
         ? observation.visible
         : existing.visible_cells_at_max,
     last_observed_at:
-      !existing || timestamp > existing.last_observed_at
-        ? timestamp
-        : existing.last_observed_at,
+      !existing || timestamp > existing.last_observed_at ? timestamp : existing.last_observed_at,
     provenance: source,
   };
   if (!ledger.updated_at || timestamp > ledger.updated_at) ledger.updated_at = timestamp;
@@ -120,9 +114,7 @@ export function evidenceForScratchFront(ledger: ScratchLedger, minute: number): 
   const days = ledger.fronts[String(minute)]?.days || {};
   const dates = Object.keys(days).sort();
   const high = dates.filter((day) => days[day].max_scratches >= SCRATCH_HIGH_THRESHOLD);
-  const very = dates.filter(
-    (day) => days[day].max_scratches >= SCRATCH_VERY_INTERESTING_THRESHOLD,
-  );
+  const very = dates.filter((day) => days[day].max_scratches >= SCRATCH_VERY_INTERESTING_THRESHOLD);
   const max = dates.reduce((v, day) => Math.max(v, days[day].max_scratches), 0);
   // A single observation matters; repeated distinct-day evidence compounds
   // interest but can never become an unbounded positive-feedback loop.
@@ -164,8 +156,11 @@ export function backfillScratchHistory(
   const seen = new Set<string>();
   let imported = 0;
   for (const event of events) {
-    if (event.run_context?.player_id !== null &&
-        event.run_context.player_id !== persisted.player_id) continue;
+    if (
+      event.run_context?.player_id !== null &&
+      event.run_context.player_id !== persisted.player_id
+    )
+      continue;
     if (event.event_id && seen.has(event.event_id)) continue;
     if (event.event_id) seen.add(event.event_id);
     const date = Date.parse(event.observed_at);

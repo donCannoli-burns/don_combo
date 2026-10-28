@@ -484,7 +484,15 @@ function candidateFrontier(
           )
         : chosen(minute);
     if (!tile) return;
-    const evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches);
+    const evidence = evidenceFor(
+      minute,
+      current,
+      ledger,
+      tile,
+      recoveryLedger,
+      historicalIndex,
+      scratches,
+    );
     result.push({
       minute,
       source,
@@ -505,7 +513,14 @@ function candidateFrontier(
   if (baseline) push(baseline.minute, "combo-baseline", true);
   const exclude = new Set<number>(result.map((x) => x.minute));
   const eligibleMinutes = Array.from(grouped.keys()).sort((a, b) => a - b);
-  for (const [minute, source] of sampleMinutes(ledger, eligibleMinutes, count, current, exclude, scratches))
+  for (const [minute, source] of sampleMinutes(
+    ledger,
+    eligibleMinutes,
+    count,
+    current,
+    exclude,
+    scratches,
+  ))
     push(minute, source, false);
   return result;
 }
@@ -588,8 +603,20 @@ export function traceTargetPrediction(
     fullHistory.events,
     Date.now(),
   );
-  const scratches = backfillScratchHistory(loadScratchLedger(), fullHistory.events, Date.now()).ledger;
-  const evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches);
+  const scratches = backfillScratchHistory(
+    loadScratchLedger(),
+    fullHistory.events,
+    Date.now(),
+  ).ledger;
+  const evidence = evidenceFor(
+    minute,
+    current,
+    ledger,
+    tile,
+    recoveryLedger,
+    historicalIndex,
+    scratches,
+  );
   const candidate: Candidate = {
     minute,
     source: "current",
@@ -1032,15 +1059,23 @@ function buildRuntime(frontierSize = 16) {
   // The historic coordinate catalogue is not assigned invented event dates.
   const fullHistory = loadMlTraceEvents(Number.MAX_SAFE_INTEGER);
   const historicalIndex = buildHistoricalRareIndex(points, fullHistory.events, Date.now());
-  const scratchBackfill = backfillScratchHistory(loadScratchLedger(), fullHistory.events, Date.now());
+  const scratchBackfill = backfillScratchHistory(
+    loadScratchLedger(),
+    fullHistory.events,
+    Date.now(),
+  );
   const scratches = scratchBackfill.ledger;
   const scratchSummary = summarizeScratchLedger(scratches, scratchBackfill.imported);
   const scratchTop = Object.keys(scratches.fronts)
     .map((minute) => evidenceForScratchFront(scratches, Number(minute)))
     .filter((x) => x.high_scratch_days > 0)
-    .sort((a, b) => b.interest_score - a.interest_score ||
-      b.very_interesting_days - a.very_interesting_days ||
-      b.max_scratch_count - a.max_scratch_count || a.front_minute - b.front_minute)
+    .sort(
+      (a, b) =>
+        b.interest_score - a.interest_score ||
+        b.very_interesting_days - a.very_interesting_days ||
+        b.max_scratch_count - a.max_scratch_count ||
+        a.front_minute - b.front_minute,
+    )
     .slice(0, 30);
   const candidates = candidateFrontier(
     ledger,

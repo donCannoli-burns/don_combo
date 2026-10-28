@@ -1,4 +1,11 @@
-import { appendBufferToFile, bufferToFile, fileToBuffer, getProperty, myId, turnsPlayed } from "kolmafia";
+import {
+  appendBufferToFile,
+  bufferToFile,
+  fileToBuffer,
+  getProperty,
+  myId,
+  turnsPlayed,
+} from "kolmafia";
 
 import type { ObservationEntry, ObservationLedger } from "./contracts";
 import {
@@ -8,8 +15,13 @@ import {
   tileKey,
   type TileRecoveryLedger,
 } from "./recovery";
+import {
+  addScratchVisit,
+  emptyScratchLedger,
+  SCRATCH_LEDGER_SCHEMA,
+  type ScratchLedger,
+} from "./scratch-interest";
 import type { ShadowRunContext } from "./shadow-learning";
-import { addScratchVisit, emptyScratchLedger, SCRATCH_LEDGER_SCHEMA, type ScratchLedger } from "./scratch-interest";
 
 export type BeachOutcome =
   | "whale"
@@ -81,8 +93,13 @@ export function loadScratchLedger(): ScratchLedger {
     const raw = String(fileToBuffer(SCRATCH_FILE) || "").trim();
     if (!raw) return emptyScratchLedger(player);
     const parsed = JSON.parse(raw) as ScratchLedger;
-    if (parsed.schema !== SCRATCH_LEDGER_SCHEMA || parsed.player_id !== player ||
-        !parsed.fronts || typeof parsed.fronts !== "object") return emptyScratchLedger(player);
+    if (
+      parsed.schema !== SCRATCH_LEDGER_SCHEMA ||
+      parsed.player_id !== player ||
+      !parsed.fronts ||
+      typeof parsed.fronts !== "object"
+    )
+      return emptyScratchLedger(player);
     return parsed;
   } catch {
     return emptyScratchLedger(player);

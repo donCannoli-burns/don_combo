@@ -22,6 +22,7 @@ import {
   type ScratchLedger,
 } from "./scratch-interest";
 import type { ShadowRunContext } from "./shadow-learning";
+import { poolForItem } from "./two-pool-cooldown";
 import { recordPoolLabels, type PoolObservation } from "./two-pool-cooldown";
 
 export type BeachOutcome =
@@ -40,6 +41,7 @@ export interface BeachObservationDetail {
   items?: Record<string, number>;
   meat?: number;
   pre_action_prediction?: Record<string, unknown> | null;
+  pre_action_observed_at?: string;
   run_context?: ShadowRunContext | null;
 }
 
@@ -47,6 +49,7 @@ export interface MlTraceEvent {
   schema: "don-combo-ml-event/v0.1";
   event_id: string;
   observed_at: string;
+  pre_action_observed_at?: string;
   turn: number;
   minute: number;
   outcome: BeachOutcome;
@@ -71,22 +74,7 @@ const LEDGER_FILE = "don_combo_matrix_ledger.json";
 const ML_EVENT_FILE = "don_combo_ml_events.jsonl";
 const RECOVERY_FILE = "don_combo_tile_recovery.json";
 const SCRATCH_FILE = "don_combo_scratch_observations.json";
-const NON_RARE_LOOT = new Set([
-  "grain of sand",
-  "sand dollar",
-  "dull fish scale",
-  "rough fish scale",
-  "lucky rabbitfish fin",
-  "spearfish fishing spear",
-  "waders",
-  "pristine fish scale",
-  "piece of coral",
-  "sea avocado",
-  "sea cucumber",
-  "cyan seashell",
-  "kelp",
-  "bunch of sea grapes",
-]);
+
 // The live scratch ledger is player-scoped. Legacy unbound ML events are kept
 // separately by the read-only historical backfill and never rewritten here.
 export function loadScratchLedger(): ScratchLedger {
@@ -146,8 +134,12 @@ function captureTileRecovery(
   if (!matches.length) return;
   const ledger = loadTileRecoveryLedger();
   const actual = detail.actual_comb;
+  // Only explicitly classified rare reward deltas may mark a known tile as
+  // harvested for cooldown calculations. Many ordinary beach items were not
+  // included in the old generic exclusion list, causing false harvests.
+  // Unclassified deltas are still preserved in the immutable ML event log.
   const positiveItems = Object.entries(detail.items || {})
-    .filter(([name, quantity]) => quantity > 0 && !NON_RARE_LOOT.has(name.toLowerCase()))
+    .filter(([name, quantity]) => quantity > 0 && poolForItem(name, quantity) !== null)
     .sort(([a], [b]) => a.localeCompare(b));
   const twinkleVision = getProperty("hasTwinkleVision") === "true";
   for (const tile of matches) {
@@ -315,6 +307,7 @@ export function recordBeachObservation(
       actual ? `${actual.row}-${actual.column}` : "na"
     }`,
     observed_at: now.toISOString(),
+    pre_action_observed_at: detail.pre_action_observed_at || undefined,
     turn: turnsPlayed(),
     minute,
     outcome,
@@ -336,7 +329,7 @@ export function recordBeachObservation(
   }
   appendBufferToFile(`${JSON.stringify(event)}\n`, ML_EVENT_FILE);
   try {
-    recordScratchObservation(minute, layout, now.toISOString());
+    recordScratchObservation(minute, layout, detail.pre_action_observed_at || now.toISOString());
   } catch {
     // Scratch evidence is supplemental; original ML event log is a durable
     // backfill source, and errors cannot cause duplicate beach actions.

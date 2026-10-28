@@ -89,6 +89,7 @@ export interface CandidateEvidence {
   historical_rare: import("./historical-rares").HistoricalRareTileEvidence | null;
   scratch_interest: import("./scratch-interest").ScratchEvidence;
   historical_rare_curve: import("./two-pool-cooldown").HistoricalRareCurve;
+  pool_timescales: import("./pool-timescales").PoolTimeScaleSummary | null;
   pool_cooldown: import("./two-pool-cooldown").PoolCooldownEvidence;
   pool_front_observations: Record<import("./two-pool-cooldown").PoolKind, number>;
   observed_symbol_rates: Record<string, number>;

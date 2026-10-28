@@ -139,6 +139,8 @@
 <p class="muted">Pool 1: sand castles (sighted), beached whales (sighted/combed), rainbow pearls (item drop). Pool 2: driftwood, cursed pirate equipment and meteorite fragments (positive item deltas). Three rarity tiers are a proposed ordering, NOT measured cooldown rules. Repeated same-coordinate rewards provide elapsed/censored intervals, not exact respawn times.</p>
 <div id="mlPoolStats" class="evidence"></div>
 <div id="mlHistoricalCurve" class="mltable muted" style="margin:10px 0">No dated repeat rare observations yet.</div>
+<div class="eyebrow" style="margin-top:8px">Three proposed reward timescales · chronology, not fitted cooldown peaks</div>
+<div id="mlThreeTimescales" class="mltable muted">Not enough dated category observations to estimate peaks.</div>
 <div id="mlPoolTable" class="mltable muted">No pool observations yet.</div>
 </article>
 <div class="papergrid">
@@ -349,6 +351,20 @@ function renderMlLab(){
  var obs=R.observations||{},scratch=obs.scratch_summary||{},hot=obs.scratch_top_fronts||[];
  var pools=obs.two_pool_cooldown_summary||{},poolRecent=obs.two_pool_observations_tail||[];
  var rareCurve=obs.historical_rare_curve||{},rareBins=rareCurve.bins||[];
+ var timeScale=obs.pool_timescales||{},peakLanes=timeScale.tier_hypotheses||[];
+ document.getElementById("mlThreeTimescales").innerHTML=
+   "<p>Short / middle / long are category-order hypotheses. Cross-coordinate inter-reward observation gaps are logged separately from same-tile recovery; a move is not proof of an opportunity transfer. A two-year gap is kept distinct from a two-week gap.</p>"+
+   "<p class='muted'>"+Number(timeScale.distinct_reward_events||0)+" distinct reward events · "+
+   Number(timeScale.collapsed_simultaneous_gear_items||0)+" simultaneous gear items collapsed · "+
+   Number(timeScale.cross_coordinate_intervals||0)+" cross-coordinate category gaps · "+
+   Number(timeScale.same_coordinate_intervals||0)+" same-coordinate category gaps</p>"+
+   "<table><thead><tr><th>Pool</th><th>Proposed peak</th><th>Tier</th><th>Rewards</th><th>Category gaps</th><th>Observed median gap</th><th>Observed modal band</th><th>Status</th></tr></thead><tbody>"+
+   peakLanes.map(function(x){return"<tr><td>"+esc(x.pool)+"</td><td>"+esc(x.conceptual_peak)+"</td><td>"+esc(x.tier)+"</td><td>"+
+     Number(x.event_count||0)+"</td><td>"+Number(x.category_interval_count||0)+"</td><td>"+
+     (x.median_observed_gap_days==null?"—":Number(x.median_observed_gap_days).toFixed(2)+" d")+"</td><td>"+
+     esc(x.modal_gap_bucket||"unmeasured")+"</td><td>"+esc(x.peak_status||"unknown")+
+     "</td></tr>"}).join("")+"</tbody></table>"+
+   "<p class='muted'>All intervals are between our observed category rewards, not hidden spawn times. Sightings of castles/whales are retained but excluded from item-reward timing; a combed whale action has separate provenance. No fitted probability or enforced three-peak distribution.</p>";
  document.getElementById("mlHistoricalCurve").innerHTML=
    "<p><b>Historical known-rare baseline:</b> "+Number(rareCurve.known_rare_coordinates||0).toLocaleString()+
    " catalogued coordinates · "+Number(rareCurve.exact_rare_target_attempts||0).toLocaleString()+

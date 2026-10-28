@@ -154,6 +154,7 @@ function _comb(tile: BeachTile): void {
   if (!cliExecute(`beach wander ${minute};`))
     throw new Error(`Could not visit beach minute ${minute}; route stopped.`);
   const layoutString = property.getString("_beachLayout");
+  const preActionObservedAt = new Date().toISOString();
   print(`DON_COMBO_OBSERVATION minute=${minute} layout=${layoutString}`, "gray");
 
   // Mafia's _beachLayout property generates strings that look like
@@ -184,6 +185,7 @@ function _comb(tile: BeachTile): void {
       items: delta.items,
       meat: delta.meat,
       pre_action_prediction: preActionPrediction,
+      pre_action_observed_at: preActionObservedAt,
       run_context: activeShadowRun,
     });
   };

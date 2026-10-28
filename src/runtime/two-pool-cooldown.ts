@@ -159,7 +159,7 @@ export function buildPoolCooldownIndex(
   // file order and prevents an older event overwriting a more recent reward.
   const ordered = events.filter(e => {
     if (!Number.isFinite(Date.parse(e.observed_at)) || Date.parse(e.observed_at)>nowMs) return false;
-    return e.run_context?.player_id == null || e.run_context.player_id===playerId;
+    return (e.run_context?.player_id === null || e.run_context?.player_id === undefined || e.run_context?.player_id === playerId);
   }).slice().sort((a,b)=>Date.parse(a.observed_at)-Date.parse(b.observed_at));
   const enrich = (e:PoolTraceEvent, c:string|null, signal:PoolSignal, state:"combed"|"twinkle"|"unknown") => {
     const o:PoolObservation={
@@ -192,13 +192,13 @@ export function buildPoolCooldownIndex(
       const previous=prior.get(c);
       if(previous && timestamp>previous.when){
         const checked=lastCombed.get(c);
-        const afterPrevious=checked != null && checked>=previous.when && checked<timestamp ? checked : null;
+        const afterPrevious=checked !== undefined && checked>=previous.when && checked<timestamp ? checked : null;
         const interval:PoolCooldownInterval={
           coordinate:c,pool:signal.pool,rewarded_kind:signal.kind,rewarded_tier:signal.tier,
           previous_reward_at:new Date(previous.when).toISOString(),
           new_reward_at:new Date(timestamp).toISOString(),
-          last_known_combed_at:afterPrevious==null?null:new Date(afterPrevious).toISOString(),
-          lower_days:afterPrevious==null?0:(afterPrevious-previous.when)/86400000,
+          last_known_combed_at:afterPrevious===null?null:new Date(afterPrevious).toISOString(),
+          lower_days:afterPrevious===null?0:(afterPrevious-previous.when)/86400000,
           upper_days:(timestamp-previous.when)/86400000,
           semantics:"CENSORED_BETWEEN_SAME_COORDINATE_REWARD_EVENTS_NOT_PROVEN_RESPAWN_TIME",
         };
@@ -333,7 +333,7 @@ export function buildHistoricalRareCurve(
   const eligible=events.filter(e=>{
     const t=Date.parse(e.observed_at);
     return Number.isFinite(t)&&t<=nowMs &&
-      (e.run_context?.player_id==null || e.run_context.player_id===playerId);
+      ((e.run_context?.player_id === null || e.run_context?.player_id === undefined || e.run_context?.player_id === playerId));
   }).slice().sort((a,b)=>Date.parse(a.observed_at)-Date.parse(b.observed_at));
   const seen=new Set<string>(), previous=new Map<string,number>();
   const attempted=new Set<string>();

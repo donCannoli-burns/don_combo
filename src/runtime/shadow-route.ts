@@ -114,6 +114,8 @@ export function compileShadowTop11(
   usedFree: number,
   nowEpoch: number,
 ): RouteTile[] {
+  if (!Number.isInteger(usedFree) || usedFree < 0 || usedFree >= 11)
+    throw new Error("No unused free beach combs remain.");
   return compileWaterSheepRoute(
     snapshot,
     corpus,
@@ -122,7 +124,7 @@ export function compileShadowTop11(
     gameday,
     usedFree,
     nowEpoch,
-    Math.max(0, 11 - usedFree),
+    11 - usedFree,
     true,
   );
 }

@@ -899,6 +899,8 @@ function buildRunControl() {
     schema: "don-combo-run-control/v0.1",
     requested_combs: requestedCombs,
     completed_combs: completedCombs,
+    route_mode: getProperty("don_combo_last_run_route_mode") || "combo-default",
+    paid_combs_observed: n(getProperty("don_combo_last_run_paid_combs")),
     status,
     end_reason: endReason,
     running,

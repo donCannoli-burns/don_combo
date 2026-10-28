@@ -24,7 +24,7 @@
 </style>
 </head>
 <body>
-<header class="top"><div class="topin"><div class="brand"><b>don_combo · Shadow Route Lab</b><span>dense memory · sparse inference · no model authority</span></div><nav class="nav"><a href="#overview">Overview</a><a href="#matrix">Atlas</a><a href="#candidates">Candidates</a><a href="#evidence">Evidence</a><a href="#ml-lab">ML Lab</a><a href="#packet">Agent packet</a><a href="#runtime">Runtime</a></nav><div><span id="status" class="status">loading</span> <button id="interruptCombo" class="btn interrupt" title="Ask a running Combo invocation to stop after its current comb">Interrupt after current comb</button> <button id="exportSnapshot" class="btn">Export HTML snapshot</button> <button class="btn" onclick="location.reload()">Refresh</button></div></div></header>
+<header class="top"><div class="topin"><div class="brand"><b>don_combo · Shadow Route Lab</b><span>dense memory · sparse inference · no model authority</span></div><nav class="nav"><a href="#overview">Overview</a><a href="#matrix">Atlas</a><a href="#candidates">Candidates</a><a href="#shadow11">Free route</a><a href="#evidence">Evidence</a><a href="#ml-lab">ML Lab</a><a href="#packet">Agent packet</a><a href="#runtime">Runtime</a></nav><div><span id="status" class="status">loading</span> <button id="interruptCombo" class="btn interrupt" title="Ask a running Combo invocation to stop after its current comb">Interrupt after current comb</button> <button id="exportSnapshot" class="btn">Export HTML snapshot</button> <button class="btn" onclick="location.reload()">Refresh</button></div></div></header>
 
 <main class="shell">
 <section id="overview" class="hero">
@@ -104,6 +104,19 @@
 <section id="candidates" class="section" data-role="decision">
 <div class="sectionhead"><div><div class="eyebrow">Decision / inspect, do not execute</div><h2>Candidate frontier · exact scoring cross-index</h2></div><p>Current scoring pool with both model-only and final model+policy rank. Human source labels remain withheld from WaterSheep.</p></div>
 <article class="card"><div id="candidateTable" class="muted">No runtime snapshot.</div></article>
+</section>
+
+<section id="shadow11" class="section" data-role="human-route-control">
+<div class="sectionhead"><div><div class="eyebrow">Human confirmation / deterministic execution</div><h2>WaterSheep top 11 · free-only route</h2></div><p>The shadow ranking is frozen before execution. Each candidate resolves to an accessible known rare tile. No paid combs, no re-ranking mid-run. Scores are not validated rare-spawn probabilities.</p></div>
+<article class="card">
+  <p id="shadow11Info" class="muted">Awaiting a local WaterSheep snapshot.</p>
+  <form id="shadow11ReviewForm" method="POST" action="relay_DonComboRunTop11.ash" target="_blank">
+    <input type="hidden" name="action" value="preview">
+    <button id="reviewShadow11" class="btn" type="submit" disabled>Review top 11 and run free Combo</button>
+  </form>
+  <div id="shadow11Table" class="scrollTable" style="margin-top:12px">No executable ranking yet.</div>
+  <p class="muted">Click Review for a second confirmation in a new tab. If fewer than 11 free combs remain, the route uses only the remaining free allotment. The normal Combo CLI route is unchanged.</p>
+</article>
 </section>
 
 <section id="evidence" class="section">
@@ -273,7 +286,7 @@ function selectCandidate(i,addressOverride){
  selected=i;var c=(R.candidates||[])[i];if(!c)return;draw();
  document.querySelectorAll(".candidate").forEach(function(row){row.classList.toggle("sel",Number(row.getAttribute("data-i"))===i)});
  var e=c.evidence||{},rates=e.observed_symbol_rates||{},outcomes=e.observed_outcome_rates||{};
- document.getElementById("factEvidence").innerHTML=evItem("beach minute",c.minute)+evItem("Hilbert bucket / 256",e.hilbert_bucket_256)+evItem("layout snapshots",e.layout_snapshots)+evItem("session events",e.session_events||0)+evItem("total observations",e.observation_count||0)+evItem("last seen age hours",e.last_seen_age_hours==null?"never":e.last_seen_age_hours)+evItem("distance from current",e.distance_from_current==null?"unknown":e.distance_from_current)+evItem("sand / event",Number(e.sand_per_event||0).toFixed(2))+evItem("observed whale rate",Number(rates.whale||0).toFixed(4))+evItem("observed twinkle rate",Number(rates.twinkle||0).toFixed(4));
+ document.getElementById("factEvidence").innerHTML=evItem("beach minute",c.minute)+evItem("Hilbert bucket / 256",e.hilbert_bucket_256)+evItem("layout snapshots",e.layout_snapshots)+evItem("session events",e.session_events||0)+evItem("total observations",e.observation_count||0)+evItem("last seen age hours",e.last_seen_age_hours==null?"never":e.last_seen_age_hours)+evItem("recovery · days after loot",e.cooldown&&e.cooldown.days_since_harvest!=null?e.cooldown.days_since_harvest:"unknown")+evItem("recovery · state",e.cooldown?e.cooldown.last_state:"unknown")+evItem("recovery · observations",e.cooldown?e.cooldown.observations:0)+evItem("recovery · loot-inferred finds",e.cooldown?e.cooldown.harvests:0)+evItem("recovery · revisit signal",e.cooldown&&e.cooldown.revisit_signal!=null?Number(e.cooldown.revisit_signal).toFixed(3)+" (12d heuristic, not %)":"unknown")+evItem("recovery · intervals",e.cooldown?e.cooldown.completed_intervals:0)+evItem("distance from current",e.distance_from_current==null?"unknown":e.distance_from_current)+evItem("sand / event",Number(e.sand_per_event||0).toFixed(2))+evItem("observed whale rate",Number(rates.whale||0).toFixed(4))+evItem("observed twinkle rate",Number(rates.twinkle||0).toFixed(4));
  var ws=c.watersheep||{};document.getElementById("modelEvidence").innerHTML=scoreBars(ws.score_mass)+"<p class='muted'>Calibration: <code>"+esc(ws.calibration||"—")+"</code>. These are relative score masses, not validated KoL probabilities.</p>";
  var u=c.utility_components||{};document.getElementById("policyEvidence").innerHTML=evItem("human source (withheld)",c.source)+evItem("total utility",c.utility==null?"—":Number(c.utility).toFixed(4))+evItem("model component",u.model==null?"—":u.model)+evItem("exploration bonus",u.exploration==null?"—":u.exploration)+evItem("observed adjustment",u.observed==null?"—":u.observed)+evItem("rare-target rate (policy only)",Number(outcomes.rare_target||0).toFixed(4))+evItem("rough-fallback rate (policy only)",Number(outcomes.rough_fallback||0).toFixed(4))+evItem("twinkle-fallback rate (policy only)",Number(outcomes.twinkle_fallback||0).toFixed(4));
  var p=c.representative||{},a=addressOverride||{x:p.x,y:p.y,d:p.d,tile:tileOf(p.d),bucket:bucketOfD(p.d)};atlasAddress=a;document.getElementById("atlasBucketReadout").textContent=focusedBucket==null?("all · selected "+a.bucket):focusedBucket+" / 256";document.getElementById("tileInfo").textContent="selected beach "+c.minute+" → d="+a.d+" → bucket "+a.bucket+" → matrix ("+a.x+","+a.y+")";renderAtlasAll(a);draw();
@@ -328,6 +341,35 @@ function buildPacket(){
  var obj={schema:"don-combo-shadow-comparison/v0.6",generated_at:R.generated_at,authority:"none",comparison:cmp,selected_candidate:c,receipt:R.receipt||null,run_control:R.run_control||null,baseline_verification:parity,ml_lab_summary:R.ml_lab?{schema:R.ml_lab.schema,trace_enabled:R.ml_lab.trace_enabled,events_total:R.ml_lab.events_total,predicted_events:R.ml_lab.predicted_events,snapshots_in_artifact:R.ml_lab.snapshots_in_artifact}:null,boundaries:{facts:"KoLmafia local prefs + Combo rare corpus + local observation ledger",model:"WaterSheep scores from model-safe weak evidence; known rare annotations, source labels, baseline membership, Combo route, and Combo-derived outcome labels are withheld",policy:"fixed utility weights outside model",execution:"none"},provenance:{runtime_schema:R.schema,design_reference:(R.ui||{}).design_reference}};
  document.getElementById("packetText").textContent=JSON.stringify(obj,null,2)
 }
+function renderShadowRoute(){
+ var cands=(R&&R.candidates)||[],combo=(R&&R.combo)||{},remaining=Number(combo.free_beach_combs_remaining||0);
+ var n=Math.min(11,remaining),selection=cands.slice(0,n);
+ var stamped=R?Date.parse(R.generated_at):NaN;
+ var fresh=Number.isFinite(stamped)&&Date.now()-stamped>=-30000&&Date.now()-stamped<=1200000;
+ var p=params(),valid=!!R&&R.watersheep&&R.watersheep.status==="ready"&&
+    p.player===R.player_id&&p.gameday===R.gameday&&fresh&&
+    n>0&&selection.length===n&&selection.every(function(c){
+      return c&&c.watersheep&&Number.isFinite(c.utility)&&c.representative&&
+        (R.known_rare_points||[]).some(function(t){
+          return t.minute===c.minute&&t.minute===c.representative.minute&&
+            t.row===c.representative.row&&t.column===c.representative.column&&!t.false_rare;
+        });
+    });
+ var btn=document.getElementById("reviewShadow11");btn.disabled=!valid;
+ document.getElementById("shadow11Info").textContent=valid
+  ?"Ready: "+n+" ranked fronts; "+remaining+" free beach combs remaining today. Refresh to update the 20-minute snapshot."
+  :"Unavailable: requires a fresh same-player/day WaterSheep READY snapshot, tide-accessible rare coordinates, and unused free combs.";
+ document.getElementById("shadow11Table").innerHTML=selection.length
+ ?"<table><thead><tr><th>Rank</th><th>Front</th><th>Rare tile</th><th>Model score mass</th><th>Final utility</th><th>Last state</th><th>Days since rare loot</th><th>Revisit signal</th></tr></thead><tbody>"+
+ selection.map(function(c,i){var t=c.representative||{},e=c.evidence||{},h=e.cooldown||{};
+   return "<tr><td class='rank'>"+(i+1)+"</td><td>"+c.minute+"</td><td>"+
+     t.row+","+t.column+"</td><td>"+scoreBars(c.watersheep&&c.watersheep.score_mass)+
+     "</td><td class='mono'>"+Number(c.utility||0).toFixed(4)+"</td><td>"+esc(h.last_state||"unknown")+
+     "</td><td>"+(h.days_since_harvest==null?"—":h.days_since_harvest)+
+     "</td><td>"+(h.revisit_signal==null?"unknown":Number(h.revisit_signal).toFixed(3)+" · heuristic")+
+     "</td></tr>";
+ }).join("")+"</tbody></table>":"No ranked route.";
+}
 function render(){
  var st=document.getElementById("status");if(!R){st.textContent="NO RUNTIME";st.className="status warn";return}
  var ws=R.watersheep||{},combo=R.combo||{},obs=R.observations||{},cands=R.candidates||[],cmp=R.comparison||{},receipt=R.receipt||{},run=R.run_control||{};baseline=comboBaseline();
@@ -339,6 +381,7 @@ function render(){
  document.getElementById("agreement").innerHTML=bridge==null?"Comparison waiting for baseline context.":cmp.agreement?"<span class='fact'>AGREEMENT · Combo baseline ranked #1 in the blinded pool</span>":"<span class='model'>DISAGREEMENT · Combo baseline ranked #"+cmp.baseline_rank+" of "+cmp.pool_size+"</span>";
  document.getElementById("readiness").innerHTML="<div class='mini'><b class='"+(cmp.evidence_maturity==="COLD_START"?"policy":"fact")+"'>"+esc(cmp.evidence_maturity||"—")+"</b><span>evidence maturity</span></div><div class='mini'><b>"+(cmp.top_vs_second_margin==null?"—":Number(cmp.top_vs_second_margin).toFixed(4))+"</b><span>top vs #2 margin</span></div><div class='mini'><b>"+esc(cmp.ranking_separation||"—")+"</b><span>ranking separation · not confidence</span></div>";
  var m=R.matrix||{},tail=obs.session_tail||{};document.getElementById("stats").innerHTML=evItem("real tile cells",Number(m.real_tile_cells||0).toLocaleString())+evItem("known rare records",Number(combo.rare_tile_records||0).toLocaleString())+evItem("observed fronts",Number(obs.fronts_recorded||0).toLocaleString())+evItem("session events +last poll",Number(tail.events_added||0))+evItem("pool members",cands.length)+evItem("observed pool members",Number(cmp.observed_candidates||0))+evItem("baseline rank",cmp.baseline_rank==null?"—":cmp.baseline_rank+"/"+cmp.pool_size)+evItem("session cursor bytes",Number(tail.offset||0).toLocaleString());
+ renderShadowRoute();
  var mr=modelRankMap();document.getElementById("candidateTable").innerHTML=cands.length?"<table><thead><tr><th>Policy rank</th><th>Model rank</th><th>Front</th><th>Bucket</th><th>Human source</th><th>Model utility</th><th>Final utility</th><th>FACT evidence</th><th>MODEL score mass</th></tr></thead><tbody>"+cands.map(function(c,i){var e=c.evidence||{},u=c.utility_components||{},tag=c.is_combo_baseline?" <span class='fact'>BLINDED BASELINE</span>":"";return"<tr class='candidate' data-i='"+i+"'><td class='rank'>"+(i+1)+"</td><td class='rank'>"+mr[i]+"</td><td><b>"+c.minute+"</b>"+tag+"</td><td class='mono'>"+e.hilbert_bucket_256+"</td><td><span class='source'>"+esc(c.source)+"</span></td><td class='mono'>"+Number(u.model||0).toFixed(4)+"</td><td class='mono'>"+(c.utility==null?"—":Number(c.utility).toFixed(4))+"</td><td class='muted'>layouts "+(e.layout_snapshots||0)+" · events "+(e.session_events||0)+"<br>age "+(e.last_seen_age_hours==null?"never":e.last_seen_age_hours+"h")+"</td><td>"+scoreBars(c.watersheep&&c.watersheep.score_mass)+"</td></tr>"}).join("")+"</tbody></table>":"No candidates.";
  document.querySelectorAll(".candidate").forEach(function(row){row.addEventListener("click",function(){selectCandidate(Number(row.getAttribute("data-i")))})});
  var ui=R.ui||{},ref=ui.design_reference||{},rep=ui.representation_reference||{},hRef=ui.hilbert_ui_reference||{},browser=comboBaseline(),parity=(browser&&bridge)?(browser.tile.minute===bridge.minute&&browser.tile.row===bridge.row&&browser.tile.column===bridge.column):null;
@@ -373,6 +416,7 @@ function exportHtmlSnapshot(){
    cloneCanvas.parentNode.replaceChild(image,cloneCanvas)
  }
  clone.querySelectorAll("script").forEach(function(node){node.parentNode.removeChild(node)});
+ clone.querySelectorAll("form").forEach(function(form){form.removeAttribute("action");form.removeAttribute("method");form.removeAttribute("target")});
  clone.querySelectorAll("button").forEach(function(button){
    button.removeAttribute("onclick");button.setAttribute("disabled","disabled");
    button.setAttribute("title","Static snapshot: controls disabled")

@@ -1461,8 +1461,183 @@ var Session = /*#__PURE__*/function () {
 
 var WATERSHEEP_EVIDENCE_CONTRACT = "don-combo-watersheep-evidence/v1";
 
+/* eslint-disable eqeqeq */
+// Evidence is per coordinate, not per beachfront. Unknown is not a successful harvest.
+
+function tileKey(minute, row, column) {
+  return "".concat(minute, ",").concat(row, ",").concat(column);
+}
+function emptyTileRecovery() {
+  return {
+    observations: 0,
+    harvests: 0,
+    last_seen_epoch: null,
+    last_state: "unknown",
+    last_combed_epoch: null,
+    last_harvest_epoch: null,
+    last_harvest_item: null,
+    last_harvest_provenance: null,
+    last_available_epoch: null,
+    recovery_intervals: []
+  };
+}
+function emptyRecoveryLedger() {
+  return {
+    schema: "don-combo-tile-recovery/v0.1",
+    tiles: {},
+    updated_at: null
+  };
+}
+// KoLmafia's _beachLayout is pre-action. An 'r' without TwinkleVision
+// is ambiguous: do not call it a confirmed rare or a confirmed cooldown.
+function stateAt(layout, row, column, twinkleVision) {
+  if (!Number.isInteger(row) || row < 1 || row > 10 || !Number.isInteger(column) || column < 0 || column > 9) return "unknown";
+  var _iterator = _createForOfIteratorHelper(layout.split(",")),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var part = _step.value;
+      var colon = part.indexOf(":");
+      if (colon < 0 || Number(part.slice(0, colon)) !== row) continue;
+      var symbol = part.slice(colon + 1).charAt(column);
+      if (symbol === "c") return "combed";
+      if (symbol === "t") return "twinkle";
+      if (symbol === "W") return "whale";
+      if (symbol === "r" && twinkleVision) return "rough";
+      return "unknown";
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  return "unknown";
+}
+function observeTile(existing, atEpoch, state, harvestedItem) {
+  var entry = existing ? _objectSpread2(_objectSpread2({}, existing), {}, {
+    recovery_intervals: (existing.recovery_intervals || []).slice(-40)
+  }) : emptyTileRecovery();
+  if (!Number.isFinite(atEpoch) || atEpoch <= 0) return entry;
+  // Do not overwrite a newer observation with an older, imported one.
+  if (entry.last_seen_epoch != null && atEpoch < entry.last_seen_epoch) return entry;
+  var previousCombed = entry.last_combed_epoch;
+  var previousHarvest = entry.last_harvest_epoch;
+  entry.observations++;
+  entry.last_seen_epoch = atEpoch;
+  entry.last_state = state;
+  if (state === "combed") entry.last_combed_epoch = atEpoch;
+  if (state === "twinkle") {
+    entry.last_available_epoch = atEpoch;
+    if (previousHarvest != null && previousCombed != null && previousCombed >= previousHarvest && atEpoch > previousCombed) {
+      var last = entry.recovery_intervals[entry.recovery_intervals.length - 1];
+      // Record one interval per harvest, rather than recounting every twinkle.
+      if (!last || last.first_available_epoch < previousHarvest) {
+        entry.recovery_intervals.push({
+          last_combed_epoch: previousCombed,
+          first_available_epoch: atEpoch,
+          lower_days: Math.max(0, (previousCombed - previousHarvest) / 86400),
+          upper_days: (atEpoch - previousHarvest) / 86400
+        });
+      }
+    }
+  }
+  if (harvestedItem) {
+    entry.harvests++;
+    entry.last_harvest_epoch = atEpoch;
+    entry.last_harvest_item = harvestedItem;
+    entry.last_harvest_provenance = "loot-inferred";
+    // A verified positive item delta is stronger than a 'rare_target' attempt,
+    // but not an independently game-verified spawn timestamp.
+    entry.last_combed_epoch = atEpoch;
+    entry.last_state = "combed";
+  }
+  entry.recovery_intervals = entry.recovery_intervals.slice(-40);
+  return entry;
+}
+function recoveryFeatures(entry, nowEpoch) {
+  var age = epoch => epoch == null || epoch > nowEpoch ? null : Math.round((nowEpoch - epoch) / 8640) / 10;
+  var days = entry ? age(entry.last_harvest_epoch) : null;
+  var intervals = (entry === null || entry === void 0 ? void 0 : entry.recovery_intervals) || [];
+  var lastInterval = intervals.length ? intervals[intervals.length - 1] : null;
+  var observedRespawn = !!(entry !== null && entry !== void 0 && entry.last_harvest_epoch) && !!lastInterval && lastInterval.first_available_epoch >= entry.last_harvest_epoch;
+  var stillCombed = !!(entry !== null && entry !== void 0 && entry.last_harvest_epoch) && !!entry.last_combed_epoch && entry.last_combed_epoch >= entry.last_harvest_epoch && entry.last_state === "combed";
+  return {
+    observations: (entry === null || entry === void 0 ? void 0 : entry.observations) || 0,
+    harvests: (entry === null || entry === void 0 ? void 0 : entry.harvests) || 0,
+    last_state: (entry === null || entry === void 0 ? void 0 : entry.last_state) || "unknown",
+    days_since_harvest: days,
+    days_since_observed: entry ? age(entry.last_seen_epoch) : null,
+    last_harvest_item: (entry === null || entry === void 0 ? void 0 : entry.last_harvest_item) || null,
+    harvest_evidence: (entry === null || entry === void 0 ? void 0 : entry.last_harvest_provenance) || "unknown",
+    still_combed_after_harvest: stillCombed,
+    respawn_observed_after_harvest: observedRespawn,
+    completed_intervals: intervals.length,
+    cooldown_lower_days: (lastInterval === null || lastInterval === void 0 ? void 0 : lastInterval.lower_days) ?? null,
+    cooldown_upper_days: (lastInterval === null || lastInterval === void 0 ? void 0 : lastInterval.upper_days) ?? null,
+    // Explicitly a policy heuristic, NOT a fitted chance of respawn.
+    revisit_signal: days == null ? null : Math.min(1, Math.max(0, days / 12)),
+    revisit_signal_kind: days == null ? "UNKNOWN" : "12_DAY_EXPLORATION_HEURISTIC_NOT_PROBABILITY"
+  };
+}
+
 var LEDGER_FILE = "don_combo_matrix_ledger.json";
 var ML_EVENT_FILE = "don_combo_ml_events.jsonl";
+var RECOVERY_FILE = "don_combo_tile_recovery.json";
+var NON_RARE_LOOT = new Set(["grain of sand", "sand dollar", "dull fish scale", "rough fish scale", "lucky rabbitfish fin", "spearfish fishing spear", "waders", "pristine fish scale", "piece of coral", "sea avocado", "sea cucumber", "cyan seashell", "kelp", "bunch of sea grapes"]);
+function loadTileRecoveryLedger() {
+  try {
+    var raw = String(kolmafia.fileToBuffer(RECOVERY_FILE) || "").trim();
+    if (!raw) return emptyRecoveryLedger();
+    var parsed = JSON.parse(raw);
+    if (parsed.schema !== "don-combo-tile-recovery/v0.1" || !parsed.tiles || typeof parsed.tiles !== "object") return emptyRecoveryLedger();
+    return parsed;
+  } catch (_unused) {
+    return emptyRecoveryLedger();
+  }
+}
+function captureTileRecovery(minute, layout, outcome, detail, atEpoch) {
+  var corpus = JSON.parse(String(kolmafia.fileToBuffer("raretiles.json") || "[]"));
+  var matches = corpus.filter(tile => tile.minute === minute);
+  if (!matches.length) return;
+  var ledger = loadTileRecoveryLedger();
+  var actual = detail.actual_comb;
+  var positiveItems = Object.entries(detail.items || {}).filter(_ref => {
+    var _ref2 = _slicedToArray(_ref, 2),
+      name = _ref2[0],
+      quantity = _ref2[1];
+    return quantity > 0 && !NON_RARE_LOOT.has(name.toLowerCase());
+  }).sort((_ref3, _ref4) => {
+    var _ref5 = _slicedToArray(_ref3, 1),
+      a = _ref5[0];
+    var _ref6 = _slicedToArray(_ref4, 1),
+      b = _ref6[0];
+    return a.localeCompare(b);
+  });
+  var twinkleVision = kolmafia.getProperty("hasTwinkleVision") === "true";
+  var _iterator = _createForOfIteratorHelper(matches),
+    _step;
+  try {
+    var _loop = function _loop() {
+      var tile = _step.value;
+      // A submerged row absent from the layout is not an observation.
+      if (!layout.split(",").some(part => part.startsWith("".concat(tile.row, ":")))) return 1; // continue
+      var key = tileKey(tile.minute, tile.row, tile.column);
+      var selected = !!actual && actual.minute === tile.minute && actual.row === tile.row && actual.column === tile.column;
+      // A rare_target is an ATTEMPT, never sufficient for a harvest event alone.
+      var harvested = selected && outcome === "rare_target" && positiveItems.length > 0 ? positiveItems[0][0] : null;
+      ledger.tiles[key] = observeTile(ledger.tiles[key], atEpoch, stateAt(layout, tile.row, tile.column, twinkleVision), harvested);
+    };
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      if (_loop()) continue;
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  ledger.updated_at = new Date(atEpoch * 1000).toISOString();
+  kolmafia.bufferToFile("".concat(JSON.stringify(ledger), "\n"), RECOVERY_FILE);
+}
 function blankLedger() {
   return {
     schema: "don-combo-observation-ledger/v0.6",
@@ -1480,7 +1655,7 @@ function loadObservationLedger() {
     }
     parsed.schema = "don-combo-observation-ledger/v0.6";
     return parsed;
-  } catch (_unused) {
+  } catch (_unused2) {
     return blankLedger();
   }
 }
@@ -1489,16 +1664,16 @@ function loadMlTraceEvents() {
   var raw;
   try {
     raw = String(kolmafia.fileToBuffer(ML_EVENT_FILE) || "");
-  } catch (_unused2) {
+  } catch (_unused3) {
     raw = "";
   }
   var events = [];
   var total = 0;
-  var _iterator = _createForOfIteratorHelper(raw.split(/\r?\n/)),
-    _step;
+  var _iterator2 = _createForOfIteratorHelper(raw.split(/\r?\n/)),
+    _step2;
   try {
-    for (_iterator.s(); !(_step = _iterator.n()).done;) {
-      var line = _step.value;
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      var line = _step2.value;
       var trimmed = line.trim();
       if (!trimmed) continue;
       try {
@@ -1507,14 +1682,14 @@ function loadMlTraceEvents() {
           total++;
           events.push(parsed);
         }
-      } catch (_unused3) {
+      } catch (_unused4) {
         // Keep a malformed historical line from breaking live Combo.
       }
     }
   } catch (err) {
-    _iterator.e(err);
+    _iterator2.e(err);
   } finally {
-    _iterator.f();
+    _iterator2.f();
   }
   return {
     file: ML_EVENT_FILE,
@@ -1571,32 +1746,32 @@ function countLayout(layout) {
     other: 0,
     visible: 0
   };
-  var _iterator2 = _createForOfIteratorHelper(String(layout || "").split(",")),
-    _step2;
+  var _iterator3 = _createForOfIteratorHelper(String(layout || "").split(",")),
+    _step3;
   try {
-    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
-      var part = _step2.value;
+    for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+      var part = _step3.value;
       var split = part.indexOf(":");
       if (split < 0) continue;
       var symbols = part.substring(split + 1).slice(0, 10);
-      var _iterator3 = _createForOfIteratorHelper(symbols),
-        _step3;
+      var _iterator4 = _createForOfIteratorHelper(symbols),
+        _step4;
       try {
-        for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
-          var symbol = _step3.value;
+        for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+          var symbol = _step4.value;
           counts.visible++;
           if (symbol === "W") counts.whale++;else if (symbol === "t") counts.twinkle++;else if (symbol === "r") counts.rough++;else if (symbol === "c") counts.combed++;else counts.other++;
         }
       } catch (err) {
-        _iterator3.e(err);
+        _iterator4.e(err);
       } finally {
-        _iterator3.f();
+        _iterator4.f();
       }
     }
   } catch (err) {
-    _iterator2.e(err);
+    _iterator3.e(err);
   } finally {
-    _iterator2.f();
+    _iterator3.f();
   }
   return counts;
 }
@@ -1645,6 +1820,11 @@ function recordBeachObservation(minute, layout, outcome) {
     pre_action_prediction: detail.pre_action_prediction || null
   };
   kolmafia.appendBufferToFile("".concat(JSON.stringify(event), "\n"), ML_EVENT_FILE);
+  try {
+    captureTileRecovery(minute, layout, outcome, detail, Math.floor(now.getTime() / 1000));
+  } catch (_unused5) {
+    // Recovery indexing is supplemental; never break the existing Combo path.
+  }
 }
 
 var GRID = 1024;
@@ -1723,7 +1903,7 @@ function outcomeRates(entry) {
   }
   return result;
 }
-function evidenceFor(minute, current, ledger) {
+function evidenceFor(minute, current, ledger, tile, recoveryLedger) {
   var entry = ledger.fronts[String(minute)] || {};
   var layouts = n(entry.layout_snapshots);
   var events = n(entry.session_events);
@@ -1742,6 +1922,7 @@ function evidenceFor(minute, current, ledger) {
     observation_count: layouts + events,
     last_seen_age_hours: seen ? round(Math.max(0, Date.now() / 1000 - seen) / 3600, 3) : null,
     last_seen_turn: entry.last_seen_turn == null ? null : n(entry.last_seen_turn),
+    cooldown: recoveryFeatures(tile && recoveryLedger ? recoveryLedger.tiles[tileKey(tile.minute, tile.row, tile.column)] : undefined, Date.now() / 1000),
     observed_symbol_rates: symbolRates(entry),
     observed_outcome_rates: outcomeRates(entry),
     sand_per_event: events ? round(n((entry.items || {})["grain of sand"]) / events, 4) : 0,
@@ -1767,10 +1948,11 @@ function waterSheepPayload(candidate) {
       layout_snapshots: evidence.layout_snapshots,
       session_events: evidence.session_events,
       last_seen_age_hours: evidence.last_seen_age_hours,
+      tile_recovery: evidence.cooldown,
       observed_symbol_rates: evidence.observed_symbol_rates,
       sand_per_event: evidence.sand_per_event,
       current_layout_if_same_front: candidate.minute === n(kolmafia.getProperty("_beachMinutes")) ? kolmafia.getProperty("_beachLayout") : "not observed",
-      withheld: "known rare annotations, Combo target/order, candidate source labels, baseline membership, and rare count are intentionally withheld"
+      withheld: "Combo target/order, candidate source labels, baseline membership, and rare count are withheld; per-coordinate evidence is advisory, uncalibrated, and not an action"
     },
     questions: {
       tile_class: {
@@ -1806,42 +1988,48 @@ function askWaterSheep(candidate) {
   }
   var total = Object.values(scores).reduce((sum, value) => sum + value, 0);
   if (total <= 0) {
-    var _iterator6 = _createForOfIteratorHelper(LABELS),
-      _step6;
+    var _iterator8 = _createForOfIteratorHelper(LABELS),
+      _step8;
     try {
-      for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
-        var _label = _step6.value;
+      for (_iterator8.s(); !(_step8 = _iterator8.n()).done;) {
+        var _label = _step8.value;
         scores[_label] = n(probabilities[_label]);
       }
     } catch (err) {
-      _iterator6.e(err);
+      _iterator8.e(err);
     } finally {
-      _iterator6.f();
+      _iterator8.f();
     }
     total = Object.values(scores).reduce((sum, value) => sum + value, 0);
   }
   if (total <= 0) throw new Error("WaterSheep returned no tile_class score mass");
-  var _iterator7 = _createForOfIteratorHelper(LABELS),
-    _step7;
+  var _iterator9 = _createForOfIteratorHelper(LABELS),
+    _step9;
   try {
-    for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
-      var _label2 = _step7.value;
+    for (_iterator9.s(); !(_step9 = _iterator9.n()).done;) {
+      var _label2 = _step9.value;
       scores[_label2] = scores[_label2] / total;
     }
   } catch (err) {
-    _iterator7.e(err);
+    _iterator9.e(err);
   } finally {
-    _iterator7.f();
+    _iterator9.f();
   }
   return {
     scores,
     ms: Date.now() - started
   };
 }
-function traceTargetPrediction(minute) {
+function traceTargetPrediction(minute, row, column) {
   var ledger = loadObservationLedger();
   var current = n(kolmafia.getProperty("_beachMinutes"));
-  var evidence = evidenceFor(minute, current, ledger);
+  var recoveryLedger = loadTileRecoveryLedger();
+  var tile = row == null || column == null ? undefined : {
+    minute,
+    row,
+    column
+  };
+  var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger);
   var candidate = {
     minute,
     evidence,
@@ -1862,6 +2050,7 @@ function traceTargetPrediction(minute) {
       layout_snapshots: evidence.layout_snapshots,
       session_events: evidence.session_events,
       last_seen_age_hours: evidence.last_seen_age_hours,
+      tile_recovery: evidence.cooldown,
       observed_symbol_rates: evidence.observed_symbol_rates,
       sand_per_event: evidence.sand_per_event,
       current_layout_if_same_front: minute === current ? kolmafia.getProperty("_beachLayout") : "not observed"
@@ -1881,7 +2070,7 @@ function scoreCandidate(candidate, scores) {
   var outcomes = evidence.observed_outcome_rates;
   var model = LABELS.reduce((sum, label) => sum + n(scores[label]) * WEIGHTS[label], 0);
   var exploration = 0.08 / Math.sqrt(1 + evidence.observation_count);
-  var observed = n(rates.whale) * 0.16 + n(rates.twinkle) * 0.08 - n(rates.combed) * 0.05 + n(outcomes.whale) * 0.16 + n(outcomes.rare_target) * 0.12 + n(outcomes.twinkle_fallback) * 0.08 - n(outcomes.rough_fallback) * 0.02 - n(outcomes.exhausted_fallback) * 0.05;
+  var observed = n(rates.whale) * 0.16 + n(rates.twinkle) * 0.08 - n(rates.combed) * 0.05 + n(outcomes.whale) * 0.16 + n(outcomes.rare_target) * 0.12 + n(outcomes.twinkle_fallback) * 0.08 - n(outcomes.rough_fallback) * 0.02 - n(outcomes.exhausted_fallback) * 0.05 + (evidence.cooldown.revisit_signal ?? 0) * 0.08 - (evidence.cooldown.still_combed_after_harvest && (evidence.cooldown.days_since_observed ?? 999) < 1 ? 0.04 : 0);
   return {
     utility: round(model + exploration + observed),
     components: {
@@ -1890,6 +2079,52 @@ function scoreCandidate(candidate, scores) {
       observed: round(observed)
     }
   };
+}
+
+/* eslint-disable eqeqeq */
+// Pure offline route compiler. The MODEL contributes rankings, never coordinates
+// or direct KoL actions. Only listed, tide-visible corpus tiles can be executed.
+
+function compileShadowTop11(snapshot, corpus, falseRares, playerId, gameday, usedFree, nowEpoch) {
+  var _snapshot$watersheep;
+  if (snapshot.schema !== "don-combo-matrix-runtime/v0.8-ts" || snapshot.player_id !== playerId || snapshot.gameday !== gameday || ((_snapshot$watersheep = snapshot.watersheep) === null || _snapshot$watersheep === void 0 ? void 0 : _snapshot$watersheep.status) !== "ready") throw new Error("Shadow snapshot identity, day, or WaterSheep status invalid; refresh first.");
+  var stamped = Date.parse(snapshot.generated_at) / 1000;
+  if (!Number.isFinite(stamped) || stamped > nowEpoch + 30 || nowEpoch - stamped > 1200) throw new Error("Shadow snapshot expired (20 minutes); refresh the relay first.");
+  if (!Number.isInteger(usedFree) || usedFree < 0 || usedFree >= 11) throw new Error("No unused free beach combs remain.");
+  var count = 11 - usedFree;
+  if (!Array.isArray(snapshot.candidates) || snapshot.candidates.length < count) throw new Error("Insufficient scored candidate fronts for free-turn route.");
+  var day = 1 + gameday % 8;
+  var hidden = 4 - Math.abs(4 - day);
+  var known = new Set(corpus.filter(t => Number.isInteger(t.minute) && t.minute >= 1 && t.minute <= 10000 && Number.isInteger(t.row) && t.row > hidden && t.row <= 10 && Number.isInteger(t.column) && t.column >= 0 && t.column <= 9 && !falseRares.has("".concat(t.minute, ",").concat(t.row, ",").concat(t.column))).map(t => "".concat(t.minute, ",").concat(t.row, ",").concat(t.column)));
+  var selected = [];
+  var seen = new Set();
+  var previousUtility = Infinity;
+  var _iterator = _createForOfIteratorHelper(snapshot.candidates),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var candidate = _step.value;
+      if (selected.length === count) break;
+      if (!Number.isFinite(candidate.utility) || candidate.utility == null || !candidate.watersheep || !candidate.representative) throw new Error("Unscored or invalid shadow candidate; refresh first.");
+      if (candidate.utility > previousUtility + 1e-9) throw new Error("Shadow candidates are not in saved descending rank order.");
+      previousUtility = candidate.utility;
+      var t = candidate.representative;
+      var key = "".concat(t.minute, ",").concat(t.row, ",").concat(t.column);
+      if (candidate.minute !== t.minute || !known.has(key) || seen.has(t.minute)) throw new Error("Shadow candidate does not resolve to a unique accessible known rare tile.");
+      seen.add(t.minute);
+      selected.push({
+        minute: t.minute,
+        row: t.row,
+        column: t.column
+      });
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  if (selected.length !== count) throw new Error("Not enough usable ranked candidates.");
+  return selected;
 }
 
 var _templateObject;
@@ -1954,10 +2189,10 @@ function addFalseRare(tile) {
 function mlTraceEnabled() {
   return ["1", "true", "target", "on"].includes(String(kolmafia.getProperty("don_combo_ml_trace") || "").toLowerCase());
 }
-function captureTargetPrediction(minute) {
+function captureTargetPrediction(minute, row, column) {
   if (!mlTraceEnabled()) return null;
   try {
-    return traceTargetPrediction(minute);
+    return traceTargetPrediction(minute, row, column);
   } catch (error) {
     var message = error instanceof Error ? error.message : String(error);
     kolmafia.print("don_combo ML trace unavailable: ".concat(message, " \xB7 Combo continues normally."), "gray");
@@ -2018,7 +2253,7 @@ function _comb(tile) {
   // TypeScript doesn't know that! the "as" called a "Type Assertion", which is exactly what it sounds like
   // This way, our compiler and our IDE don't start shouting at us for things that we, the reader, know are fine.
   .map(rowLayout => [parseInt(rowLayout[0]), rowLayout[1].split("")]));
-  var preActionPrediction = captureTargetPrediction(minute);
+  var preActionPrediction = captureTargetPrediction(minute, row, column);
   var finishObservation = (outcome, actualRow, actualColumn, before) => {
     var delta = sessionDelta(before);
     recordBeachObservation(minute, layoutString, outcome, {
@@ -2166,6 +2401,16 @@ function comb() {
   _set("combo_lastTileCombed", index);
   return shouldComb;
 }
+
+// A relay confirmation selects a pre-scored local same-player/day snapshot.
+// No model inference runs during execution, and the model cannot supply coordinates.
+function loadShadowTop11Route() {
+  var raw = String(kolmafia.fileToBuffer("don_combo_matrix_runtime.json") || "");
+  if (!raw) kolmafia.abort("No frozen Shadow Route Lab snapshot; refresh first.");
+  var snapshot = JSON.parse(raw);
+  var invalid = new Set(getFalseRares().map(tile => "".concat(tile.minute, ",").concat(tile.row, ",").concat(tile.column)));
+  return compileShadowTop11(snapshot, rareTiles, invalid, Number(kolmafia.myId()), kolmafia.gamedayToInt(), get("_freeBeachWalksUsed", 0), Date.now() / 1000);
+}
 function printSession(session) {
   var items = _toConsumableArray(session.items);
 
@@ -2213,12 +2458,15 @@ function main(args) {
   // Use a wrapper around session tracking to record our results
   // We do this by first tracking what the session results are right now
   // Later, we will subtract these items and meat from our final results
+  if (get("don_combo_running", false)) kolmafia.abort("Another Combo run is already active.");
+  var shadow11 = args === "shadow11";
+  var frozenRoute = shadow11 ? loadShadowTop11Route() : null;
   var baseline = Session.current();
 
   // Here we collapse our two possibilities into one
   // If args is already a number, combs is a number
   // If args is a string, we convert it to a number
-  var combs = typeof args === "string" ? parseInt(args) : args ?? 11 - get("_freeBeachWalksUsed");
+  var combs = frozenRoute ? frozenRoute.length : typeof args === "string" ? parseInt(args) : args ?? 11 - get("_freeBeachWalksUsed");
   if (!Number.isInteger(combs) || isNaN(combs)) kolmafia.abort("Invalid argument!");
   if (combs <= 0) return;
   var oldFilter = get("logPreferenceChangeFilter");
@@ -2234,6 +2482,8 @@ function main(args) {
   _set("don_combo_last_run_ml_events_before", loadMlTraceEvents(0).total);
   _set("don_combo_last_run_ml_events_after", loadMlTraceEvents(0).total);
   _set("logPreferenceChangeFilter", _toConsumableArray(new Set([].concat(_toConsumableArray(oldFilter.split(",")), ["spadingData", "combo_lastTileCombed", "_beachLayout", "_beachMinutes", "_beachCombing", "don_combo_interrupt", "don_combo_running", "don_combo_last_run_status", "don_combo_last_run_requested", "don_combo_last_run_combs", "don_combo_last_run_end_reason", "don_combo_last_run_interrupt_consumed", "don_combo_last_run_started_at", "don_combo_last_run_ended_at", "don_combo_last_run_ml_events_before", "don_combo_last_run_ml_events_after"]))).filter(x => x).join(","));
+  var frozenPlayer = Number(kolmafia.myId());
+  var frozenGameday = kolmafia.gamedayToInt();
   var completedCombs = 0;
   var interrupted = false;
   var cleanFinish = false;
@@ -2245,9 +2495,21 @@ function main(args) {
         interrupted = true;
         break;
       }
-
-      // Comb returns a boolean based on whether we actually combed a tile.
-      if (comb()) completedCombs++;
+      if (frozenRoute) {
+        // Free-only guard at the exact action boundary. A changed counter
+        // can never authorize paid turns or an unplanned tile.
+        var before = get("_freeBeachWalksUsed", 0);
+        if (before < 0 || before >= 11) throw new Error("No free combs remain; paid comb prevented.");
+        var target = frozenRoute[completedCombs];
+        if (!target || kolmafia.gamedayToInt() !== frozenGameday || Number(kolmafia.myId()) !== frozenPlayer) throw new Error("Shadow route day/player changed during execution.");
+        _comb(target);
+        var after = get("_freeBeachWalksUsed", 0);
+        if (after !== before + 1) throw new Error("Free beach counter did not advance exactly once; stopping.");
+        completedCombs++;
+      } else {
+        // Preserve normal Combo's deterministic shuffled rare route.
+        if (comb()) completedCombs++;
+      }
 
       // If the request arrived during the comb, the observation/loot trace has
       // already been finalized. Stop here before beginning the next target.

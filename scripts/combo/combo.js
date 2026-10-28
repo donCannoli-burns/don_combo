@@ -2898,9 +2898,17 @@ function prepareWaterSheepRoute(requestedCombs) {
   writeRuntime(result);
 }
 function writeRuntime(result) {
+  var _result$ml_lab3, _result$run_control;
   var encoded = JSON.stringify(result);
   kolmafia.bufferToFile(JSON.stringify(result, null, 2) + "\n", "don_combo_matrix_runtime.json");
   kolmafia.bufferToFile("window.DON_COMBO_MATRIX_RUNTIME=" + encoded + ";\n", "relay/don_combo_matrix_runtime.js");
+  // Commit marker last. The relay refresh endpoint only acknowledges a newly
+  // generated runtime after both local artifacts have been written.
+  // Export must subsequently read back the JS artifact and verify this exact
+  // generation, event total and run status, never trust browser reload alone.
+  kolmafia.setProperty("don_combo_matrix_refresh_generation", String(result.generated_at));
+  kolmafia.setProperty("don_combo_matrix_refresh_events", String(((_result$ml_lab3 = result.ml_lab) === null || _result$ml_lab3 === void 0 ? void 0 : _result$ml_lab3.events_total) ?? ""));
+  kolmafia.setProperty("don_combo_matrix_refresh_run_status", String(((_result$run_control = result.run_control) === null || _result$run_control === void 0 ? void 0 : _result$run_control.status) ?? ""));
 }
 
 // Pure, passive evidence accounting: no model training or KoL actions.

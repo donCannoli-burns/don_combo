@@ -46,6 +46,9 @@ jobs:
           console.log(`relay inline JS syntax: PASS (${scripts.length} script block)`);
           NODE
 
+      - name: Progressive WaterSheep gCLI pre-scoring estimate regression
+        run: node --experimental-strip-types tests/prescore-progress.mjs
+
       - name: Offline recovery and top-11 route regressions
         run: node --experimental-strip-types tests/recovery-route.mjs
 

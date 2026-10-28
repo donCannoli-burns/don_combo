@@ -33,12 +33,12 @@ assert.equal(a.same_coordinate_intervals,0);
 assert.equal(a.gaps.find(x=>x.kind==="piece_of_driftwood")?.bucket,"1_to_3_days");
 assert.equal(a.gaps.find(x=>x.kind==="meteorite_fragment")?.bucket,"730_plus_days");
 assert.equal(a.gaps.every(x=>x.interpretation.includes("NOT_PROVEN_TRANSFER_OR_COOLDOWN")),true);
-assert.equal(summary.tier_hypotheses.length,3);
+assert.equal(summary.tier_hypotheses.length,6,"three proposed timing lanes PER pool");
 for(const hypothesis of summary.tier_hypotheses){
   assert.equal(hypothesis.detected_peak_days,null,"never claim a peak with sparse synthetic observations");
   assert.equal(hypothesis.peak_status,"INSUFFICIENT_DATED_EVENTS");
 }
-assert.equal(summary.tier_hypotheses[2].modal_gap_bucket,"730_plus_days");
+assert.equal(summary.tier_hypotheses.find(x=>x.pool==="pool_2"&&x.tier==="rare_rare")?.modal_gap_bucket,"730_plus_days");
 assert.equal("events" in summary,false,"full event log must NOT go into model request");
 assert.equal("gaps" in summary,false,"full global gap stream must NOT bloat model input");
 assert.equal(summary.prior,"THREE_PROPOSED_TIMESCALES_NOT_THREE_MEASURED_PEAKS");

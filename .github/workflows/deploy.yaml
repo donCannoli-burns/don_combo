@@ -58,6 +58,9 @@ jobs:
       - name: End-to-end evidence lifecycle and three hypothesized timescales
         run: node --experimental-strip-types tests/evidence-lifecycle-audit.mjs
 
+      - name: Non-inventory message-bottle and unknown-pool regression
+        run: node --experimental-strip-types tests/bottle-observer.mjs
+
       - name: Dual rare pool and historical cooldown baseline regressions
         run: node --experimental-strip-types tests/two-pool-cooldown.mjs
 

@@ -628,6 +628,9 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
   var byCoordinate = {};
   var bottleByCoordinate = {};
   var bottleEvents = [];
+  var castleEvents = [];
+  var castleCoords = new Set();
+  var castleMinutes = new Set();
   var bottleUnbound = 0;
   var captureCovered = 0,
     captureEmpty = 0,
@@ -678,7 +681,9 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
     observations.push(o);
     (byFront[String(e.minute)] ?? (byFront[String(e.minute)] = emptyCounts()))[signal.kind] += signal.quantity;
     if (signal.pool === "pool_1") p1[signal.kind] += signal.quantity;else p2[signal.kind] += signal.quantity;
-    byTier[signal.tier] += signal.quantity;
+    // Layout-only castle and whale sightings are spatial observations,
+    // not tier rewards or cooldown samples.
+    if (signal.certainty !== "layout-sighting") byTier[signal.tier] += signal.quantity;
     if (signal.certainty === "layout-sighting") layoutSightings += signal.quantity;else if (signal.certainty === "action-recorded") actionRecorded += signal.quantity;else itemRewards += signal.quantity;
     if (c && signal.certainty !== "layout-sighting") {
       var cur = byCoordinate[c] ?? (byCoordinate[c] = blank(c));
@@ -719,10 +724,10 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
   var _iterator2 = _createForOfIteratorHelper(ordered),
     _step2;
   try {
-    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
-      var _e$run_context5, _e$special_events;
+    var _loop = function _loop() {
+      var _e$run_context5, _e$special_events, _e$special_events2;
       var e = _step2.value;
-      if (e.event_id && seen.has(e.event_id)) continue;
+      if (e.event_id && seen.has(e.event_id)) return 1; // continue
       if (e.event_id) seen.add(e.event_id);
       matched++;
       if (e.action_output_capture === "captured") captureCovered++;else if (e.action_output_capture === "empty") captureEmpty++;else captureLegacy++;
@@ -749,6 +754,10 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
       try {
         for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
           var pos = _step4.value;
+          castleCoords.add(key(_objectSpread2({
+            minute: e.minute
+          }, pos)));
+          castleMinutes.add(e.minute);
           enrich(e, key(_objectSpread2({
             minute: e.minute
           }, pos)), tier("pool_1", "sand_castle", "common_rare", "layout-sighting", 1, null), "unknown");
@@ -774,11 +783,26 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
       }
       var actual = e.actual_comb;
       var actualKey = (actual === null || actual === void 0 ? void 0 : actual.minute) === e.minute ? key(actual) : null;
+      // Record deliberate native castle actions without treating ordinary
+      // grains-of-sand loot as a special castle reward or respawn interval.
+      var castleReceipt = (_e$special_events = e.special_events) === null || _e$special_events === void 0 ? void 0 : _e$special_events.find(x => x.kind === "sand_castle_action" && x.source === "pre-action-layout-and-native-comb" && x.coordinate === actualKey && (x.verification === "native-demolition-text" || x.verification === "pre-action-castle-command-returned"));
+      if (castleReceipt && actualKey && ["sand_castle_target", "sand_castle_fallback"].includes(e.outcome) && symbolAt(e.layout, actual.row, actual.column) === "C") {
+        var _e$run_context6;
+        castleEvents.push({
+          kind: "sand_castle_action",
+          coordinate: actualKey,
+          observed_at: e.observed_at,
+          event_id: e.event_id || null,
+          route_mode: ((_e$run_context6 = e.run_context) === null || _e$run_context6 === void 0 ? void 0 : _e$run_context6.route_mode) || "legacy-unbound",
+          source: "pre-action-layout-and-native-comb",
+          verification: castleReceipt.verification
+        });
+      }
       // Count a genuine beach-result message once, even if its text appears
       // more than once in the command output. No synthetic inventory delta.
-      if ((_e$special_events = e.special_events) !== null && _e$special_events !== void 0 && _e$special_events.some(x => x.kind === "message_in_a_bottle" && x.source === "native-cli-command-output" && x.pool === "unassigned")) {
+      if ((_e$special_events2 = e.special_events) !== null && _e$special_events2 !== void 0 && _e$special_events2.some(x => x.kind === "message_in_a_bottle" && x.source === "native-cli-command-output" && x.pool === "unassigned")) {
         if (actualKey) {
-          var _e$run_context6;
+          var _e$run_context7;
           var bottle = bottleByCoordinate[actualKey] ?? (bottleByCoordinate[actualKey] = {
             observed_events: 0,
             last_observed_at: null,
@@ -796,7 +820,7 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
             coordinate: actualKey,
             observed_at: e.observed_at,
             event_id: e.event_id || null,
-            route_mode: ((_e$run_context6 = e.run_context) === null || _e$run_context6 === void 0 ? void 0 : _e$run_context6.route_mode) || "legacy-unbound",
+            route_mode: ((_e$run_context7 = e.run_context) === null || _e$run_context7 === void 0 ? void 0 : _e$run_context7.route_mode) || "legacy-unbound",
             source: "native-cli-command-output"
           });
         } else {
@@ -821,6 +845,9 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
         var state = actual ? symbolAt(e.layout, actual.row, actual.column) : "?";
         enrich(e, actualKey, signal, state === "c" ? "combed" : state === "t" ? "twinkle" : "unknown");
       }
+    };
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      if (_loop()) continue;
     }
   } catch (err) {
     _iterator2.e(err);
@@ -841,6 +868,12 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
     distinct_reward_coordinates: rewardedCoords.size,
     historical_unbound_events: legacy,
     run_bound_events: bound,
+    sand_castle_sightings: p1.sand_castle,
+    sand_castle_unique_coordinates: castleCoords.size,
+    sand_castle_unique_minutes: castleMinutes.size,
+    sand_castle_actions: castleEvents.length,
+    sand_castle_actions_native_verified: castleEvents.filter(x => x.verification === "native-demolition-text").length,
+    sand_castle_actions_unverified: castleEvents.filter(x => x.verification === "pre-action-castle-command-returned").length,
     message_bottle_events: bottleEvents.length,
     message_bottle_unbound: bottleUnbound,
     bottle_detection_output_captured: captureCovered,
@@ -854,6 +887,7 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
     by_coordinate: byCoordinate,
     bottle_by_coordinate: bottleByCoordinate,
     bottle_events: bottleEvents,
+    castle_events: castleEvents,
     by_front: byFront,
     observations
   };
@@ -904,9 +938,9 @@ function buildHistoricalRareCurve(points, events, poolIndex, nowMs, playerId) {
   }
   var bins = [makeBin("under_1_day", 0, 1), makeBin("1_to_3_days", 1, 3), makeBin("3_to_7_days", 3, 7), makeBin("7_to_14_days", 7, 14), makeBin("14_to_30_days", 14, 30), makeBin("30_to_90_days", 30, 90), makeBin("90_to_180_days", 90, 180), makeBin("180_to_365_days", 180, 365), makeBin("365_to_730_days", 365, 730), makeBin("730_plus_days", 730, null)];
   var eligible = events.filter(e => {
-    var _e$run_context7, _e$run_context8, _e$run_context9;
+    var _e$run_context8, _e$run_context9, _e$run_context0;
     var t = Date.parse(e.observed_at);
-    return Number.isFinite(t) && t <= nowMs && (((_e$run_context7 = e.run_context) === null || _e$run_context7 === void 0 ? void 0 : _e$run_context7.player_id) === null || ((_e$run_context8 = e.run_context) === null || _e$run_context8 === void 0 ? void 0 : _e$run_context8.player_id) === undefined || ((_e$run_context9 = e.run_context) === null || _e$run_context9 === void 0 ? void 0 : _e$run_context9.player_id) === playerId);
+    return Number.isFinite(t) && t <= nowMs && (((_e$run_context8 = e.run_context) === null || _e$run_context8 === void 0 ? void 0 : _e$run_context8.player_id) === null || ((_e$run_context9 = e.run_context) === null || _e$run_context9 === void 0 ? void 0 : _e$run_context9.player_id) === undefined || ((_e$run_context0 = e.run_context) === null || _e$run_context0 === void 0 ? void 0 : _e$run_context0.player_id) === playerId);
   }).slice().sort((a, b) => Date.parse(a.observed_at) - Date.parse(b.observed_at));
   var seen = new Set(),
     previous = new Map();
@@ -922,8 +956,8 @@ function buildHistoricalRareCurve(points, events, poolIndex, nowMs, playerId) {
   var _iterator7 = _createForOfIteratorHelper(eligible),
     _step7;
   try {
-    var _loop = function _loop() {
-        var _e$run_context0;
+    var _loop2 = function _loop2() {
+        var _e$run_context1;
         var e = _step7.value;
         if (e.event_id && seen.has(e.event_id)) return 0; // continue
         if (e.event_id) seen.add(e.event_id);
@@ -933,7 +967,7 @@ function buildHistoricalRareCurve(points, events, poolIndex, nowMs, playerId) {
         touched++;
         if (e.outcome !== "rare_target" || !actual || key(actual) !== key(target)) return 0; // continue
         exact++;
-        if ((_e$run_context0 = e.run_context) !== null && _e$run_context0 !== void 0 && _e$run_context0.run_id) bound++;else legacy++;
+        if ((_e$run_context1 = e.run_context) !== null && _e$run_context1 !== void 0 && _e$run_context1.run_id) bound++;else legacy++;
         attempted.add(key(target));
         var when = Date.parse(e.observed_at);
         if (!first || e.observed_at < first) first = e.observed_at;
@@ -967,7 +1001,7 @@ function buildHistoricalRareCurve(points, events, poolIndex, nowMs, playerId) {
       },
       _ret;
     for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
-      _ret = _loop();
+      _ret = _loop2();
       if (_ret === 0) continue;
     }
     // Reward-to-reward intervals from the pool index are separately CENSORED.
@@ -1572,7 +1606,7 @@ function symbolRates(entry) {
   var symbols = entry.symbols || {};
   var visible = Math.max(1, n(symbols.visible));
   var result = {};
-  for (var _i = 0, _arr = ["whale", "twinkle", "rough", "combed", "other"]; _i < _arr.length; _i++) {
+  for (var _i = 0, _arr = ["whale", "sand_castle", "twinkle", "rough", "combed", "other"]; _i < _arr.length; _i++) {
     var key = _arr[_i];
     result[key] = round(n(symbols[key]) / visible);
   }
@@ -2128,6 +2162,7 @@ function buildMlLab() {
       gameday: ((_event$run_context2 = event.run_context) === null || _event$run_context2 === void 0 ? void 0 : _event$run_context2.gameday) ?? null,
       route_mode: ((_event$run_context3 = event.run_context) === null || _event$run_context3 === void 0 ? void 0 : _event$run_context3.route_mode) || "legacy-unbound",
       outcome: event.outcome,
+      special_events: event.special_events || [],
       planned_target: event.planned_target,
       actual_comb: event.actual_comb,
       items,
@@ -2409,6 +2444,7 @@ function buildRuntime() {
       historical_rare_baseline: historicalIndex.baseline,
       two_pool_cooldown_summary: poolIndex.summary,
       bottle_observations_tail: poolIndex.bottle_events.slice(-60),
+      castle_actions_tail: poolIndex.castle_events.slice(-60),
       pool_timescales: compactPoolTimeScales(timescales),
       pool_recent_transitions: timescales.gaps.slice(-40),
       historical_rare_curve: historicalCurve,

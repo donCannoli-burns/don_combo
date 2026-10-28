@@ -1775,6 +1775,60 @@ function recoveryFeatures(entry, nowEpoch) {
   };
 }
 
+// Sand castles are visible as uppercase C in KoLmafia's PRE-ACTION
+// _beachLayout. Lowercase c means already-combed sand. Do not infer castles
+// from grains of sand, ordinary items or the run footer.
+
+function visibleSandCastles(layout, minute) {
+  if (!Number.isInteger(minute) || minute < 1 || minute > 10000) return [];
+  var result = [];
+  var visited = new Set();
+  var _iterator = _createForOfIteratorHelper(String(layout || "").split(",")),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var raw = _step.value;
+      var match = /^(\d+):([A-Za-z?]{10})$/.exec(raw.trim());
+      if (!match) continue;
+      var row = Number(match[1]);
+      if (!Number.isInteger(row) || row < 1 || row > 10 || visited.has(row)) continue;
+      visited.add(row);
+      for (var column = 0; column < 10; column++) {
+        if (match[2].charAt(column) === "C") result.push({
+          minute,
+          row,
+          column
+        });
+      }
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  return result;
+}
+function castleAt(layout, minute, row, column) {
+  return visibleSandCastles(layout, minute).some(spot => spot.row === row && spot.column === column);
+}
+
+// Deterministic first visible castle, tide-safe: only rows present in layout.
+function firstVisibleSandCastle(layout, minute) {
+  return visibleSandCastles(layout, minute)[0] || null;
+}
+function sandCastleAction(layout, minute, row, column, outcome, actionOutput) {
+  if (!["sand_castle_target", "sand_castle_fallback"].includes(outcome) || !castleAt(layout, minute, row, column)) return null;
+  var line = String(actionOutput || "").split(/\r?\n/).map(s => s.trim()).find(s => /^(?:>\s*)?You carefully demolish the sand castle and comb the area into a nice flat sand parking lot\.?$/i.test(s));
+  return {
+    kind: "sand_castle_action",
+    coordinate: "".concat(minute, ",").concat(row, ",").concat(column),
+    source: "pre-action-layout-and-native-comb",
+    verification: line ? "native-demolition-text" : "pre-action-castle-command-returned",
+    evidence_text: line || null,
+    classification: "CASTLE_ACTION_NOT_RARE_REWARD_OR_COOLDOWN"
+  };
+}
+
 // Scratch density is a count of PRE-ACTION "c" (already-combed) beach
 // squares in the visible KoLmafia _beachLayout, not a discovered rare drop.
 // Day buckets use UTC calendar dates, consistently for old and new events,
@@ -2014,6 +2068,9 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
   var byCoordinate = {};
   var bottleByCoordinate = {};
   var bottleEvents = [];
+  var castleEvents = [];
+  var castleCoords = new Set();
+  var castleMinutes = new Set();
   var bottleUnbound = 0;
   var captureCovered = 0,
     captureEmpty = 0,
@@ -2064,7 +2121,9 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
     observations.push(o);
     (byFront[String(e.minute)] ?? (byFront[String(e.minute)] = emptyCounts()))[signal.kind] += signal.quantity;
     if (signal.pool === "pool_1") p1[signal.kind] += signal.quantity;else p2[signal.kind] += signal.quantity;
-    byTier[signal.tier] += signal.quantity;
+    // Layout-only castle and whale sightings are spatial observations,
+    // not tier rewards or cooldown samples.
+    if (signal.certainty !== "layout-sighting") byTier[signal.tier] += signal.quantity;
     if (signal.certainty === "layout-sighting") layoutSightings += signal.quantity;else if (signal.certainty === "action-recorded") actionRecorded += signal.quantity;else itemRewards += signal.quantity;
     if (c && signal.certainty !== "layout-sighting") {
       var cur = byCoordinate[c] ?? (byCoordinate[c] = blank(c));
@@ -2105,10 +2164,10 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
   var _iterator2 = _createForOfIteratorHelper(ordered),
     _step2;
   try {
-    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
-      var _e$run_context5, _e$special_events;
+    var _loop = function _loop() {
+      var _e$run_context5, _e$special_events, _e$special_events2;
       var e = _step2.value;
-      if (e.event_id && seen.has(e.event_id)) continue;
+      if (e.event_id && seen.has(e.event_id)) return 1; // continue
       if (e.event_id) seen.add(e.event_id);
       matched++;
       if (e.action_output_capture === "captured") captureCovered++;else if (e.action_output_capture === "empty") captureEmpty++;else captureLegacy++;
@@ -2135,6 +2194,10 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
       try {
         for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
           var pos = _step4.value;
+          castleCoords.add(key(_objectSpread2({
+            minute: e.minute
+          }, pos)));
+          castleMinutes.add(e.minute);
           enrich(e, key(_objectSpread2({
             minute: e.minute
           }, pos)), tier("pool_1", "sand_castle", "common_rare", "layout-sighting", 1, null), "unknown");
@@ -2160,11 +2223,26 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
       }
       var actual = e.actual_comb;
       var actualKey = (actual === null || actual === void 0 ? void 0 : actual.minute) === e.minute ? key(actual) : null;
+      // Record deliberate native castle actions without treating ordinary
+      // grains-of-sand loot as a special castle reward or respawn interval.
+      var castleReceipt = (_e$special_events = e.special_events) === null || _e$special_events === void 0 ? void 0 : _e$special_events.find(x => x.kind === "sand_castle_action" && x.source === "pre-action-layout-and-native-comb" && x.coordinate === actualKey && (x.verification === "native-demolition-text" || x.verification === "pre-action-castle-command-returned"));
+      if (castleReceipt && actualKey && ["sand_castle_target", "sand_castle_fallback"].includes(e.outcome) && symbolAt(e.layout, actual.row, actual.column) === "C") {
+        var _e$run_context6;
+        castleEvents.push({
+          kind: "sand_castle_action",
+          coordinate: actualKey,
+          observed_at: e.observed_at,
+          event_id: e.event_id || null,
+          route_mode: ((_e$run_context6 = e.run_context) === null || _e$run_context6 === void 0 ? void 0 : _e$run_context6.route_mode) || "legacy-unbound",
+          source: "pre-action-layout-and-native-comb",
+          verification: castleReceipt.verification
+        });
+      }
       // Count a genuine beach-result message once, even if its text appears
       // more than once in the command output. No synthetic inventory delta.
-      if ((_e$special_events = e.special_events) !== null && _e$special_events !== void 0 && _e$special_events.some(x => x.kind === "message_in_a_bottle" && x.source === "native-cli-command-output" && x.pool === "unassigned")) {
+      if ((_e$special_events2 = e.special_events) !== null && _e$special_events2 !== void 0 && _e$special_events2.some(x => x.kind === "message_in_a_bottle" && x.source === "native-cli-command-output" && x.pool === "unassigned")) {
         if (actualKey) {
-          var _e$run_context6;
+          var _e$run_context7;
           var bottle = bottleByCoordinate[actualKey] ?? (bottleByCoordinate[actualKey] = {
             observed_events: 0,
             last_observed_at: null,
@@ -2182,7 +2260,7 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
             coordinate: actualKey,
             observed_at: e.observed_at,
             event_id: e.event_id || null,
-            route_mode: ((_e$run_context6 = e.run_context) === null || _e$run_context6 === void 0 ? void 0 : _e$run_context6.route_mode) || "legacy-unbound",
+            route_mode: ((_e$run_context7 = e.run_context) === null || _e$run_context7 === void 0 ? void 0 : _e$run_context7.route_mode) || "legacy-unbound",
             source: "native-cli-command-output"
           });
         } else {
@@ -2207,6 +2285,9 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
         var state = actual ? symbolAt(e.layout, actual.row, actual.column) : "?";
         enrich(e, actualKey, signal, state === "c" ? "combed" : state === "t" ? "twinkle" : "unknown");
       }
+    };
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      if (_loop()) continue;
     }
   } catch (err) {
     _iterator2.e(err);
@@ -2227,6 +2308,12 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
     distinct_reward_coordinates: rewardedCoords.size,
     historical_unbound_events: legacy,
     run_bound_events: bound,
+    sand_castle_sightings: p1.sand_castle,
+    sand_castle_unique_coordinates: castleCoords.size,
+    sand_castle_unique_minutes: castleMinutes.size,
+    sand_castle_actions: castleEvents.length,
+    sand_castle_actions_native_verified: castleEvents.filter(x => x.verification === "native-demolition-text").length,
+    sand_castle_actions_unverified: castleEvents.filter(x => x.verification === "pre-action-castle-command-returned").length,
     message_bottle_events: bottleEvents.length,
     message_bottle_unbound: bottleUnbound,
     bottle_detection_output_captured: captureCovered,
@@ -2240,6 +2327,7 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
     by_coordinate: byCoordinate,
     bottle_by_coordinate: bottleByCoordinate,
     bottle_events: bottleEvents,
+    castle_events: castleEvents,
     by_front: byFront,
     observations
   };
@@ -2296,9 +2384,9 @@ function buildHistoricalRareCurve(points, events, poolIndex, nowMs, playerId) {
   }
   var bins = [makeBin("under_1_day", 0, 1), makeBin("1_to_3_days", 1, 3), makeBin("3_to_7_days", 3, 7), makeBin("7_to_14_days", 7, 14), makeBin("14_to_30_days", 14, 30), makeBin("30_to_90_days", 30, 90), makeBin("90_to_180_days", 90, 180), makeBin("180_to_365_days", 180, 365), makeBin("365_to_730_days", 365, 730), makeBin("730_plus_days", 730, null)];
   var eligible = events.filter(e => {
-    var _e$run_context7, _e$run_context8, _e$run_context9;
+    var _e$run_context8, _e$run_context9, _e$run_context0;
     var t = Date.parse(e.observed_at);
-    return Number.isFinite(t) && t <= nowMs && (((_e$run_context7 = e.run_context) === null || _e$run_context7 === void 0 ? void 0 : _e$run_context7.player_id) === null || ((_e$run_context8 = e.run_context) === null || _e$run_context8 === void 0 ? void 0 : _e$run_context8.player_id) === undefined || ((_e$run_context9 = e.run_context) === null || _e$run_context9 === void 0 ? void 0 : _e$run_context9.player_id) === playerId);
+    return Number.isFinite(t) && t <= nowMs && (((_e$run_context8 = e.run_context) === null || _e$run_context8 === void 0 ? void 0 : _e$run_context8.player_id) === null || ((_e$run_context9 = e.run_context) === null || _e$run_context9 === void 0 ? void 0 : _e$run_context9.player_id) === undefined || ((_e$run_context0 = e.run_context) === null || _e$run_context0 === void 0 ? void 0 : _e$run_context0.player_id) === playerId);
   }).slice().sort((a, b) => Date.parse(a.observed_at) - Date.parse(b.observed_at));
   var seen = new Set(),
     previous = new Map();
@@ -2314,8 +2402,8 @@ function buildHistoricalRareCurve(points, events, poolIndex, nowMs, playerId) {
   var _iterator7 = _createForOfIteratorHelper(eligible),
     _step7;
   try {
-    var _loop = function _loop() {
-        var _e$run_context0;
+    var _loop2 = function _loop2() {
+        var _e$run_context1;
         var e = _step7.value;
         if (e.event_id && seen.has(e.event_id)) return 0; // continue
         if (e.event_id) seen.add(e.event_id);
@@ -2325,7 +2413,7 @@ function buildHistoricalRareCurve(points, events, poolIndex, nowMs, playerId) {
         touched++;
         if (e.outcome !== "rare_target" || !actual || key(actual) !== key(target)) return 0; // continue
         exact++;
-        if ((_e$run_context0 = e.run_context) !== null && _e$run_context0 !== void 0 && _e$run_context0.run_id) bound++;else legacy++;
+        if ((_e$run_context1 = e.run_context) !== null && _e$run_context1 !== void 0 && _e$run_context1.run_id) bound++;else legacy++;
         attempted.add(key(target));
         var when = Date.parse(e.observed_at);
         if (!first || e.observed_at < first) first = e.observed_at;
@@ -2359,7 +2447,7 @@ function buildHistoricalRareCurve(points, events, poolIndex, nowMs, playerId) {
       },
       _ret;
     for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
-      _ret = _loop();
+      _ret = _loop2();
       if (_ret === 0) continue;
     }
     // Reward-to-reward intervals from the pool index are separately CENSORED.
@@ -2598,6 +2686,7 @@ function add(map, key) {
 function countLayout(layout) {
   var counts = {
     whale: 0,
+    sand_castle: 0,
     twinkle: 0,
     rough: 0,
     combed: 0,
@@ -2618,7 +2707,7 @@ function countLayout(layout) {
         for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
           var symbol = _step4.value;
           counts.visible++;
-          if (symbol === "W") counts.whale++;else if (symbol === "t") counts.twinkle++;else if (symbol === "r") counts.rough++;else if (symbol === "c") counts.combed++;else counts.other++;
+          if (symbol === "W") counts.whale++;else if (symbol === "C") counts.sand_castle++;else if (symbol === "t") counts.twinkle++;else if (symbol === "r") counts.rough++;else if (symbol === "c") counts.combed++;else counts.other++;
         }
       } catch (err) {
         _iterator4.e(err);
@@ -2674,7 +2763,7 @@ function recordBeachObservation(minute, layout, outcome) {
     actual_comb: actual,
     items: detail.items || {},
     meat: detail.meat || 0,
-    special_events: parseBottleOutput(detail.action_output || ""),
+    special_events: [].concat(_toConsumableArray(parseBottleOutput(detail.action_output || "")), _toConsumableArray(actual ? [sandCastleAction(layout, minute, actual.row, actual.column, outcome, detail.action_output || "")].filter(action => action !== null) : [])),
     action_output_capture: detail.action_output === undefined ? "legacy-unavailable" : detail.action_output.length ? "captured" : "empty",
     layout,
     layout_symbols: counts,
@@ -3155,7 +3244,7 @@ function symbolRates(entry) {
   var symbols = entry.symbols || {};
   var visible = Math.max(1, n(symbols.visible));
   var result = {};
-  for (var _i = 0, _arr = ["whale", "twinkle", "rough", "combed", "other"]; _i < _arr.length; _i++) {
+  for (var _i = 0, _arr = ["whale", "sand_castle", "twinkle", "rough", "combed", "other"]; _i < _arr.length; _i++) {
     var key = _arr[_i];
     result[key] = round(n(symbols[key]) / visible);
   }
@@ -3711,6 +3800,7 @@ function buildMlLab() {
       gameday: ((_event$run_context2 = event.run_context) === null || _event$run_context2 === void 0 ? void 0 : _event$run_context2.gameday) ?? null,
       route_mode: ((_event$run_context3 = event.run_context) === null || _event$run_context3 === void 0 ? void 0 : _event$run_context3.route_mode) || "legacy-unbound",
       outcome: event.outcome,
+      special_events: event.special_events || [],
       planned_target: event.planned_target,
       actual_comb: event.actual_comb,
       items,
@@ -3992,6 +4082,7 @@ function buildRuntime() {
       historical_rare_baseline: historicalIndex.baseline,
       two_pool_cooldown_summary: poolIndex.summary,
       bottle_observations_tail: poolIndex.bottle_events.slice(-60),
+      castle_actions_tail: poolIndex.castle_events.slice(-60),
       pool_timescales: compactPoolTimeScales(timescales),
       pool_recent_transitions: timescales.gaps.slice(-40),
       historical_rare_curve: historicalCurve,
@@ -4511,26 +4602,38 @@ function _comb(tile) {
       if (hasCommonItem) {
         addFalseRare(tile);
       }
-      finishObservation(falseRareRough ? "false_rare_rough" : hasCommonItem ? "false_rare_item" : "rare_target", row, column, _before2, actionOutput);
+      finishObservation(rareRow[column] === "C" ? "sand_castle_target" : falseRareRough ? "false_rare_rough" : hasCommonItem ? "false_rare_item" : "rare_target", row, column, _before2, actionOutput);
       return;
     }
+  }
+
+  // Preserve the existing whale and genuine uncombed rare target priorities.
+  // If the planned rare is already combed, a visible castle is a deliberate
+  // fallback before twinkle/rough sand. Its ordinary drops are NOT rare loot.
+  var castle = firstVisibleSandCastle(layoutString, minute);
+  if (castle) {
+    kolmafia.print("Our rare tile is combed, but a sand castle is visible. Demolishing it.", HIGHLIGHT);
+    var _before3 = Session.current();
+    var _output3 = kolmafia.cliExecuteOutput("beach comb ".concat(castle.row, " ").concat(castle.column));
+    finishObservation("sand_castle_fallback", castle.row, castle.column, _before3, _output3);
+    return;
   }
   var firstTwinkleRow = Array.from(layout.entries()).find(rowLayout => rowLayout[1].includes("t"));
   if (firstTwinkleRow) {
     kolmafia.print("Our rare tile is combed, but we found a twinkle!", HIGHLIGHT);
     var twinkleColumn = firstTwinkleRow[1].findIndex(x => x === "t");
-    var _before3 = Session.current();
-    var _output3 = kolmafia.cliExecuteOutput("beach comb ".concat(firstTwinkleRow[0], " ").concat(twinkleColumn));
-    finishObservation("twinkle_fallback", firstTwinkleRow[0], twinkleColumn, _before3, _output3);
+    var _before4 = Session.current();
+    var _output4 = kolmafia.cliExecuteOutput("beach comb ".concat(firstTwinkleRow[0], " ").concat(twinkleColumn));
+    finishObservation("twinkle_fallback", firstTwinkleRow[0], twinkleColumn, _before4, _output4);
     return;
   }
   var firstRoughRow = Array.from(layout.entries()).find(rowLayout => rowLayout[1].includes("r"));
   if (firstRoughRow) {
     kolmafia.print("Our rare tile is combed, but we found some rough sand. So I guess there's that.", HIGHLIGHT);
     var roughcolumn = firstRoughRow[1].findIndex(x => x === "r");
-    var _before4 = Session.current();
-    var _output4 = kolmafia.cliExecuteOutput("beach comb ".concat(firstRoughRow[0], " ").concat(roughcolumn));
-    finishObservation("rough_fallback", firstRoughRow[0], roughcolumn, _before4, _output4);
+    var _before5 = Session.current();
+    var _output5 = kolmafia.cliExecuteOutput("beach comb ".concat(firstRoughRow[0], " ").concat(roughcolumn));
+    finishObservation("rough_fallback", firstRoughRow[0], roughcolumn, _before5, _output5);
     return;
   }
   kolmafia.print("We've exhausted all other options, so we're combing an already-combed tile.", HIGHLIGHT);

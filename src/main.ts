@@ -349,7 +349,7 @@ function loadShadowTop11Route(requestedCombs?: number, freeOnly = true): BeachTi
     snapshot, rareTiles, invalid, Number(myId()), gamedayToInt(),
     get("_freeBeachWalksUsed", 0), Date.now() / 1000,
   ] as const;
-  return requestedCombs == null
+  return requestedCombs === undefined
     ? compileShadowTop11(...parameters)
     : compileWaterSheepRoute(...parameters, requestedCombs, freeOnly);
 }
@@ -415,7 +415,7 @@ export function main(args?: string | number): void {
   const wsFree = rawArg === "watersheep-free";
   const wsPaidMatch = typeof rawArg === "string"
     ? /^watersheep-([1-9][0-9]*)$/.exec(rawArg) : null;
-  const wsPaid = wsPaidMatch != null;
+  const wsPaid = wsPaidMatch !== null;
   if (typeof rawArg === "string" && rawArg.startsWith("watersheep-") &&
       !wsFree && !wsPaid)
     abort("Expected 'watersheep-free' or 'watersheep-<positive count>'.");

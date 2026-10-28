@@ -194,6 +194,68 @@ highest-interest fronts. Daily shadow-learning cohorts separately count
 their 6+ and 11+ observed scratches. Neither mode changes paid-action gates,
 frozen routes, or model authority.
 
+### Two-pool rare observer and dated historical baseline (experimental)
+
+Normal `combo N`, `combo watersheep-free` and `combo watersheep-N`
+already share the native per-comb observation path. The dual-pool observer
+now annotates **each** resulting `data/don_combo_ml_events.jsonl` record
+with `pool_observations` while preserving the original pre-action layout,
+actual comb coordinate, item deltas, UTC timestamp, pre-action model trace,
+and route/run ID. Daily shadow cohorts tally these pool observations as well.
+
+The **user-proposed** three-tier, two-pool working hypothesis is:
+
+| Proposed tier | Pool 1 | Pool 2 |
+| --- | --- | --- |
+| common/rare | Sand castle | Piece of driftwood |
+| uncommon/rare | Beached whale | Cursed tricorn hat, cursed swash buckle, cursed pirate cutlass |
+| rare/rare | Rainbow pearl | Meteorite fragment |
+
+Sand castle (`C`) and beached whale (`W`) symbols are **layout
+sightings**. A whale comb is also recorded as an action if the actual
+coordinate was a visible `W`; repeated whale sightings are not counted as
+multiple whale harvests. Named items must have **positive inventory deltas**.
+Driftwood hats, driftwood pants, ordinary sand, and other unrelated beach
+loot are not promoted to rare-pool findings. Exact item spelling is used
+to avoid reclassifying non-pool equipment. Any unclassified item deltas
+remain available for manual follow-up.
+
+The observer rebuilds a read-only **historical rare baseline curve** from
+the **entire local recorded ML event log** and `raretiles.json`,
+including old unbound events and newer run-bound free/paid WaterSheep
+observations. Every known coordinate remains in the catalogue, but
+undated catalogue entries **are not fake zeros or dated attempts**.
+A historical event enters the empirical curve only when its **planned
+and actual exact coordinate match**, the coordinate exists in the known
+rare catalogue, and its result was `rare_target`.
+
+The baseline groups the **elapsed time between recorded attempts at
+the same rare coordinate** into 0–1, 1–3, 3–7, 7–14, and 14+ day bins.
+Each bin separately counts later-observed Pool 1/Pool 2 rewards and the
+three proposed tiers. Intervals between successive positive reward
+observations at the same exact coordinate are retained as
+**censored reward-to-reward intervals**, including an intervening
+combed-state observation if present. Neither measurement is a verified
+respawn timer: other players may have combed between our visits, and
+no known coordinate comes with a true spawn timestamp.
+
+The WaterSheep shadow and routed **pre-action** requests now include
+`pool_cooldown`, `pool_front_observations`, and
+`historical_rare_curve` evidence alongside the pre-existing tile
+recovery, historical rare history and scratch density. The model may
+consider those data but **cannot spend turns, change a frozen route,
+fit a cooldown probability, or retrain itself**. ML Lab shows the
+historical bins, both pool totals, observation certainty and the most
+recent pool-labelled events.
+
+**Research question (not a game fact):** does a longer latent cooldown
+lead to a higher chance of an uncommon/rare or rare/rare tier? A
+positive correlation between the observed attempt-gap bins and
+reward tiers would still need bias checks for tide accessibility,
+visit schedule and unknown interventions before supporting that theory.
+No respawn law has been assumed and no automatic tier-based targeting
+has been enabled.
+
 ### Historical rare baseline (read-only; all existing local records)
 
 WaterSheep now receives a **per-coordinate historical evidence summary** for

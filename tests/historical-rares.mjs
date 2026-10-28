@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildHistoricalRareIndex, historicalRareForTile } from "../src/runtime/historical-rares.ts";
+
+import {
+  buildHistoricalRareIndex,
+  historicalRareForTile,
+} from "../src/runtime/historical-rares.ts";
 
 // Historical catalogue is location evidence, not a dated harvest.
 const points = [
@@ -27,14 +31,88 @@ const old = (id, minute, row, column, date, outcome, actual, layout, run_context
   run_context,
 });
 const events = [
-  old("legacy-1", 1216, 10, 7, base, "rare_target", { minute: 1216, row: 10, column: 7 }, "10:rrrrrrrtrr"),
-  old("legacy-1", 1216, 10, 7, base, "rare_target", { minute: 1216, row: 10, column: 7 }, "10:rrrrrrrtrr"), // duplicate
-  old("legacy-2", 1216, 10, 7, "2026-10-29T00:00:00.000Z", "rough_fallback", { minute: 1216, row: 10, column: 2 }, "10:rrrrrrrcrr"),
-  old("routed-1", 5447, 10, 3, "2026-10-30T00:00:00.000Z", "rare_target", { minute: 5447, row: 10, column: 3 }, "10:rrrtrrrrrr", { run_id: "paid-run", route_mode: "watersheep-paid" }),
-  old("routed-2", 5447, 10, 3, "2026-11-05T00:00:00.000Z", "rare_target", { minute: 5447, row: 10, column: 3 }, "10:rrrtrrrrrr", { run_id: "paid-run2", route_mode: "watersheep-paid" }),
-  old("false", 2521, 8, 2, base, "rare_target", { minute: 2521, row: 8, column: 2 }, "8:rrtrrrrrrr"),
-  old("not-rare", 9999, 7, 4, base, "twinkle_fallback", { minute: 9999, row: 7, column: 4 }, "7:rrrrtrrrrr"),
-  old("mismatch", 1216, 10, 7, base, "rare_target", { minute: 1216, row: 10, column: 4 }, "10:rrrrrrrtrr"),
+  old(
+    "legacy-1",
+    1216,
+    10,
+    7,
+    base,
+    "rare_target",
+    { minute: 1216, row: 10, column: 7 },
+    "10:rrrrrrrtrr",
+  ),
+  old(
+    "legacy-1",
+    1216,
+    10,
+    7,
+    base,
+    "rare_target",
+    { minute: 1216, row: 10, column: 7 },
+    "10:rrrrrrrtrr",
+  ), // duplicate
+  old(
+    "legacy-2",
+    1216,
+    10,
+    7,
+    "2026-10-29T00:00:00.000Z",
+    "rough_fallback",
+    { minute: 1216, row: 10, column: 2 },
+    "10:rrrrrrrcrr",
+  ),
+  old(
+    "routed-1",
+    5447,
+    10,
+    3,
+    "2026-10-30T00:00:00.000Z",
+    "rare_target",
+    { minute: 5447, row: 10, column: 3 },
+    "10:rrrtrrrrrr",
+    { run_id: "paid-run", route_mode: "watersheep-paid" },
+  ),
+  old(
+    "routed-2",
+    5447,
+    10,
+    3,
+    "2026-11-05T00:00:00.000Z",
+    "rare_target",
+    { minute: 5447, row: 10, column: 3 },
+    "10:rrrtrrrrrr",
+    { run_id: "paid-run2", route_mode: "watersheep-paid" },
+  ),
+  old(
+    "false",
+    2521,
+    8,
+    2,
+    base,
+    "rare_target",
+    { minute: 2521, row: 8, column: 2 },
+    "8:rrtrrrrrrr",
+  ),
+  old(
+    "not-rare",
+    9999,
+    7,
+    4,
+    base,
+    "twinkle_fallback",
+    { minute: 9999, row: 7, column: 4 },
+    "7:rrrrtrrrrr",
+  ),
+  old(
+    "mismatch",
+    1216,
+    10,
+    7,
+    base,
+    "rare_target",
+    { minute: 1216, row: 10, column: 4 },
+    "10:rrrrrrrtrr",
+  ),
 ];
 const cutoff = Date.parse("2026-11-10T00:00:00.000Z");
 const index = buildHistoricalRareIndex(points, events, cutoff);
@@ -60,7 +138,11 @@ assert.equal(historicalRareForTile(index, 9999, 7, 4).prior_target_observations,
 assert.equal(historicalRareForTile(index, 2521, 8, 2), null);
 
 // Only observations existing BEFORE inference can inform that inference.
-const first = buildHistoricalRareIndex(points, events.slice(0, 3), Date.parse("2026-10-29T01:00:00Z"));
+const first = buildHistoricalRareIndex(
+  points,
+  events.slice(0, 3),
+  Date.parse("2026-10-29T01:00:00Z"),
+);
 assert.equal(historicalRareForTile(first, 5447, 10, 3).rare_target_attempts, 0);
 assert.equal(first.baseline.rare_target_attempts, 1);
 

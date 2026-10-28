@@ -29,12 +29,16 @@ import {
   relation,
 } from "./runtime/contracts";
 import {
+  buildHistoricalRareIndex,
+  historicalRareForTile,
+  type HistoricalRareIndex,
+} from "./runtime/historical-rares";
+import {
   loadMlTraceEvents,
   loadObservationLedger,
   loadTileRecoveryLedger,
 } from "./runtime/observations";
 import { recoveryFeatures, tileKey, type TileRecoveryLedger } from "./runtime/recovery";
-import { buildHistoricalRareIndex, historicalRareForTile, type HistoricalRareIndex } from "./runtime/historical-rares";
 
 const GRID = 1024;
 const REAL = 1_000_000;
@@ -318,9 +322,10 @@ function evidenceFor(
         : undefined,
       Date.now() / 1000,
     ),
-    historical_rare: tile && historicalIndex
-      ? historicalRareForTile(historicalIndex, tile.minute, tile.row, tile.column)
-      : null,
+    historical_rare:
+      tile && historicalIndex
+        ? historicalRareForTile(historicalIndex, tile.minute, tile.row, tile.column)
+        : null,
     observed_symbol_rates: symbolRates(entry),
     observed_outcome_rates: outcomeRates(entry),
     sand_per_event: events ? round(n((entry.items || {})["grain of sand"]) / events, 4) : 0,
@@ -563,7 +568,11 @@ export function traceTargetPrediction(
   const recoveryLedger = loadTileRecoveryLedger();
   const tile = row == null || column == null ? undefined : { minute, row, column };
   const fullHistory = loadMlTraceEvents(Number.MAX_SAFE_INTEGER);
-  const historicalIndex = buildHistoricalRareIndex(loadRarePoints(), fullHistory.events, Date.now());
+  const historicalIndex = buildHistoricalRareIndex(
+    loadRarePoints(),
+    fullHistory.events,
+    Date.now(),
+  );
   const evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex);
   const candidate: Candidate = {
     minute,

@@ -180,7 +180,7 @@ Three evidence grades remain separate:
 
 For each recorded rare coordinate the read-only baseline exposes observation
 counts, old versus run-bound evidence, previously-combed and visible-twinkle
-observations *at that coordinate*, rare-target attempt counts, dated first/last
+observations _at that coordinate_, rare-target attempt counts, dated first/last
 observation, and elapsed time between distinct rare-target attempts where
 observed. The WaterSheep **model input** includes that summary. It does not
 expose the full rare-coordinate catalogue, Combo's route order or baseline

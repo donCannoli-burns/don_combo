@@ -43,8 +43,7 @@ export interface HistoricalRareIndex {
   byTile: Record<string, HistoricalRareTileEvidence>;
 }
 
-const key = (minute: number, row: number, column: number): string =>
-  `${minute},${row},${column}`;
+const key = (minute: number, row: number, column: number): string => `${minute},${row},${column}`;
 const empty = (): HistoricalRareTileEvidence => ({
   recorded_in_rare_catalogue: true,
   prior_target_observations: 0,
@@ -155,9 +154,7 @@ export function buildHistoricalRareIndex(
     entry.days_since_last_rare_attempt = entry.last_rare_attempt_at
       ? Math.max(
           0,
-          Math.round(
-            ((nowMs - Date.parse(entry.last_rare_attempt_at)) / 86400000) * 1000,
-          ) / 1000,
+          Math.round(((nowMs - Date.parse(entry.last_rare_attempt_at)) / 86400000) * 1000) / 1000,
         )
       : null;
   }
@@ -177,8 +174,7 @@ export function buildHistoricalRareIndex(
       coordinates_with_rare_attempts: entries.filter((x) => x.rare_target_attempts > 0).length,
       verified_rare_harvests: null,
       completed_respawn_intervals: null,
-      note:
-        "All locally recorded ML events are scanned. Historical catalogue locations have no dates. Rare-target actions are not confirmed rare-item harvests; repeated attempts are not verified respawn intervals. No synthetic training samples or cooldown probabilities.",
+      note: "All locally recorded ML events are scanned. Historical catalogue locations have no dates. Rare-target actions are not confirmed rare-item harvests; repeated attempts are not verified respawn intervals. No synthetic training samples or cooldown probabilities.",
     },
     byTile,
   };

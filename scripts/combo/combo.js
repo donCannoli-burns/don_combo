@@ -1633,6 +1633,29 @@ function historicalRareForTile(index, minute, row, column) {
   return index.byTile[key$1(minute, row, column)] || null;
 }
 
+// Beach scarce-tile message is a NON-INVENTORY encounter, not a
+// KoL item delta. Keep it pool-unassigned pending empirical identification.
+// r28508 logs: "> You found a message in a bottle!"
+var BOTTLE_SCHEMA = "don-combo-beach-bottle/v0.1";
+function parseBottleOutput(output) {
+  // Match the standalone observed success line, not a string describing a
+  // failure or the command used. Do not confuse Ocean City fishing items.
+  var found = String(output || "").split(/\r?\n/).some(line => /^\s*(?:>\s*)?You found a message in a bottle!\s*$/i.test(line.trim()));
+  return found ? [{
+    schema: BOTTLE_SCHEMA,
+    kind: "message_in_a_bottle",
+    source: "native-cli-command-output",
+    evidence_text: "You found a message in a bottle!",
+    pool: "unassigned",
+    tier: "unassigned",
+    attribution: "actual-comb-coordinate",
+    weak_pool_context: {
+      pool_1: 0.1,
+      pool_2: 0.1
+    }
+  }] : [];
+}
+
 /* eslint-disable eqeqeq */
 // Evidence is per coordinate, not per beachfront. Unknown is not a successful harvest.
 
@@ -1989,6 +2012,12 @@ var blank = coordinate => ({
 // Pool 2 rewards and pool 1 pearls require positive item deltas.
 function buildPoolCooldownIndex(events, nowMs, playerId) {
   var byCoordinate = {};
+  var bottleByCoordinate = {};
+  var bottleEvents = [];
+  var bottleUnbound = 0;
+  var captureCovered = 0,
+    captureEmpty = 0,
+    captureLegacy = 0;
   var byFront = {};
   var observations = [];
   var p1 = emptyCounts(),
@@ -2077,11 +2106,12 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
     _step2;
   try {
     for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
-      var _e$run_context5;
+      var _e$run_context5, _e$special_events;
       var e = _step2.value;
       if (e.event_id && seen.has(e.event_id)) continue;
       if (e.event_id) seen.add(e.event_id);
       matched++;
+      if (e.action_output_capture === "captured") captureCovered++;else if (e.action_output_capture === "empty") captureEmpty++;else captureLegacy++;
       if ((_e$run_context5 = e.run_context) !== null && _e$run_context5 !== void 0 && _e$run_context5.run_id) bound++;else legacy++;
       // Observe any previously rewarded coordinate in the visible beachfront,
       // not just the planned target. A c is evidence of still-combed state.
@@ -2130,6 +2160,35 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
       }
       var actual = e.actual_comb;
       var actualKey = (actual === null || actual === void 0 ? void 0 : actual.minute) === e.minute ? key(actual) : null;
+      // Count a genuine beach-result message once, even if its text appears
+      // more than once in the command output. No synthetic inventory delta.
+      if ((_e$special_events = e.special_events) !== null && _e$special_events !== void 0 && _e$special_events.some(x => x.kind === "message_in_a_bottle" && x.source === "native-cli-command-output" && x.pool === "unassigned")) {
+        if (actualKey) {
+          var _e$run_context6;
+          var bottle = bottleByCoordinate[actualKey] ?? (bottleByCoordinate[actualKey] = {
+            observed_events: 0,
+            last_observed_at: null,
+            classification: "POOL_UNKNOWN",
+            weak_context_weight: {
+              pool_1: 0.1,
+              pool_2: 0.1
+            },
+            interpretation: "EXPLORATION_HINT_NOT_POOL_MEMBERSHIP_OR_DROP_PROBABILITY"
+          });
+          bottle.observed_events++;
+          bottle.last_observed_at = e.observed_at;
+          bottleEvents.push({
+            kind: "message_in_a_bottle",
+            coordinate: actualKey,
+            observed_at: e.observed_at,
+            event_id: e.event_id || null,
+            route_mode: ((_e$run_context6 = e.run_context) === null || _e$run_context6 === void 0 ? void 0 : _e$run_context6.route_mode) || "legacy-unbound",
+            source: "native-cli-command-output"
+          });
+        } else {
+          bottleUnbound++;
+        }
+      }
       if (e.outcome === "whale" && actualKey && symbolAt(e.layout, actual.row, actual.column) === "W") {
         enrich(e, actualKey, tier("pool_1", "beached_whale", "uncommon_rare", "action-recorded", 1, null), "unknown");
       }
@@ -2168,12 +2227,19 @@ function buildPoolCooldownIndex(events, nowMs, playerId) {
     distinct_reward_coordinates: rewardedCoords.size,
     historical_unbound_events: legacy,
     run_bound_events: bound,
+    message_bottle_events: bottleEvents.length,
+    message_bottle_unbound: bottleUnbound,
+    bottle_detection_output_captured: captureCovered,
+    bottle_detection_output_empty: captureEmpty,
+    bottle_detection_legacy_unavailable: captureLegacy,
     unclassified_item_deltas: unclassified,
     hypothesis: "User-proposed two-pool rarity ladder: shorter cooldown may correspond to common/rare, longer to uncommon/rare, longest to rare/rare. NOT CALIBRATED. Recorded deltas and sightings are observations, not a demonstrated cooldown-to-loot relationship."
   };
   return {
     summary,
     by_coordinate: byCoordinate,
+    bottle_by_coordinate: bottleByCoordinate,
+    bottle_events: bottleEvents,
     by_front: byFront,
     observations
   };
@@ -2230,9 +2296,9 @@ function buildHistoricalRareCurve(points, events, poolIndex, nowMs, playerId) {
   }
   var bins = [makeBin("under_1_day", 0, 1), makeBin("1_to_3_days", 1, 3), makeBin("3_to_7_days", 3, 7), makeBin("7_to_14_days", 7, 14), makeBin("14_to_30_days", 14, 30), makeBin("30_to_90_days", 30, 90), makeBin("90_to_180_days", 90, 180), makeBin("180_to_365_days", 180, 365), makeBin("365_to_730_days", 365, 730), makeBin("730_plus_days", 730, null)];
   var eligible = events.filter(e => {
-    var _e$run_context6, _e$run_context7, _e$run_context8;
+    var _e$run_context7, _e$run_context8, _e$run_context9;
     var t = Date.parse(e.observed_at);
-    return Number.isFinite(t) && t <= nowMs && (((_e$run_context6 = e.run_context) === null || _e$run_context6 === void 0 ? void 0 : _e$run_context6.player_id) === null || ((_e$run_context7 = e.run_context) === null || _e$run_context7 === void 0 ? void 0 : _e$run_context7.player_id) === undefined || ((_e$run_context8 = e.run_context) === null || _e$run_context8 === void 0 ? void 0 : _e$run_context8.player_id) === playerId);
+    return Number.isFinite(t) && t <= nowMs && (((_e$run_context7 = e.run_context) === null || _e$run_context7 === void 0 ? void 0 : _e$run_context7.player_id) === null || ((_e$run_context8 = e.run_context) === null || _e$run_context8 === void 0 ? void 0 : _e$run_context8.player_id) === undefined || ((_e$run_context9 = e.run_context) === null || _e$run_context9 === void 0 ? void 0 : _e$run_context9.player_id) === playerId);
   }).slice().sort((a, b) => Date.parse(a.observed_at) - Date.parse(b.observed_at));
   var seen = new Set(),
     previous = new Map();
@@ -2249,7 +2315,7 @@ function buildHistoricalRareCurve(points, events, poolIndex, nowMs, playerId) {
     _step7;
   try {
     var _loop = function _loop() {
-        var _e$run_context9;
+        var _e$run_context0;
         var e = _step7.value;
         if (e.event_id && seen.has(e.event_id)) return 0; // continue
         if (e.event_id) seen.add(e.event_id);
@@ -2259,7 +2325,7 @@ function buildHistoricalRareCurve(points, events, poolIndex, nowMs, playerId) {
         touched++;
         if (e.outcome !== "rare_target" || !actual || key(actual) !== key(target)) return 0; // continue
         exact++;
-        if ((_e$run_context9 = e.run_context) !== null && _e$run_context9 !== void 0 && _e$run_context9.run_id) bound++;else legacy++;
+        if ((_e$run_context0 = e.run_context) !== null && _e$run_context0 !== void 0 && _e$run_context0.run_id) bound++;else legacy++;
         attempted.add(key(target));
         var when = Date.parse(e.observed_at);
         if (!first || e.observed_at < first) first = e.observed_at;
@@ -2333,6 +2399,18 @@ function buildHistoricalRareCurve(points, events, poolIndex, nowMs, playerId) {
     verified_respawn_intervals: null,
     inference_kind: "OBSERVED_ATTEMPT_GAPS_NOT_RESPAWN_PROBABILITY",
     note: "Historical known coordinates without timestamps are not training samples. Bins count elapsed time between two recorded rare-target attempts on the SAME exact coordinate, not actual cooldown length. A second positive item is associated with that later attempt; no rarity-to-cooldown law is assumed."
+  };
+}
+function bottleForTarget(index, minute, row, column) {
+  return index.bottle_by_coordinate["".concat(minute, ",").concat(row, ",").concat(column)] || {
+    observed_events: 0,
+    last_observed_at: null,
+    classification: "POOL_UNKNOWN",
+    weak_context_weight: {
+      pool_1: 0.1,
+      pool_2: 0.1
+    },
+    interpretation: "EXPLORATION_HINT_NOT_POOL_MEMBERSHIP_OR_DROP_PROBABILITY"
   };
 }
 
@@ -2596,6 +2674,8 @@ function recordBeachObservation(minute, layout, outcome) {
     actual_comb: actual,
     items: detail.items || {},
     meat: detail.meat || 0,
+    special_events: parseBottleOutput(detail.action_output || ""),
+    action_output_capture: detail.action_output === undefined ? "legacy-unavailable" : detail.action_output.length ? "captured" : "empty",
     layout,
     layout_symbols: counts,
     pre_action_prediction: detail.pre_action_prediction || null,
@@ -2815,6 +2895,12 @@ function buildPoolTimeScaleAudit(index) {
     schema: "don-combo-pool-timescales/v0.1",
     total_layout_sightings: layout,
     raw_item_delta_quantity: rawQty,
+    unassigned_message_bottle_events: index.bottle_events.length,
+    unassigned_bottle_category_gaps: Math.max(0, index.bottle_events.length - 1),
+    unassigned_bottle_weak_pool_context: {
+      pool_1: 0.1,
+      pool_2: 0.1
+    },
     distinct_reward_events: events.length,
     collapsed_simultaneous_gear_items: collapsed,
     global_interreward_intervals: gaps.length,
@@ -2833,6 +2919,9 @@ function compactPoolTimeScales(index) {
     schema: index.schema,
     total_layout_sightings: index.total_layout_sightings,
     raw_item_delta_quantity: index.raw_item_delta_quantity,
+    unassigned_message_bottle_events: index.unassigned_message_bottle_events,
+    unassigned_bottle_category_gaps: index.unassigned_bottle_category_gaps,
+    unassigned_bottle_weak_pool_context: index.unassigned_bottle_weak_pool_context,
     distinct_reward_events: index.distinct_reward_events,
     collapsed_simultaneous_gear_items: index.collapsed_simultaneous_gear_items,
     global_interreward_intervals: index.global_interreward_intervals,
@@ -3106,6 +3195,7 @@ function evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIn
     scratch_interest: evidenceForScratchFront(scratches || emptyScratchLedger(n(kolmafia.myId())), minute),
     historical_rare_curve: historicalCurve || buildHistoricalRareCurve([], [], buildPoolCooldownIndex([], Date.now(), n(kolmafia.myId())), Date.now(), n(kolmafia.myId())),
     pool_timescales: timescales ? compactPoolTimeScales(timescales) : null,
+    bottle_unknown_pool: bottleForTarget(poolIndex || buildPoolCooldownIndex([], Date.now(), n(kolmafia.myId())), minute, (tile === null || tile === void 0 ? void 0 : tile.row) ?? 0, (tile === null || tile === void 0 ? void 0 : tile.column) ?? -1),
     pool_cooldown: cooldownForTarget(poolIndex || buildPoolCooldownIndex([], Date.now(), n(kolmafia.myId())), minute, (tile === null || tile === void 0 ? void 0 : tile.row) ?? 0, (tile === null || tile === void 0 ? void 0 : tile.column) ?? -1),
     pool_front_observations: (poolIndex === null || poolIndex === void 0 ? void 0 : poolIndex.by_front[String(minute)]) || {
       sand_castle: 0,
@@ -3309,6 +3399,7 @@ function waterSheepPayload(candidate) {
       historical_rare: evidence.historical_rare,
       scratch_interest: evidence.scratch_interest,
       pool_cooldown: evidence.pool_cooldown,
+      bottle_unknown_pool: evidence.bottle_unknown_pool,
       pool_timescales: evidence.pool_timescales,
       historical_rare_curve: evidence.historical_rare_curve,
       pool_front_observations: evidence.pool_front_observations,
@@ -3445,6 +3536,8 @@ function scoreCandidate(candidate, scores) {
   var model = LABELS.reduce((sum, label) => sum + n(scores[label]) * WEIGHTS[label], 0);
   var exploration = 0.08 / Math.sqrt(1 + evidence.observation_count);
   var observed = n(rates.whale) * 0.16 + n(rates.twinkle) * 0.08 - n(rates.combed) * 0.05 + n(outcomes.whale) * 0.16 + n(outcomes.rare_target) * 0.12 + n(outcomes.twinkle_fallback) * 0.08 - n(outcomes.rough_fallback) * 0.02 - n(outcomes.exhausted_fallback) * 0.05 + (evidence.cooldown.revisit_signal ?? 0) * 0.08 +
+  // A single low-amplitude exploration hint, NOT 2 fake pool rewards.
+  Math.min(1, evidence.bottle_unknown_pool.observed_events) * 0.004 +
   // Bounded exploration preference; not a fitted rare chance and never an
   // action permission. Distinct-day recurrence compounds, same-day revisits do not.
   evidence.scratch_interest.interest_score * 0.06 - (evidence.cooldown.still_combed_after_harvest && (evidence.cooldown.days_since_observed ?? 999) < 1 ? 0.04 : 0);
@@ -3892,6 +3985,7 @@ function buildRuntime() {
       tiles_recorded: Object.keys(recoveryLedger.tiles).length,
       historical_rare_baseline: historicalIndex.baseline,
       two_pool_cooldown_summary: poolIndex.summary,
+      bottle_observations_tail: poolIndex.bottle_events.slice(-60),
       pool_timescales: compactPoolTimeScales(timescales),
       pool_recent_transitions: timescales.gaps.slice(-40),
       historical_rare_curve: historicalCurve,
@@ -4309,7 +4403,7 @@ function _comb(tile) {
   // This way, our compiler and our IDE don't start shouting at us for things that we, the reader, know are fine.
   .map(rowLayout => [parseInt(rowLayout[0]), rowLayout[1].split("")]));
   var preActionPrediction = captureTargetPrediction(minute, row, column);
-  var finishObservation = (outcome, actualRow, actualColumn, before) => {
+  var finishObservation = (outcome, actualRow, actualColumn, before, actionOutput) => {
     var delta = sessionDelta(before);
     recordBeachObservation(minute, layoutString, outcome, {
       planned_target: {
@@ -4324,6 +4418,7 @@ function _comb(tile) {
       },
       items: delta.items,
       meat: delta.meat,
+      action_output: actionOutput,
       pre_action_prediction: preActionPrediction,
       pre_action_observed_at: preActionObservedAt,
       run_context: activeShadowRun
@@ -4340,8 +4435,8 @@ function _comb(tile) {
     var whaleColumn = whaleRow[1].findIndex(x => x === "W");
     kolmafia.print("We found a whale. To hey deze's heart, we'll stab at it.", "red");
     var _before = Session.current();
-    kolmafia.cliExecute("beach comb ".concat(whaleRow[0], " ").concat(whaleColumn));
-    finishObservation("whale", whaleRow[0], whaleColumn, _before);
+    var _output = kolmafia.cliExecuteOutput("beach comb ".concat(whaleRow[0], " ").concat(whaleColumn));
+    finishObservation("whale", whaleRow[0], whaleColumn, _before, _output);
     // By returning partway through, we avoid needing to use "else"
     // With the exception of try...finally shenanigans, using the return keyword will just immediately terminate the function
     return;
@@ -4363,18 +4458,19 @@ function _comb(tile) {
       kolmafia.print("Our rare tile is uncombed, so let's go ahead and change that.", "red");
       // Grab the output of our comb and lowercase the resulting text
       var _before2 = Session.current();
-      var output = kolmafia.cliExecuteOutput("beach comb ".concat(row, " ").concat(column)).toLowerCase();
+      var actionOutput = kolmafia.cliExecuteOutput("beach comb ".concat(row, " ").concat(column));
+      var _output2 = actionOutput.toLowerCase();
 
       // We exclude grain of sand as it means we didn't comb a twinkle as expected
       // We check if the output contained an item only found in infrequent twinkles
       // If it did contain such an item, it means this tile was not actually a rare
-      var hasCommonItem = !output.includes("grain of sand") && infrequentItemNames.some(name => output.includes(name));
+      var hasCommonItem = !_output2.includes("grain of sand") && infrequentItemNames.some(name => _output2.includes(name));
 
       // If it was not actually a rare, invoke a function to add it to a list of known false rares
       if (hasCommonItem) {
         addFalseRare(tile);
       }
-      finishObservation(falseRareRough ? "false_rare_rough" : hasCommonItem ? "false_rare_item" : "rare_target", row, column, _before2);
+      finishObservation(falseRareRough ? "false_rare_rough" : hasCommonItem ? "false_rare_item" : "rare_target", row, column, _before2, actionOutput);
       return;
     }
   }
@@ -4383,8 +4479,8 @@ function _comb(tile) {
     kolmafia.print("Our rare tile is combed, but we found a twinkle!", HIGHLIGHT);
     var twinkleColumn = firstTwinkleRow[1].findIndex(x => x === "t");
     var _before3 = Session.current();
-    kolmafia.cliExecute("beach comb ".concat(firstTwinkleRow[0], " ").concat(twinkleColumn));
-    finishObservation("twinkle_fallback", firstTwinkleRow[0], twinkleColumn, _before3);
+    var _output3 = kolmafia.cliExecuteOutput("beach comb ".concat(firstTwinkleRow[0], " ").concat(twinkleColumn));
+    finishObservation("twinkle_fallback", firstTwinkleRow[0], twinkleColumn, _before3, _output3);
     return;
   }
   var firstRoughRow = Array.from(layout.entries()).find(rowLayout => rowLayout[1].includes("r"));
@@ -4392,14 +4488,14 @@ function _comb(tile) {
     kolmafia.print("Our rare tile is combed, but we found some rough sand. So I guess there's that.", HIGHLIGHT);
     var roughcolumn = firstRoughRow[1].findIndex(x => x === "r");
     var _before4 = Session.current();
-    kolmafia.cliExecute("beach comb ".concat(firstRoughRow[0], " ").concat(roughcolumn));
-    finishObservation("rough_fallback", firstRoughRow[0], roughcolumn, _before4);
+    var _output4 = kolmafia.cliExecuteOutput("beach comb ".concat(firstRoughRow[0], " ").concat(roughcolumn));
+    finishObservation("rough_fallback", firstRoughRow[0], roughcolumn, _before4, _output4);
     return;
   }
   kolmafia.print("We've exhausted all other options, so we're combing an already-combed tile.", HIGHLIGHT);
   var before = Session.current();
-  kolmafia.cliExecute("beach comb ".concat(row, " ").concat(column));
-  finishObservation("exhausted_fallback", row, column, before);
+  var output = kolmafia.cliExecuteOutput("beach comb ".concat(row, " ").concat(column));
+  finishObservation("exhausted_fallback", row, column, before, output);
 }
 
 // Alright now this is pretty cool

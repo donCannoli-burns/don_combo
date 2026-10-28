@@ -54,6 +54,7 @@ import {
 } from "./runtime/scratch-interest";
 import {
   buildPoolCooldownIndex,
+  bottleForTarget,
   buildHistoricalRareCurve,
   cooldownForTarget,
   type HistoricalRareCurve,
@@ -361,6 +362,10 @@ function evidenceFor(
         n(myId()),
       ),
     pool_timescales: timescales ? compactPoolTimeScales(timescales) : null,
+    bottle_unknown_pool: bottleForTarget(
+      poolIndex || buildPoolCooldownIndex([], Date.now(), n(myId())),
+      minute, tile?.row ?? 0, tile?.column ?? -1,
+    ),
     pool_cooldown: cooldownForTarget(
       poolIndex || buildPoolCooldownIndex([], Date.now(), n(myId())),
       minute,
@@ -593,6 +598,7 @@ function waterSheepPayload(candidate: Candidate): WaterSheepRequest {
       historical_rare: evidence.historical_rare,
       scratch_interest: evidence.scratch_interest,
       pool_cooldown: evidence.pool_cooldown,
+      bottle_unknown_pool: evidence.bottle_unknown_pool,
       pool_timescales: evidence.pool_timescales,
       historical_rare_curve: evidence.historical_rare_curve,
       pool_front_observations: evidence.pool_front_observations,
@@ -748,6 +754,8 @@ function scoreCandidate(
     n(outcomes.rough_fallback) * 0.02 -
     n(outcomes.exhausted_fallback) * 0.05 +
     (evidence.cooldown.revisit_signal ?? 0) * 0.08 +
+    // A single low-amplitude exploration hint, NOT 2 fake pool rewards.
+    Math.min(1, evidence.bottle_unknown_pool.observed_events) * 0.004 +
     // Bounded exploration preference; not a fitted rare chance and never an
     // action permission. Distinct-day recurrence compounds, same-day revisits do not.
     evidence.scratch_interest.interest_score * 0.06 -
@@ -1271,6 +1279,7 @@ function buildRuntime(frontierSize = 16) {
       tiles_recorded: Object.keys(recoveryLedger.tiles).length,
       historical_rare_baseline: historicalIndex.baseline,
       two_pool_cooldown_summary: poolIndex.summary,
+      bottle_observations_tail: poolIndex.bottle_events.slice(-60),
       pool_timescales: compactPoolTimeScales(timescales),
       pool_recent_transitions: timescales.gaps.slice(-40),
       historical_rare_curve: historicalCurve,

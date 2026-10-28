@@ -17,6 +17,7 @@ import {
 import { $items, get, property, Session, set, sinceKolmafiaRevision } from "libram";
 
 import { traceTargetPrediction } from "./don_combo_runtime";
+import { compileShadowTop11, type ShadowRouteSnapshot } from "./runtime/shadow-route";
 import {
   loadMlTraceEvents,
   recordBeachObservation,
@@ -97,10 +98,10 @@ function mlTraceEnabled(): boolean {
   );
 }
 
-function captureTargetPrediction(minute: number): Record<string, unknown> | null {
+function captureTargetPrediction(minute: number, row: number, column: number): Record<string, unknown> | null {
   if (!mlTraceEnabled()) return null;
   try {
-    return traceTargetPrediction(minute);
+    return traceTargetPrediction(minute, row, column);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     print(`don_combo ML trace unavailable: ${message} · Combo continues normally.`, "gray");
@@ -153,7 +154,7 @@ function _comb(tile: BeachTile): void {
       .map((rowLayout) => [parseInt(rowLayout[0]), rowLayout[1].split("")] as [number, string[]]),
   );
 
-  const preActionPrediction = captureTargetPrediction(minute);
+  const preActionPrediction = captureTargetPrediction(minute, row, column);
   const finishObservation = (
     outcome: BeachOutcome,
     actualRow: number,
@@ -324,6 +325,20 @@ function comb(): boolean {
   return shouldComb;
 }
 
+// A relay confirmation selects a pre-scored local same-player/day snapshot.
+// No model inference runs during execution, and the model cannot supply coordinates.
+function loadShadowTop11Route(): BeachTile[] {
+  const raw = String(fileToBuffer("don_combo_matrix_runtime.json") || "");
+  if (!raw) abort("No frozen Shadow Route Lab snapshot; refresh first.");
+  const snapshot = JSON.parse(raw) as ShadowRouteSnapshot;
+  const invalid = new Set(getFalseRares().map(tile =>
+    tile.minute + "," + tile.row + "," + tile.column));
+  return compileShadowTop11(
+    snapshot, rareTiles, invalid, Number(myId()), gamedayToInt(),
+    get("_freeBeachWalksUsed", 0), Date.now() / 1000,
+  );
+}
+
 function printSession(session: Session) {
   const items: [Item, number][] = [...session.items];
 
@@ -356,13 +371,16 @@ export function main(args?: string | number): void {
   // Use a wrapper around session tracking to record our results
   // We do this by first tracking what the session results are right now
   // Later, we will subtract these items and meat from our final results
+  if (get("don_combo_running", false)) abort("Another Combo run is already active.");
+  const shadow11 = args === "shadow11";
+  const frozenRoute = shadow11 ? loadShadowTop11Route() : null;
   const baseline = Session.current();
 
   // Here we collapse our two possibilities into one
   // If args is already a number, combs is a number
   // If args is a string, we convert it to a number
-  const combs =
-    typeof args === "string" ? parseInt(args) : (args ?? 11 - get("_freeBeachWalksUsed"));
+  const combs = frozenRoute ? frozenRoute.length :
+    (typeof args === "string" ? parseInt(args) : (args ?? 11 - get("_freeBeachWalksUsed")));
   if (!Number.isInteger(combs) || isNaN(combs)) abort("Invalid argument!");
   if (combs <= 0) return;
   const oldFilter = get("logPreferenceChangeFilter");
@@ -404,6 +422,8 @@ export function main(args?: string | number): void {
       .join(","),
   );
 
+  const frozenPlayer = Number(myId());
+  const frozenGameday = gamedayToInt();
   let completedCombs = 0;
   let interrupted = false;
   let cleanFinish = false;
@@ -416,8 +436,23 @@ export function main(args?: string | number): void {
         break;
       }
 
-      // Comb returns a boolean based on whether we actually combed a tile.
-      if (comb()) completedCombs++;
+      if (frozenRoute) {
+        // Free-only guard at the exact action boundary. A changed counter
+        // can never authorize paid turns or an unplanned tile.
+        const before = get("_freeBeachWalksUsed", 0);
+        if (before < 0 || before >= 11) throw new Error("No free combs remain; paid comb prevented.");
+        const target = frozenRoute[completedCombs];
+        if (!target || gamedayToInt() !== frozenGameday || Number(myId()) !== frozenPlayer)
+          throw new Error("Shadow route day/player changed during execution.");
+        if (handlingChoice()) throw new Error("Unexpected active choice before shadow route action.");
+        _comb(target);
+        const after = get("_freeBeachWalksUsed", 0);
+        if (after !== before + 1) throw new Error("Free beach counter did not advance exactly once; stopping.");
+        completedCombs++;
+      } else {
+        // Preserve normal Combo's deterministic shuffled rare route.
+        if (comb()) completedCombs++;
+      }
 
       // If the request arrived during the comb, the observation/loot trace has
       // already been finalized. Stop here before beginning the next target.

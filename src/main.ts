@@ -20,15 +20,15 @@ import { $items, get, property, Session, set, sinceKolmafiaRevision } from "libr
 
 import { prepareWaterSheepRoute, traceTargetPrediction } from "./don_combo_runtime";
 import {
-  roundedPrescoreSeconds,
-  prescoreWaitPhrase,
-  prescoreProgressNotice,
-} from "./runtime/prescore-progress";
-import {
   loadMlTraceEvents,
   recordBeachObservation,
   type BeachOutcome,
 } from "./runtime/observations";
+import {
+  roundedPrescoreSeconds,
+  prescoreWaitPhrase,
+  prescoreProgressNotice,
+} from "./runtime/prescore-progress";
 import { summarizeShadowRun, type ShadowRunContext } from "./runtime/shadow-learning";
 import {
   compileShadowTop11,

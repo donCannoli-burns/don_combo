@@ -6,8 +6,11 @@ export const PRESCORE_ROUNDING_SECONDS = 30;
 
 export function roundedPrescoreSeconds(remainingTargets: number): number {
   if (!Number.isFinite(remainingTargets) || remainingTargets <= 0) return 0;
-  return Math.round((remainingTargets * PRESCORE_ASSUMED_SECONDS_PER_TARGET) / PRESCORE_ROUNDING_SECONDS) *
-    PRESCORE_ROUNDING_SECONDS;
+  return (
+    Math.round(
+      (remainingTargets * PRESCORE_ASSUMED_SECONDS_PER_TARGET) / PRESCORE_ROUNDING_SECONDS,
+    ) * PRESCORE_ROUNDING_SECONDS
+  );
 }
 
 export function prescoreWaitPhrase(remainingTargets: number): string {

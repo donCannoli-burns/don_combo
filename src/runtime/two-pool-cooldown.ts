@@ -104,7 +104,7 @@ export function poolForItem(item: string, quantity: number): PoolSignal | null {
   if (n === "piece of driftwood") return tier("pool_2", "piece_of_driftwood", "common_rare", "item-delta", quantity, item);
   if (n === "meteorite fragment") return tier("pool_2", "meteorite_fragment", "rare_rare", "item-delta", quantity, item);
   // Exact restricted equipment family; excludes ordinary swashbuckling loot.
-  if (/^cursed(?: pirate)? (?:tricorn|swash buckle|swashbuckle|swashbuckler|cutlass)$/.test(n))
+  if (/^cursed(?: pirate)? (?:tricorn hat|tricorn|swash buckle|swashbuckle|cutlass)$/.test(n))
     return tier("pool_2", "cursed_pirate_gear", "uncommon_rare", "item-delta", quantity, item);
   return null;
 }
@@ -263,4 +263,142 @@ export function cooldownForTarget(index:PoolIndex,minute:number,row:number,colum
 // inspectable. Complete historical replay still uses original raw fields.
 export function recordPoolLabels(event: PoolTraceEvent, playerId: number): PoolObservation[] {
   return buildPoolCooldownIndex([event], Date.parse(event.observed_at), playerId).observations;
+}
+
+export type CurveBinKey = "under_1_day" | "1_to_3_days" | "3_to_7_days" | "7_to_14_days" | "14_plus_days";
+export interface HistoricalCurveBin {
+  key: CurveBinKey;
+  lower_days_inclusive: number;
+  upper_days_exclusive: number | null;
+  repeat_attempt_intervals: number;
+  current_observed_rewards: number;
+  pool_1_rewards: number;
+  pool_2_rewards: number;
+  current_reward_tiers: Record<RewardTier, number>;
+  empty_or_unclassified_attempts: number;
+}
+export interface HistoricalRareCurve {
+  schema: "don-combo-historical-rare-curve/v0.1";
+  source: "known-rare-catalogue-cross-indexed-with-dated-ml-events";
+  known_rare_coordinates: number;
+  known_rare_undated_coordinates: number;
+  false_rare_excluded: number;
+  events_scanned: number;
+  events_at_known_rare_coordinates: number;
+  exact_rare_target_attempts: number;
+  distinct_coordinates_attempted: number;
+  repeated_attempt_intervals: number;
+  historical_unbound_rare_attempts: number;
+  run_bound_rare_attempts: number;
+  first_attempt_at: string | null;
+  last_attempt_at: string | null;
+  bins: HistoricalCurveBin[];
+  censored_same_coordinate_reward_intervals: number;
+  reward_tier_samples_without_repeat_attempt: number;
+  verified_respawn_intervals: null;
+  inference_kind: "OBSERVED_ATTEMPT_GAPS_NOT_RESPAWN_PROBABILITY";
+  note: string;
+}
+const makeBin=(key:CurveBinKey,lower:number,upper:number|null):HistoricalCurveBin=>({
+  key, lower_days_inclusive:lower, upper_days_exclusive:upper,
+  repeat_attempt_intervals:0,current_observed_rewards:0,pool_1_rewards:0,pool_2_rewards:0,
+  current_reward_tiers:{common_rare:0,uncommon_rare:0,rare_rare:0},
+  empty_or_unclassified_attempts:0,
+});
+const gapBin=(days:number):number=>days<1?0:days<3?1:days<7?2:days<14?3:4;
+
+// A catalogue tile is a possible observation site, never a negative example.
+// These are INTER-ATTEMPT intervals, not respawn intervals. Pool rewards are
+// conditioned on the LATER action's exact coordinate and positive item delta.
+export function buildHistoricalRareCurve(
+  points: ReadonlyArray<{minute:number;row:number;column:number;false_rare?:boolean}>,
+  events: ReadonlyArray<PoolTraceEvent>,
+  poolIndex: PoolIndex,
+  nowMs: number,
+  playerId: number,
+): HistoricalRareCurve {
+  const catalogue = new Set<string>();
+  let falseExcluded=0;
+  for(const p of points){
+    if(p.false_rare){falseExcluded++;continue;}
+    catalogue.add(key(p));
+  }
+  const bins:HistoricalCurveBin[]=[
+    makeBin("under_1_day",0,1),
+    makeBin("1_to_3_days",1,3),
+    makeBin("3_to_7_days",3,7),
+    makeBin("7_to_14_days",7,14),
+    makeBin("14_plus_days",14,null),
+  ];
+  const eligible=events.filter(e=>{
+    const t=Date.parse(e.observed_at);
+    return Number.isFinite(t)&&t<=nowMs &&
+      (e.run_context?.player_id==null || e.run_context.player_id===playerId);
+  }).slice().sort((a,b)=>Date.parse(a.observed_at)-Date.parse(b.observed_at));
+  const seen=new Set<string>(), previous=new Map<string,number>();
+  const attempted=new Set<string>();
+  let touched=0,exact=0,repeat=0,legacy=0,bound=0,standaloneRewards=0;
+  let first:string|null=null,last:string|null=null;
+  for(const e of eligible){
+    if(e.event_id&&seen.has(e.event_id))continue;
+    if(e.event_id)seen.add(e.event_id);
+    const target=e.planned_target, actual=e.actual_comb;
+    if(!target || !catalogue.has(key(target)) || target.minute!==e.minute)continue;
+    touched++;
+    if(e.outcome!=="rare_target"||!actual||key(actual)!==key(target))continue;
+    exact++;
+    if(e.run_context?.run_id)bound++;else legacy++;
+    attempted.add(key(target));
+    const when=Date.parse(e.observed_at);
+    if(!first || e.observed_at<first)first=e.observed_at;
+    if(!last || e.observed_at>last)last=e.observed_at;
+    const rewardSignals=(poolIndex.observations||[]).filter(o=>
+      o.event_id===e.event_id && o.coordinate===key(actual) &&
+      o.certainty!=="layout-sighting");
+    const currentRewards=rewardSignals.filter(o=>o.certainty==="item-delta"||
+      (o.certainty==="action-recorded" && o.kind==="beached_whale"));
+    const previousAt=previous.get(key(target));
+    // Same-timestamp events do not become an invented zero-day respawn.
+    if(previousAt!==undefined && when>previousAt){
+      repeat++;
+      const bin=bins[gapBin((when-previousAt)/86400000)];
+      bin.repeat_attempt_intervals++;
+      if(currentRewards.length){
+        for(const rw of currentRewards){
+          bin.current_observed_rewards+=rw.quantity;
+          if(rw.pool==="pool_1")bin.pool_1_rewards+=rw.quantity;
+          else bin.pool_2_rewards+=rw.quantity;
+          bin.current_reward_tiers[rw.tier]+=rw.quantity;
+        }
+      } else bin.empty_or_unclassified_attempts++;
+    } else standaloneRewards+=currentRewards.reduce((n,o)=>n+o.quantity,0);
+    previous.set(key(target),when);
+  }
+  // Reward-to-reward intervals from the pool index are separately CENSORED.
+  // A gap between rare target attempts is not necessarily the cooldown.
+  const censored=Object.entries(poolIndex.by_coordinate)
+    .filter(([coord])=>catalogue.has(coord))
+    .reduce((n,[,value])=>n+value.interval_samples.length,0);
+  return {
+    schema:"don-combo-historical-rare-curve/v0.1",
+    source:"known-rare-catalogue-cross-indexed-with-dated-ml-events",
+    known_rare_coordinates:catalogue.size,
+    known_rare_undated_coordinates:catalogue.size-attempted.size,
+    false_rare_excluded:falseExcluded,
+    events_scanned:events.length,
+    events_at_known_rare_coordinates:touched,
+    exact_rare_target_attempts:exact,
+    distinct_coordinates_attempted:attempted.size,
+    repeated_attempt_intervals:repeat,
+    historical_unbound_rare_attempts:legacy,
+    run_bound_rare_attempts:bound,
+    first_attempt_at:first,
+    last_attempt_at:last,
+    bins,
+    censored_same_coordinate_reward_intervals:censored,
+    reward_tier_samples_without_repeat_attempt:standaloneRewards,
+    verified_respawn_intervals:null,
+    inference_kind:"OBSERVED_ATTEMPT_GAPS_NOT_RESPAWN_PROBABILITY",
+    note:"Historical known coordinates without timestamps are not training samples. Bins count elapsed time between two recorded rare-target attempts on the SAME exact coordinate, not actual cooldown length. A second positive item is associated with that later attempt; no rarity-to-cooldown law is assumed.",
+  };
 }

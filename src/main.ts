@@ -391,8 +391,7 @@ export function main(args?: string | number): void {
       if (get("don_combo_running", false))
         throw new Error("Combo is already running.");
       const route = loadShadowTop11Route();
-      const snapshot = JSON.parse(String(fileToBuffer("don_combo_matrix_runtime.json")))
-        as ShadowRouteSnapshot;
+      const snapshot = JSON.parse(String(fileToBuffer("don_combo_matrix_runtime.json"))) as ShadowRouteSnapshot;
       setProperty("don_combo_shadow11_preview_status", "ready");
       setProperty("don_combo_shadow11_preview_snapshot", snapshot.generated_at);
       setProperty("don_combo_shadow11_preview_message",

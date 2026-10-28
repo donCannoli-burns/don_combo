@@ -193,6 +193,160 @@ function decodeRuntimeRequest(raw) {
   };
 }
 
+// Read-only historical baseline assembled from the full *local* event log and
+// raretiles.json. This does not change the game, model weights, or source files.
+// The historic corpus is a location catalogue, NOT a dated harvest record.
+
+var key = (minute, row, column) => "".concat(minute, ",").concat(row, ",").concat(column);
+var empty = () => ({
+  recorded_in_rare_catalogue: true,
+  prior_target_observations: 0,
+  legacy_unbound_observations: 0,
+  run_bound_observations: 0,
+  rare_target_attempts: 0,
+  confirmed_combed_preactions: 0,
+  visible_twinkles_at_target: 0,
+  first_target_observed_at: null,
+  last_target_observed_at: null,
+  last_rare_attempt_at: null,
+  days_since_last_rare_attempt: null,
+  elapsed_days_between_target_attempts: [],
+  verified_rare_harvests: null,
+  observed_respawn_intervals: null,
+  provenance: "historical-coordinate-catalogue-and-ml-events"
+});
+function symbolAt(layout, row, column) {
+  var _iterator = _createForOfIteratorHelper(String(layout || "").split(",")),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var part = _step.value;
+      var colon = part.indexOf(":");
+      if (colon < 0 || Number(part.slice(0, colon)) !== row) continue;
+      return part.slice(colon + 1).charAt(column) || null;
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  return null;
+}
+function validEpoch(value) {
+  var n = Date.parse(value);
+  return Number.isFinite(n) ? n : null;
+}
+function buildHistoricalRareIndex(points, events, nowMs) {
+  var byTile = {};
+  var excluded = 0;
+  var _iterator2 = _createForOfIteratorHelper(points),
+    _step2;
+  try {
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      var point = _step2.value;
+      if (point.false_rare) {
+        excluded++;
+        continue;
+      }
+      var _coord = key(point.minute, point.row, point.column);
+      byTile[_coord] ?? (byTile[_coord] = empty());
+    }
+  } catch (err) {
+    _iterator2.e(err);
+  } finally {
+    _iterator2.f();
+  }
+  var seenIds = new Set();
+  var hits = {};
+  var considered = 0;
+  var matched = 0;
+  var legacy = 0;
+  var bound = 0;
+  var attempts = 0;
+  var _iterator3 = _createForOfIteratorHelper(events),
+    _step3;
+  try {
+    for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+      var _event$run_context;
+      var event = _step3.value;
+      if (event.event_id && seenIds.has(event.event_id)) continue;
+      if (event.event_id) seenIds.add(event.event_id);
+      considered++;
+      var planned = event.planned_target;
+      if (!planned || planned.minute !== event.minute) continue;
+      var _coord2 = key(planned.minute, planned.row, planned.column);
+      var evidence = byTile[_coord2];
+      if (!evidence) continue;
+      var when = validEpoch(event.observed_at);
+      // Ignore future events and bad timestamps, never manufacture a date.
+      if (when !== null && when > nowMs) continue;
+      matched++;
+      evidence.prior_target_observations++;
+      var isBound = !!((_event$run_context = event.run_context) !== null && _event$run_context !== void 0 && _event$run_context.run_id);
+      if (isBound) {
+        bound++;
+        evidence.run_bound_observations++;
+      } else {
+        legacy++;
+        evidence.legacy_unbound_observations++;
+      }
+      if (when !== null) {
+        var stamp = new Date(when).toISOString();
+        if (!evidence.first_target_observed_at || stamp < evidence.first_target_observed_at) evidence.first_target_observed_at = stamp;
+        if (!evidence.last_target_observed_at || stamp > evidence.last_target_observed_at) evidence.last_target_observed_at = stamp;
+      }
+      var symbol = symbolAt(event.layout, planned.row, planned.column);
+      if (symbol === "c") evidence.confirmed_combed_preactions++;
+      if (symbol === "t") evidence.visible_twinkles_at_target++;
+      var actual = event.actual_comb;
+      if (event.outcome === "rare_target" && (actual === null || actual === void 0 ? void 0 : actual.minute) === planned.minute && actual.row === planned.row && actual.column === planned.column) {
+        attempts++;
+        evidence.rare_target_attempts++;
+        if (when !== null) {
+          (hits[_coord2] ?? (hits[_coord2] = [])).push(when);
+          var _stamp = new Date(when).toISOString();
+          if (!evidence.last_rare_attempt_at || _stamp > evidence.last_rare_attempt_at) evidence.last_rare_attempt_at = _stamp;
+        }
+      }
+    }
+  } catch (err) {
+    _iterator3.e(err);
+  } finally {
+    _iterator3.f();
+  }
+  for (var _i = 0, _Object$entries = Object.entries(byTile); _i < _Object$entries.length; _i++) {
+    var _Object$entries$_i = _slicedToArray(_Object$entries[_i], 2),
+      coord = _Object$entries$_i[0],
+      entry = _Object$entries$_i[1];
+    var timestamps = _toConsumableArray(new Set(hits[coord] || [])).sort((a, b) => a - b);
+    for (var i = 1; i < timestamps.length; i++) entry.elapsed_days_between_target_attempts.push(Math.round((timestamps[i] - timestamps[i - 1]) / 86400000 * 1000) / 1000);
+    entry.days_since_last_rare_attempt = entry.last_rare_attempt_at ? Math.max(0, Math.round((nowMs - Date.parse(entry.last_rare_attempt_at)) / 86400000 * 1000) / 1000) : null;
+  }
+  var entries = Object.values(byTile);
+  return {
+    baseline: {
+      schema: "don-combo-historical-rare-baseline/v0.1",
+      catalogue_coordinates: entries.length,
+      catalogue_false_rare_excluded: excluded,
+      events_scanned: events.length,
+      distinct_events_considered: considered,
+      historical_observations_matched: matched,
+      legacy_unbound_observations: legacy,
+      run_bound_observations: bound,
+      rare_target_attempts: attempts,
+      coordinates_with_observations: entries.filter(x => x.prior_target_observations > 0).length,
+      coordinates_with_rare_attempts: entries.filter(x => x.rare_target_attempts > 0).length,
+      verified_rare_harvests: null,
+      completed_respawn_intervals: null,
+      note: "All locally recorded ML events are scanned. Historical catalogue locations have no dates. Rare-target actions are not confirmed rare-item harvests; repeated attempts are not verified respawn intervals. No synthetic training samples or cooldown probabilities."
+    },
+    byTile
+  };
+}
+function historicalRareForTile(index, minute, row, column) {
+  return index.byTile[key(minute, row, column)] || null;
+}
+
 /* eslint-disable eqeqeq */
 // Evidence is per coordinate, not per beachfront. Unknown is not a successful harvest.
 
@@ -550,7 +704,7 @@ function outcomeRates(entry) {
   }
   return result;
 }
-function evidenceFor(minute, current, ledger, tile, recoveryLedger) {
+function evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex) {
   var entry = ledger.fronts[String(minute)] || {};
   var layouts = n(entry.layout_snapshots);
   var events = n(entry.session_events);
@@ -570,6 +724,7 @@ function evidenceFor(minute, current, ledger, tile, recoveryLedger) {
     last_seen_age_hours: seen ? round(Math.max(0, Date.now() / 1000 - seen) / 3600, 3) : null,
     last_seen_turn: entry.last_seen_turn == null ? null : n(entry.last_seen_turn),
     cooldown: recoveryFeatures(tile && recoveryLedger ? recoveryLedger.tiles[tileKey(tile.minute, tile.row, tile.column)] : undefined, Date.now() / 1000),
+    historical_rare: tile && historicalIndex ? historicalRareForTile(historicalIndex, tile.minute, tile.row, tile.column) : null,
     observed_symbol_rates: symbolRates(entry),
     observed_outcome_rates: outcomeRates(entry),
     sand_per_event: events ? round(n((entry.items || {})["grain of sand"]) / events, 4) : 0,
@@ -676,8 +831,8 @@ function sampleMinutes(ledger, eligibleMinutes, count, current, exclude) {
   }
   return selected.slice(0, count).map(minute => [minute, sources[String(minute)]]);
 }
-function candidateFrontier(ledger, baseline, points, recoveryLedger) {
-  var count = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : 16;
+function candidateFrontier(ledger, baseline, points, recoveryLedger, historicalIndex) {
+  var count = arguments.length > 5 && arguments[5] !== undefined ? arguments[5] : 16;
   var current = n(kolmafia.getProperty("_beachMinutes"));
   var day = 1 + kolmafia.gamedayToInt() % 8;
   var rowsHidden = 4 - Math.abs(4 - day);
@@ -709,7 +864,7 @@ function candidateFrontier(ledger, baseline, points, recoveryLedger) {
   var push = (minute, source, isBaseline) => {
     var tile = isBaseline && baseline ? eligible.find(t => t.minute === baseline.minute && t.row === baseline.row && t.column === baseline.column) : chosen(minute);
     if (!tile) return;
-    var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger);
+    var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex);
     result.push({
       minute,
       source,
@@ -760,10 +915,11 @@ function waterSheepPayload(candidate) {
       session_events: evidence.session_events,
       last_seen_age_hours: evidence.last_seen_age_hours,
       tile_recovery: evidence.cooldown,
+      historical_rare: evidence.historical_rare,
       observed_symbol_rates: evidence.observed_symbol_rates,
       sand_per_event: evidence.sand_per_event,
       current_layout_if_same_front: candidate.minute === n(kolmafia.getProperty("_beachMinutes")) ? kolmafia.getProperty("_beachLayout") : "not observed",
-      withheld: "Combo target/order, candidate source labels, baseline membership, and rare count are withheld; per-coordinate evidence is advisory, uncalibrated, and not an action"
+      withheld: "Combo target/order, candidate source labels, baseline membership and complete rare-coordinate catalogue are withheld; per-coordinate historical event summaries are evidence, not proven rare respawns or authorization"
     },
     questions: {
       tile_class: {
@@ -840,7 +996,9 @@ function traceTargetPrediction(minute, row, column) {
     row,
     column
   };
-  var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger);
+  var fullHistory = loadMlTraceEvents(Number.MAX_SAFE_INTEGER);
+  var historicalIndex = buildHistoricalRareIndex(loadRarePoints(), fullHistory.events, Date.now());
+  var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex);
   var candidate = {
     minute,
     evidence,
@@ -862,6 +1020,7 @@ function traceTargetPrediction(minute, row, column) {
       session_events: evidence.session_events,
       last_seen_age_hours: evidence.last_seen_age_hours,
       tile_recovery: evidence.cooldown,
+      historical_rare: evidence.historical_rare,
       observed_symbol_rates: evidence.observed_symbol_rates,
       sand_per_event: evidence.sand_per_event,
       current_layout_if_same_front: minute === current ? kolmafia.getProperty("_beachLayout") : "not observed"
@@ -1234,7 +1393,11 @@ function buildRuntime() {
   var baseline = comboBaseline(points);
   var ledger = loadObservationLedger();
   var recoveryLedger = loadTileRecoveryLedger();
-  var candidates = candidateFrontier(ledger, baseline, points, recoveryLedger, frontierSize);
+  // ALL legacy + run-bound local observations, not just the 500-event UI tail.
+  // The historic coordinate catalogue is not assigned invented event dates.
+  var fullHistory = loadMlTraceEvents(Number.MAX_SAFE_INTEGER);
+  var historicalIndex = buildHistoricalRareIndex(points, fullHistory.events, Date.now());
+  var candidates = candidateFrontier(ledger, baseline, points, recoveryLedger, historicalIndex, frontierSize);
   var status = "ready";
   var error = null;
   var _iterator11 = _createForOfIteratorHelper(candidates),
@@ -1282,7 +1445,7 @@ function buildRuntime() {
     mode: "shadow-only",
     authority: "none",
     claim: "Score Combo's exact next successful target inside the same blinded WaterSheep pool as dynamic alternatives, without changing KoL state.",
-    note: "TypeScript/Libram runtime. WaterSheep score mass is experimental and uncalibrated for KoL beach outcomes. Known rare annotations, source labels, baseline membership, and Combo route identity are withheld from model input.",
+    note: "TypeScript/Libram runtime. WaterSheep score mass is experimental and uncalibrated for KoL beach outcomes. Raw coordinate catalogue, source labels, baseline membership and Combo route identity are withheld from model input; past per-coordinate observed rare attempts (with provenance) are included as uncalibrated history.",
     matrix: {
       order: 10,
       width: GRID,
@@ -1310,6 +1473,7 @@ function buildRuntime() {
       ledger_file: "don_combo_matrix_ledger.json",
       tile_recovery_file: "don_combo_tile_recovery.json",
       tiles_recorded: Object.keys(recoveryLedger.tiles).length,
+      historical_rare_baseline: historicalIndex.baseline,
       recovery_intervals: Object.values(recoveryLedger.tiles).reduce((count, entry) => {
         var _entry$recovery_inter;
         return count + (((_entry$recovery_inter = entry.recovery_intervals) === null || _entry$recovery_inter === void 0 ? void 0 : _entry$recovery_inter.length) || 0);

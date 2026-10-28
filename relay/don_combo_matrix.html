@@ -127,6 +127,9 @@
 <section id="ml-lab" class="section">
 <div class="sectionhead"><div><div class="eyebrow">Experiment / machine-learning trace</div><h2>WaterSheep evaluation log</h2></div><p>Paper-style plots inspired by the uploaded WaterSheep figures. Pre-action target scores are bound to the exact post-action outcome and loot; runtime snapshots separately compare model-only rank with model+policy rank.</p></div>
 <div id="mlStats" class="mlstats"></div>
+<article class="card" style="margin-bottom:10px"><div class="eyebrow">Historical rare evidence · read-only baseline</div>
+<p class="muted">All recorded rare-coordinate locations and the full local ML event ledger, including older unbound events, contribute to per-target WaterSheep evidence. A known coordinate is not a dated harvest, and target attempts are not validated respawn intervals.</p>
+<div id="mlHistoricalRare" class="evidence"></div></article>
 <div class="papergrid">
 <article class="paper"><h3>(a) Pre-action target score and observed result</h3><svg id="mlTraceChart" viewBox="0 0 460 180" role="img" aria-label="Target model and policy utility over traced combs"></svg><p>Blue = WaterSheep model utility. Orange = final model+policy utility. Outcome markers are the actual comb results; hover in the live relay for exact loot.</p></article>
 <article class="paper"><h3>(b) Combo baseline rank across shadow snapshots</h3><svg id="mlRankChart" viewBox="0 0 460 180" role="img" aria-label="Model-only and model plus policy baseline rank history"></svg><p>Green = rank from WaterSheep score mass alone. Orange = final model+policy rank. Rank 1 is best.</p></article>
@@ -332,6 +335,14 @@ function renderRankChart(rows){
 }
 function renderMlLab(){
  var ml=R.ml_lab||{},events=ml.events||[],history=ml.snapshot_history||[];
+ var historyRare=((R.observations||{}).historical_rare_baseline)||{};
+ document.getElementById("mlHistoricalRare").innerHTML=
+   evItem("catalogued historical coordinates",Number(historyRare.catalogue_coordinates||0).toLocaleString())+
+   evItem("all ML events scanned",Number(historyRare.events_scanned||0).toLocaleString())+
+   evItem("old unbound target observations",Number(historyRare.legacy_unbound_observations||0).toLocaleString())+
+   evItem("run-bound target observations",Number(historyRare.run_bound_observations||0).toLocaleString())+
+   evItem("recorded rare-target attempts",Number(historyRare.rare_target_attempts||0).toLocaleString())+
+   evItem("verified respawn intervals","not yet established");
  document.getElementById("mlStats").innerHTML=evItem("manual trace",ml.trace_enabled?"ON":"OFF")+evItem("run-bound cohorts",ml.daily_run_count_in_artifact||0)+evItem("per-comb events",Number(ml.events_total||0))+evItem("predicted events",Number(ml.predicted_events||0))+evItem("untraced events",Number(ml.untraced_events||0))+evItem("mean inference ms",ml.mean_prediction_latency_ms==null?"—":ml.mean_prediction_latency_ms);
  var daily=ml.daily_run_history||[];
  document.getElementById("mlDailyRuns").innerHTML=daily.length

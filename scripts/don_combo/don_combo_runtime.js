@@ -83,7 +83,10 @@ function _iterableToArrayLimit(r, l) {
       f = true,
       o = false;
     try {
-      if (i = (t = t.call(r)).next, 0 === l) ; else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0);
+      if (i = (t = t.call(r)).next, 0 === l) {
+        if (Object(t) !== t) return;
+        f = !1;
+      } else for (; !(f = (e = i.call(t)).done) && (a.push(e.value), a.length !== l); f = !0);
     } catch (r) {
       o = true, n = r;
     } finally {
@@ -197,7 +200,7 @@ function decodeRuntimeRequest(raw) {
 // raretiles.json. This does not change the game, model weights, or source files.
 // The historic corpus is a location catalogue, NOT a dated harvest record.
 
-var key = (minute, row, column) => "".concat(minute, ",").concat(row, ",").concat(column);
+var key$1 = (minute, row, column) => "".concat(minute, ",").concat(row, ",").concat(column);
 var empty = () => ({
   recorded_in_rare_catalogue: true,
   prior_target_observations: 0,
@@ -215,7 +218,7 @@ var empty = () => ({
   observed_respawn_intervals: null,
   provenance: "historical-coordinate-catalogue-and-ml-events"
 });
-function symbolAt(layout, row, column) {
+function symbolAt$1(layout, row, column) {
   var _iterator = _createForOfIteratorHelper(String(layout || "").split(",")),
     _step;
   try {
@@ -248,7 +251,7 @@ function buildHistoricalRareIndex(points, events, nowMs) {
         excluded++;
         continue;
       }
-      var _coord = key(point.minute, point.row, point.column);
+      var _coord = key$1(point.minute, point.row, point.column);
       byTile[_coord] ?? (byTile[_coord] = empty());
     }
   } catch (err) {
@@ -274,7 +277,7 @@ function buildHistoricalRareIndex(points, events, nowMs) {
       considered++;
       var planned = event.planned_target;
       if (!planned || planned.minute !== event.minute) continue;
-      var _coord2 = key(planned.minute, planned.row, planned.column);
+      var _coord2 = key$1(planned.minute, planned.row, planned.column);
       var evidence = byTile[_coord2];
       if (!evidence) continue;
       var when = validEpoch(event.observed_at);
@@ -295,7 +298,7 @@ function buildHistoricalRareIndex(points, events, nowMs) {
         if (!evidence.first_target_observed_at || stamp < evidence.first_target_observed_at) evidence.first_target_observed_at = stamp;
         if (!evidence.last_target_observed_at || stamp > evidence.last_target_observed_at) evidence.last_target_observed_at = stamp;
       }
-      var symbol = symbolAt(event.layout, planned.row, planned.column);
+      var symbol = symbolAt$1(event.layout, planned.row, planned.column);
       if (symbol === "c") evidence.confirmed_combed_preactions++;
       if (symbol === "t") evidence.visible_twinkles_at_target++;
       var actual = event.actual_comb;
@@ -344,7 +347,7 @@ function buildHistoricalRareIndex(points, events, nowMs) {
   };
 }
 function historicalRareForTile(index, minute, row, column) {
-  return index.byTile[key(minute, row, column)] || null;
+  return index.byTile[key$1(minute, row, column)] || null;
 }
 
 /* eslint-disable eqeqeq */
@@ -541,6 +544,423 @@ function summarizeScratchLedger(ledger, importedHistoricalEvents) {
     recorded_utc_days: days.size,
     imported_historical_events: importedHistoricalEvents,
     note: "Scratch count = pre-action c/combed squares in visible rows. >5 high, >=11 very interesting. Per-UTC-day maxima and bounded repeat-day interest; not a rare or respawn probability."
+  };
+}
+
+// Experimental dual-pool cooldown observation. The rarity ladder is a
+// user-supplied HYPOTHESIS, not a discovered KoL rule or learned probability.
+// Evidence comes solely from recorded layouts, exact item deltas and actions.
+
+var tier = (pool, kind, grade, certainty, quantity, item_name) => ({
+  pool,
+  kind,
+  tier: grade,
+  certainty,
+  quantity,
+  item_name
+});
+var key = c => "".concat(c.minute, ",").concat(c.row, ",").concat(c.column);
+function poolForItem(item, quantity) {
+  if (!Number.isFinite(quantity) || quantity <= 0) return null;
+  var n = item.toLowerCase().replace(/\s+/g, " ").trim();
+  if (n === "rainbow pearl") return tier("pool_1", "rainbow_pearl", "rare_rare", "item-delta", quantity, item);
+  if (n === "piece of driftwood") return tier("pool_2", "piece_of_driftwood", "common_rare", "item-delta", quantity, item);
+  if (n === "meteorite fragment") return tier("pool_2", "meteorite_fragment", "rare_rare", "item-delta", quantity, item);
+  // Exact restricted equipment family; excludes ordinary swashbuckling loot.
+  if (/^cursed(?: pirate)? (?:tricorn hat|tricorn|swash buckle|swashbuckle|cutlass)$/.test(n)) return tier("pool_2", "cursed_pirate_gear", "uncommon_rare", "item-delta", quantity, item);
+  return null;
+}
+function layoutSymbols(layout, symbol) {
+  var out = [];
+  var seen = new Set();
+  var _iterator = _createForOfIteratorHelper(String(layout || "").split(",")),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var part = _step.value;
+      var match = /^(\d+):([A-Za-z?]{10})$/.exec(part.trim());
+      if (!match) continue;
+      var row = Number(match[1]);
+      if (!Number.isInteger(row) || row < 1 || row > 10 || seen.has(row)) continue;
+      seen.add(row);
+      for (var column = 0; column < 10; column++) if (match[2].charAt(column) === symbol) out.push({
+        row,
+        column
+      });
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  return out;
+}
+function symbolAt(layout, row, column) {
+  var _p$split$;
+  var p = layout.split(",").find(x => x.startsWith("".concat(row, ":")));
+  return (p === null || p === void 0 || (_p$split$ = p.split(":")[1]) === null || _p$split$ === void 0 ? void 0 : _p$split$.charAt(column)) || "?";
+}
+var emptyCounts = () => ({
+  sand_castle: 0,
+  beached_whale: 0,
+  rainbow_pearl: 0,
+  piece_of_driftwood: 0,
+  cursed_pirate_gear: 0,
+  meteorite_fragment: 0
+});
+var blank = coordinate => ({
+  schema: "don-combo-two-pool-cooldown/v0.1",
+  coordinate,
+  observations: 0,
+  rewarded_pool_1: 0,
+  rewarded_pool_2: 0,
+  last_reward_kind: null,
+  last_reward_at: null,
+  interval_samples: [],
+  uncertainty: "NO_VERIFIED_COOLDOWN",
+  hypothesis: "LONGER_RECOVERY_MAY_MEAN_RARER_REWARD_UNVALIDATED"
+});
+// Pool 1 sand castles are sightings, not automatic item rewards. Pool 1
+// whale gets a separate action record only when the whale square was combed.
+// Pool 2 rewards and pool 1 pearls require positive item deltas.
+function buildPoolCooldownIndex(events, nowMs, playerId) {
+  var byCoordinate = {};
+  var byFront = {};
+  var observations = [];
+  var p1 = emptyCounts(),
+    p2 = emptyCounts();
+  var byTier = {
+    common_rare: 0,
+    uncommon_rare: 0,
+    rare_rare: 0
+  };
+  var unclassified = {};
+  var seen = new Set();
+  var prior = new Map();
+  var lastCombed = new Map();
+  var rewardedCoords = new Set();
+  var matched = 0,
+    layoutSightings = 0,
+    itemRewards = 0,
+    actionRecorded = 0,
+    legacy = 0,
+    bound = 0;
+  // Strict chronological replay preserves valid intervals without depending on
+  // file order and prevents an older event overwriting a more recent reward.
+  var ordered = events.filter(e => {
+    var _e$run_context, _e$run_context2, _e$run_context3;
+    if (!Number.isFinite(Date.parse(e.observed_at)) || Date.parse(e.observed_at) > nowMs) return false;
+    return ((_e$run_context = e.run_context) === null || _e$run_context === void 0 ? void 0 : _e$run_context.player_id) === null || ((_e$run_context2 = e.run_context) === null || _e$run_context2 === void 0 ? void 0 : _e$run_context2.player_id) === undefined || ((_e$run_context3 = e.run_context) === null || _e$run_context3 === void 0 ? void 0 : _e$run_context3.player_id) === playerId;
+  }).slice().sort((a, b) => Date.parse(a.observed_at) - Date.parse(b.observed_at));
+  var enrich = (e, c, signal, state) => {
+    var _e$run_context4;
+    var o = {
+      minute: e.minute,
+      observed_at: e.observed_at,
+      event_id: e.event_id || null,
+      coordinate: c,
+      pool: signal.pool,
+      kind: signal.kind,
+      tier: signal.tier,
+      certainty: signal.certainty,
+      item_name: signal.item_name,
+      quantity: signal.quantity,
+      route_mode: ((_e$run_context4 = e.run_context) === null || _e$run_context4 === void 0 ? void 0 : _e$run_context4.route_mode) || "legacy-unbound",
+      target_preaction_state: state
+    };
+    observations.push(o);
+    (byFront[String(e.minute)] ?? (byFront[String(e.minute)] = emptyCounts()))[signal.kind] += signal.quantity;
+    if (signal.pool === "pool_1") p1[signal.kind] += signal.quantity;else p2[signal.kind] += signal.quantity;
+    byTier[signal.tier] += signal.quantity;
+    if (signal.certainty === "layout-sighting") layoutSightings += signal.quantity;else if (signal.certainty === "action-recorded") actionRecorded += signal.quantity;else itemRewards += signal.quantity;
+    if (c && signal.certainty !== "layout-sighting") {
+      var cur = byCoordinate[c] ?? (byCoordinate[c] = blank(c));
+      cur.observations++;
+      var timestamp = Date.parse(e.observed_at);
+      // Only positive item deltas plus a whale action on the corresponding W
+      // are reward observations; do not infer any sandcastle harvest.
+      if (signal.pool === "pool_1") cur.rewarded_pool_1 += signal.quantity;else cur.rewarded_pool_2 += signal.quantity;
+      cur.last_reward_kind = signal.kind;
+      cur.last_reward_at = e.observed_at;
+      rewardedCoords.add(c);
+      var previous = prior.get(c);
+      if (previous && timestamp > previous.when) {
+        var checked = lastCombed.get(c);
+        var afterPrevious = checked !== undefined && checked >= previous.when && checked < timestamp ? checked : null;
+        var interval = {
+          coordinate: c,
+          pool: signal.pool,
+          rewarded_kind: signal.kind,
+          rewarded_tier: signal.tier,
+          previous_reward_at: new Date(previous.when).toISOString(),
+          new_reward_at: new Date(timestamp).toISOString(),
+          last_known_combed_at: afterPrevious === null ? null : new Date(afterPrevious).toISOString(),
+          lower_days: afterPrevious === null ? 0 : (afterPrevious - previous.when) / 86400000,
+          upper_days: (timestamp - previous.when) / 86400000,
+          semantics: "CENSORED_BETWEEN_SAME_COORDINATE_REWARD_EVENTS_NOT_PROVEN_RESPAWN_TIME"
+        };
+        cur.interval_samples.push(interval);
+        cur.uncertainty = "CENSORED_REWARD_INTERVALS_ONLY";
+      }
+      prior.set(c, {
+        when: timestamp,
+        kind: signal.kind
+      });
+      lastCombed.delete(c);
+    }
+  };
+  var _iterator2 = _createForOfIteratorHelper(ordered),
+    _step2;
+  try {
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      var _e$run_context5;
+      var e = _step2.value;
+      if (e.event_id && seen.has(e.event_id)) continue;
+      if (e.event_id) seen.add(e.event_id);
+      matched++;
+      if ((_e$run_context5 = e.run_context) !== null && _e$run_context5 !== void 0 && _e$run_context5.run_id) bound++;else legacy++;
+      // Observe any previously rewarded coordinate in the visible beachfront,
+      // not just the planned target. A c is evidence of still-combed state.
+      var _iterator3 = _createForOfIteratorHelper(prior.keys()),
+        _step3;
+      try {
+        for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+          var oldKey = _step3.value;
+          if (!oldKey.startsWith("".concat(e.minute, ","))) continue;
+          var parts = oldKey.split(",").map(Number);
+          if (symbolAt(e.layout, parts[1], parts[2]) === "c") lastCombed.set(oldKey, Date.parse(e.observed_at));
+        }
+        // Record sandcastle and whale sightings only once per event/location.
+      } catch (err) {
+        _iterator3.e(err);
+      } finally {
+        _iterator3.f();
+      }
+      var _iterator4 = _createForOfIteratorHelper(layoutSymbols(e.layout, "C")),
+        _step4;
+      try {
+        for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+          var pos = _step4.value;
+          enrich(e, key(_objectSpread2({
+            minute: e.minute
+          }, pos)), tier("pool_1", "sand_castle", "common_rare", "layout-sighting", 1, null), "unknown");
+        }
+      } catch (err) {
+        _iterator4.e(err);
+      } finally {
+        _iterator4.f();
+      }
+      var _iterator5 = _createForOfIteratorHelper(layoutSymbols(e.layout, "W")),
+        _step5;
+      try {
+        for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+          var _pos = _step5.value;
+          enrich(e, key(_objectSpread2({
+            minute: e.minute
+          }, _pos)), tier("pool_1", "beached_whale", "uncommon_rare", "layout-sighting", 1, null), "unknown");
+        }
+      } catch (err) {
+        _iterator5.e(err);
+      } finally {
+        _iterator5.f();
+      }
+      var actual = e.actual_comb;
+      var actualKey = (actual === null || actual === void 0 ? void 0 : actual.minute) === e.minute ? key(actual) : null;
+      if (e.outcome === "whale" && actualKey && symbolAt(e.layout, actual.row, actual.column) === "W") {
+        enrich(e, actualKey, tier("pool_1", "beached_whale", "uncommon_rare", "action-recorded", 1, null), "unknown");
+      }
+      for (var _i = 0, _Object$entries = Object.entries(e.items || {}); _i < _Object$entries.length; _i++) {
+        var _Object$entries$_i = _slicedToArray(_Object$entries[_i], 2),
+          name = _Object$entries$_i[0],
+          qty = _Object$entries$_i[1];
+        if (qty <= 0) continue;
+        var signal = poolForItem(name, qty);
+        if (!signal) {
+          unclassified[name] = (unclassified[name] || 0) + qty;
+          continue;
+        }
+        // Item delta attributed to a known real comb only, no action means
+        // unbound item evidence (not a cooldown interval for a guessed tile).
+        var state = actual ? symbolAt(e.layout, actual.row, actual.column) : "?";
+        enrich(e, actualKey, signal, state === "c" ? "combed" : state === "t" ? "twinkle" : "unknown");
+      }
+    }
+  } catch (err) {
+    _iterator2.e(err);
+  } finally {
+    _iterator2.f();
+  }
+  var summary = {
+    schema: "don-combo-two-pool-summary/v0.1",
+    scanned_events: events.length,
+    matched_events: matched,
+    pool_1: p1,
+    pool_2: p2,
+    by_tier: byTier,
+    layout_sightings: layoutSightings,
+    item_delta_rewards: itemRewards,
+    action_recorded: actionRecorded,
+    censored_intervals: Object.values(byCoordinate).reduce((n, v) => n + v.interval_samples.length, 0),
+    distinct_reward_coordinates: rewardedCoords.size,
+    historical_unbound_events: legacy,
+    run_bound_events: bound,
+    unclassified_item_deltas: unclassified,
+    hypothesis: "User-proposed two-pool rarity ladder: shorter cooldown may correspond to common/rare, longer to uncommon/rare, longest to rare/rare. NOT CALIBRATED. Recorded deltas and sightings are observations, not a demonstrated cooldown-to-loot relationship."
+  };
+  return {
+    summary,
+    by_coordinate: byCoordinate,
+    by_front: byFront,
+    observations
+  };
+}
+function cooldownForTarget(index, minute, row, column) {
+  return index.by_coordinate["".concat(minute, ",").concat(row, ",").concat(column)] || blank("".concat(minute, ",").concat(row, ",").concat(column));
+}
+var makeBin = (key, lower, upper) => ({
+  key,
+  lower_days_inclusive: lower,
+  upper_days_exclusive: upper,
+  repeat_attempt_intervals: 0,
+  current_observed_rewards: 0,
+  pool_1_rewards: 0,
+  pool_2_rewards: 0,
+  current_reward_tiers: {
+    common_rare: 0,
+    uncommon_rare: 0,
+    rare_rare: 0
+  },
+  empty_or_unclassified_attempts: 0
+});
+var gapBin = days => days < 1 ? 0 : days < 3 ? 1 : days < 7 ? 2 : days < 14 ? 3 : 4;
+
+// A catalogue tile is a possible observation site, never a negative example.
+// These are INTER-ATTEMPT intervals, not respawn intervals. Pool rewards are
+// conditioned on the LATER action's exact coordinate and positive item delta.
+function buildHistoricalRareCurve(points, events, poolIndex, nowMs, playerId) {
+  var catalogue = new Set();
+  var falseExcluded = 0;
+  var _iterator6 = _createForOfIteratorHelper(points),
+    _step6;
+  try {
+    for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
+      var p = _step6.value;
+      if (p.false_rare) {
+        falseExcluded++;
+        continue;
+      }
+      catalogue.add(key(p));
+    }
+  } catch (err) {
+    _iterator6.e(err);
+  } finally {
+    _iterator6.f();
+  }
+  var bins = [makeBin("under_1_day", 0, 1), makeBin("1_to_3_days", 1, 3), makeBin("3_to_7_days", 3, 7), makeBin("7_to_14_days", 7, 14), makeBin("14_plus_days", 14, null)];
+  var eligible = events.filter(e => {
+    var _e$run_context6, _e$run_context7, _e$run_context8;
+    var t = Date.parse(e.observed_at);
+    return Number.isFinite(t) && t <= nowMs && (((_e$run_context6 = e.run_context) === null || _e$run_context6 === void 0 ? void 0 : _e$run_context6.player_id) === null || ((_e$run_context7 = e.run_context) === null || _e$run_context7 === void 0 ? void 0 : _e$run_context7.player_id) === undefined || ((_e$run_context8 = e.run_context) === null || _e$run_context8 === void 0 ? void 0 : _e$run_context8.player_id) === playerId);
+  }).slice().sort((a, b) => Date.parse(a.observed_at) - Date.parse(b.observed_at));
+  var seen = new Set(),
+    previous = new Map();
+  var attempted = new Set();
+  var touched = 0,
+    exact = 0,
+    repeat = 0,
+    legacy = 0,
+    bound = 0,
+    standaloneRewards = 0;
+  var first = null,
+    last = null;
+  var _iterator7 = _createForOfIteratorHelper(eligible),
+    _step7;
+  try {
+    var _loop = function _loop() {
+        var _e$run_context9;
+        var e = _step7.value;
+        if (e.event_id && seen.has(e.event_id)) return 0; // continue
+        if (e.event_id) seen.add(e.event_id);
+        var target = e.planned_target,
+          actual = e.actual_comb;
+        if (!target || !catalogue.has(key(target)) || target.minute !== e.minute) return 0; // continue
+        touched++;
+        if (e.outcome !== "rare_target" || !actual || key(actual) !== key(target)) return 0; // continue
+        exact++;
+        if ((_e$run_context9 = e.run_context) !== null && _e$run_context9 !== void 0 && _e$run_context9.run_id) bound++;else legacy++;
+        attempted.add(key(target));
+        var when = Date.parse(e.observed_at);
+        if (!first || e.observed_at < first) first = e.observed_at;
+        if (!last || e.observed_at > last) last = e.observed_at;
+        var rewardSignals = (poolIndex.observations || []).filter(o => o.event_id === e.event_id && o.coordinate === key(actual) && o.certainty !== "layout-sighting");
+        var currentRewards = rewardSignals.filter(o => o.certainty === "item-delta" || o.certainty === "action-recorded" && o.kind === "beached_whale");
+        var previousAt = previous.get(key(target));
+        // Same-timestamp events do not become an invented zero-day respawn.
+        if (previousAt !== undefined && when > previousAt) {
+          repeat++;
+          var bin = bins[gapBin((when - previousAt) / 86400000)];
+          bin.repeat_attempt_intervals++;
+          if (currentRewards.length) {
+            var _iterator8 = _createForOfIteratorHelper(currentRewards),
+              _step8;
+            try {
+              for (_iterator8.s(); !(_step8 = _iterator8.n()).done;) {
+                var rw = _step8.value;
+                bin.current_observed_rewards += rw.quantity;
+                if (rw.pool === "pool_1") bin.pool_1_rewards += rw.quantity;else bin.pool_2_rewards += rw.quantity;
+                bin.current_reward_tiers[rw.tier] += rw.quantity;
+              }
+            } catch (err) {
+              _iterator8.e(err);
+            } finally {
+              _iterator8.f();
+            }
+          } else bin.empty_or_unclassified_attempts++;
+        } else standaloneRewards += currentRewards.reduce((n, o) => n + o.quantity, 0);
+        previous.set(key(target), when);
+      },
+      _ret;
+    for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
+      _ret = _loop();
+      if (_ret === 0) continue;
+    }
+    // Reward-to-reward intervals from the pool index are separately CENSORED.
+    // A gap between rare target attempts is not necessarily the cooldown.
+  } catch (err) {
+    _iterator7.e(err);
+  } finally {
+    _iterator7.f();
+  }
+  var censored = Object.entries(poolIndex.by_coordinate).filter(_ref => {
+    var _ref2 = _slicedToArray(_ref, 1),
+      coord = _ref2[0];
+    return catalogue.has(coord);
+  }).reduce((n, _ref3) => {
+    var _ref4 = _slicedToArray(_ref3, 2),
+      value = _ref4[1];
+    return n + value.interval_samples.length;
+  }, 0);
+  return {
+    schema: "don-combo-historical-rare-curve/v0.1",
+    source: "known-rare-catalogue-cross-indexed-with-dated-ml-events",
+    known_rare_coordinates: catalogue.size,
+    known_rare_undated_coordinates: catalogue.size - attempted.size,
+    false_rare_excluded: falseExcluded,
+    events_scanned: events.length,
+    events_at_known_rare_coordinates: touched,
+    exact_rare_target_attempts: exact,
+    distinct_coordinates_attempted: attempted.size,
+    repeated_attempt_intervals: repeat,
+    historical_unbound_rare_attempts: legacy,
+    run_bound_rare_attempts: bound,
+    first_attempt_at: first,
+    last_attempt_at: last,
+    bins,
+    censored_same_coordinate_reward_intervals: censored,
+    reward_tier_samples_without_repeat_attempt: standaloneRewards,
+    verified_respawn_intervals: null,
+    inference_kind: "OBSERVED_ATTEMPT_GAPS_NOT_RESPAWN_PROBABILITY",
+    note: "Historical known coordinates without timestamps are not training samples. Bins count elapsed time between two recorded rare-target attempts on the SAME exact coordinate, not actual cooldown length. A second positive item is associated with that later attempt; no rarity-to-cooldown law is assumed."
   };
 }
 
@@ -877,7 +1297,7 @@ function outcomeRates(entry) {
   }
   return result;
 }
-function evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches) {
+function evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve) {
   var entry = ledger.fronts[String(minute)] || {};
   var layouts = n(entry.layout_snapshots);
   var events = n(entry.session_events);
@@ -899,6 +1319,16 @@ function evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIn
     cooldown: recoveryFeatures(tile && recoveryLedger ? recoveryLedger.tiles[tileKey(tile.minute, tile.row, tile.column)] : undefined, Date.now() / 1000),
     historical_rare: tile && historicalIndex ? historicalRareForTile(historicalIndex, tile.minute, tile.row, tile.column) : null,
     scratch_interest: evidenceForScratchFront(scratches || emptyScratchLedger(n(kolmafia.myId())), minute),
+    historical_rare_curve: historicalCurve || buildHistoricalRareCurve([], [], buildPoolCooldownIndex([], Date.now(), n(kolmafia.myId())), Date.now(), n(kolmafia.myId())),
+    pool_cooldown: cooldownForTarget(poolIndex || buildPoolCooldownIndex([], Date.now(), n(kolmafia.myId())), minute, (tile === null || tile === void 0 ? void 0 : tile.row) ?? 0, (tile === null || tile === void 0 ? void 0 : tile.column) ?? -1),
+    pool_front_observations: (poolIndex === null || poolIndex === void 0 ? void 0 : poolIndex.by_front[String(minute)]) || {
+      sand_castle: 0,
+      beached_whale: 0,
+      rainbow_pearl: 0,
+      piece_of_driftwood: 0,
+      cursed_pirate_gear: 0,
+      meteorite_fragment: 0
+    },
     observed_symbol_rates: symbolRates(entry),
     observed_outcome_rates: outcomeRates(entry),
     sand_per_event: events ? round(n((entry.items || {})["grain of sand"]) / events, 4) : 0,
@@ -1006,8 +1436,8 @@ function sampleMinutes(ledger, eligibleMinutes, count, current, exclude, scratch
   }
   return selected.slice(0, count).map(minute => [minute, sources[String(minute)]]);
 }
-function candidateFrontier(ledger, baseline, points, recoveryLedger, historicalIndex, scratches) {
-  var count = arguments.length > 6 && arguments[6] !== undefined ? arguments[6] : 16;
+function candidateFrontier(ledger, baseline, points, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve) {
+  var count = arguments.length > 8 && arguments[8] !== undefined ? arguments[8] : 16;
   var current = n(kolmafia.getProperty("_beachMinutes"));
   var day = 1 + kolmafia.gamedayToInt() % 8;
   var rowsHidden = 4 - Math.abs(4 - day);
@@ -1039,7 +1469,7 @@ function candidateFrontier(ledger, baseline, points, recoveryLedger, historicalI
   var push = (minute, source, isBaseline) => {
     var tile = isBaseline && baseline ? eligible.find(t => t.minute === baseline.minute && t.row === baseline.row && t.column === baseline.column) : chosen(minute);
     if (!tile) return;
-    var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches);
+    var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve);
     result.push({
       minute,
       source,
@@ -1092,6 +1522,9 @@ function waterSheepPayload(candidate) {
       tile_recovery: evidence.cooldown,
       historical_rare: evidence.historical_rare,
       scratch_interest: evidence.scratch_interest,
+      pool_cooldown: evidence.pool_cooldown,
+      historical_rare_curve: evidence.historical_rare_curve,
+      pool_front_observations: evidence.pool_front_observations,
       observed_symbol_rates: evidence.observed_symbol_rates,
       sand_per_event: evidence.sand_per_event,
       current_layout_if_same_front: candidate.minute === n(kolmafia.getProperty("_beachMinutes")) ? kolmafia.getProperty("_beachLayout") : "not observed",
@@ -1175,7 +1608,9 @@ function traceTargetPrediction(minute, row, column) {
   var fullHistory = loadMlTraceEvents(Number.MAX_SAFE_INTEGER);
   var historicalIndex = buildHistoricalRareIndex(loadRarePoints(), fullHistory.events, Date.now());
   var scratches = backfillScratchHistory(loadScratchLedger(), fullHistory.events, Date.now()).ledger;
-  var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches);
+  var poolIndex = buildPoolCooldownIndex(fullHistory.events, Date.now(), n(kolmafia.myId()));
+  var historicalCurve = buildHistoricalRareCurve(loadRarePoints(), fullHistory.events, poolIndex, Date.now(), n(kolmafia.myId()));
+  var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve);
   var candidate = {
     minute,
     evidence,
@@ -1199,6 +1634,9 @@ function traceTargetPrediction(minute, row, column) {
       tile_recovery: evidence.cooldown,
       historical_rare: evidence.historical_rare,
       scratch_interest: evidence.scratch_interest,
+      pool_cooldown: evidence.pool_cooldown,
+      historical_rare_curve: evidence.historical_rare_curve,
+      pool_front_observations: evidence.pool_front_observations,
       observed_symbol_rates: evidence.observed_symbol_rates,
       sand_per_event: evidence.sand_per_event,
       current_layout_if_same_front: minute === current ? kolmafia.getProperty("_beachLayout") : "not observed"
@@ -1581,8 +2019,10 @@ function buildRuntime() {
   var scratchBackfill = backfillScratchHistory(loadScratchLedger(), fullHistory.events, Date.now());
   var scratches = scratchBackfill.ledger;
   var scratchSummary = summarizeScratchLedger(scratches, scratchBackfill.imported);
+  var poolIndex = buildPoolCooldownIndex(fullHistory.events, Date.now(), n(kolmafia.myId()));
+  var historicalCurve = buildHistoricalRareCurve(points, fullHistory.events, poolIndex, Date.now(), n(kolmafia.myId()));
   var scratchTop = Object.keys(scratches.fronts).map(minute => evidenceForScratchFront(scratches, Number(minute))).filter(x => x.high_scratch_days > 0).sort((a, b) => b.interest_score - a.interest_score || b.very_interesting_days - a.very_interesting_days || b.max_scratch_count - a.max_scratch_count || a.front_minute - b.front_minute).slice(0, 30);
-  var candidates = candidateFrontier(ledger, baseline, points, recoveryLedger, historicalIndex, scratches, frontierSize);
+  var candidates = candidateFrontier(ledger, baseline, points, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve, frontierSize);
   var status = "ready";
   var error = null;
   var _iterator11 = _createForOfIteratorHelper(candidates),
@@ -1662,6 +2102,9 @@ function buildRuntime() {
       scratch_top_fronts: scratchTop,
       tiles_recorded: Object.keys(recoveryLedger.tiles).length,
       historical_rare_baseline: historicalIndex.baseline,
+      two_pool_cooldown_summary: poolIndex.summary,
+      historical_rare_curve: historicalCurve,
+      two_pool_observations_tail: poolIndex.observations.slice(-60),
       recovery_intervals: Object.values(recoveryLedger.tiles).reduce((count, entry) => {
         var _entry$recovery_inter;
         return count + (((_entry$recovery_inter = entry.recovery_intervals) === null || _entry$recovery_inter === void 0 ? void 0 : _entry$recovery_inter.length) || 0);
@@ -1684,7 +2127,7 @@ function buildRuntime() {
       error,
       options: LABELS.slice(),
       weights: WEIGHTS,
-      input_policy: "Known tile cooldown evidence supplied; Combo target identity/order, source labels, baseline membership, and Combo-derived outcome labels withheld.",
+      input_policy: "Known tile cooldown evidence and two-pool item/encounter chronology supplied as hypotheses, not calibrated rates; Combo target identity/order, source labels, baseline membership, and Combo-derived outcome labels withheld.",
       calibration: "UNVALIDATED_FOR_KOL_BEACH"
     },
     comparison: cmp,

@@ -134,6 +134,13 @@
 <article class="card" style="margin-bottom:10px"><div class="eyebrow">Historical rare evidence · read-only baseline</div>
 <p class="muted">All recorded rare-coordinate locations and the full local ML event ledger, including older unbound events, contribute to per-target WaterSheep evidence. A known coordinate is not a dated harvest, and target attempts are not validated respawn intervals.</p>
 <div id="mlHistoricalRare" class="evidence"></div></article>
+<article class="card" style="margin-bottom:10px">
+<div class="eyebrow">Dual rare-pool observer · experimental cooldown hypothesis</div>
+<p class="muted">Pool 1: sand castles (sighted), beached whales (sighted/combed), rainbow pearls (item drop). Pool 2: driftwood, cursed pirate equipment and meteorite fragments (positive item deltas). Three rarity tiers are a proposed ordering, NOT measured cooldown rules. Repeated same-coordinate rewards provide elapsed/censored intervals, not exact respawn times.</p>
+<div id="mlPoolStats" class="evidence"></div>
+<div id="mlHistoricalCurve" class="mltable muted" style="margin:10px 0">No dated repeat rare observations yet.</div>
+<div id="mlPoolTable" class="mltable muted">No pool observations yet.</div>
+</article>
 <div class="papergrid">
 <article class="paper"><h3>(a) Pre-action target score and observed result</h3><svg id="mlTraceChart" viewBox="0 0 460 180" role="img" aria-label="Target model and policy utility over traced combs"></svg><p>Blue = WaterSheep model utility. Orange = final model+policy utility. Outcome markers are the actual comb results; hover in the live relay for exact loot.</p></article>
 <article class="paper"><h3>(b) Combo baseline rank across shadow snapshots</h3><svg id="mlRankChart" viewBox="0 0 460 180" role="img" aria-label="Model-only and model plus policy baseline rank history"></svg><p>Green = rank from WaterSheep score mass alone. Orange = final model+policy rank. Rank 1 is best.</p></article>
@@ -340,6 +347,39 @@ function renderRankChart(rows){
 function renderMlLab(){
  var ml=R.ml_lab||{},events=ml.events||[],history=ml.snapshot_history||[];
  var obs=R.observations||{},scratch=obs.scratch_summary||{},hot=obs.scratch_top_fronts||[];
+ var pools=obs.two_pool_cooldown_summary||{},poolRecent=obs.two_pool_observations_tail||[];
+ var rareCurve=obs.historical_rare_curve||{},rareBins=rareCurve.bins||[];
+ document.getElementById("mlHistoricalCurve").innerHTML=
+   "<p><b>Historical known-rare baseline:</b> "+Number(rareCurve.known_rare_coordinates||0).toLocaleString()+
+   " catalogued coordinates · "+Number(rareCurve.exact_rare_target_attempts||0).toLocaleString()+
+   " dated exact-target attempts · "+Number(rareCurve.repeated_attempt_intervals||0).toLocaleString()+
+   " repeat-attempt intervals. "+Number(rareCurve.known_rare_undated_coordinates||0).toLocaleString()+
+   " catalogue coordinates have no dated target attempt. Do not infer cooldown from their absence.</p>"+
+   "<table><thead><tr><th>Observed gap between attempts</th><th>Repeated attempts</th><th>Pool 1 reward</th><th>Pool 2 reward</th><th>Common/rare</th><th>Uncommon/rare</th><th>Rare/rare</th></tr></thead><tbody>"+
+   rareBins.map(function(e){return"<tr><td>"+esc(String(e.lower_days_inclusive)+"–"+(e.upper_days_exclusive==null?"∞":e.upper_days_exclusive)+" days")+
+   "</td><td>"+Number(e.repeat_attempt_intervals||0)+"</td><td>"+Number(e.pool_1_rewards||0)+
+   "</td><td>"+Number(e.pool_2_rewards||0)+"</td><td>"+Number((e.current_reward_tiers||{}).common_rare||0)+
+   "</td><td>"+Number((e.current_reward_tiers||{}).uncommon_rare||0)+
+   "</td><td>"+Number((e.current_reward_tiers||{}).rare_rare||0)+"</td></tr>"}).join("")+
+   "</tbody></table><p class='muted'>Empirical attempt-gap bins, not a fitted cooldown curve. Reward-to-reward intervals are censored. No rare probability or spawn timing inferred.</p>";
+ document.getElementById("mlPoolStats").innerHTML=
+   evItem("pool 1 sightings",Number(pools.layout_sightings||0).toLocaleString())+
+   evItem("pool 1/2 item rewards",Number(pools.item_delta_rewards||0).toLocaleString())+
+   evItem("whales combed",Number(pools.action_recorded||0).toLocaleString())+
+   evItem("censored same-tile intervals",Number(pools.censored_intervals||0).toLocaleString())+
+   evItem("historical unbound",Number(pools.historical_unbound_events||0).toLocaleString())+
+   evItem("run-bound",Number(pools.run_bound_events||0).toLocaleString());
+ document.getElementById("mlPoolTable").innerHTML=
+   "<table><thead><tr><th>Pool</th><th>Tier hypothesis</th><th>Observed finding</th><th>Count</th></tr></thead><tbody>"+
+   [["pool_1","common/rare","Sand castle sightings","sand_castle"],["pool_1","uncommon/rare","Beached whale sights + actions","beached_whale"],
+    ["pool_1","rare/rare","Rainbow pearl drops","rainbow_pearl"],["pool_2","common/rare","Piece of driftwood","piece_of_driftwood"],
+    ["pool_2","uncommon/rare","Cursed pirate gear","cursed_pirate_gear"],["pool_2","rare/rare","Meteorite fragment","meteorite_fragment"]]
+   .map(function(row){return"<tr><td>"+row[0]+"</td><td>"+row[1]+"</td><td>"+row[2]+"</td><td>"+
+   Number((pools[row[0]]||{})[row[3]]||0).toLocaleString()+"</td></tr>"}).join("")+
+   "</tbody></table>"+
+   (poolRecent.length?"<p class='muted'>Latest observations (source and location preserved)</p><table><thead><tr><th>UTC</th><th>Pool / finding</th><th>Source</th><th>Coordinate</th><th>Route</th></tr></thead><tbody>"+
+   poolRecent.slice(-24).reverse().map(function(e){return"<tr><td class='mono'>"+esc(e.observed_at||"—")+"</td><td>"+esc(e.pool)+" / "+esc(e.kind)+"</td><td>"+
+   esc(e.certainty)+"</td><td class='mono'>"+esc(e.coordinate||"unbound")+"</td><td>"+esc(e.route_mode||"legacy-unbound")+"</td></tr>"}).join("")+"</tbody></table>":"");
  document.getElementById("mlScratchStats").innerHTML=
    evItem("fronts observed",Number(scratch.fronts_observed||0).toLocaleString())+
    evItem("6+ scratch fronts",Number(scratch.fronts_high||0).toLocaleString())+

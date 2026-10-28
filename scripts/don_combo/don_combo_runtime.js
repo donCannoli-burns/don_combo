@@ -1143,6 +1143,8 @@ function buildRunControl() {
     schema: "don-combo-run-control/v0.1",
     requested_combs: requestedCombs,
     completed_combs: completedCombs,
+    route_mode: kolmafia.getProperty("don_combo_last_run_route_mode") || "combo-default",
+    paid_combs_observed: n(kolmafia.getProperty("don_combo_last_run_paid_combs")),
     status,
     end_reason: endReason,
     running,
@@ -1217,11 +1219,12 @@ function emitReceipt(result) {
   };
 }
 function buildRuntime() {
+  var frontierSize = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 16;
   var points = loadRarePoints();
   var baseline = comboBaseline(points);
   var ledger = loadObservationLedger();
   var recoveryLedger = loadTileRecoveryLedger();
-  var candidates = candidateFrontier(ledger, baseline, points, recoveryLedger, 16);
+  var candidates = candidateFrontier(ledger, baseline, points, recoveryLedger, frontierSize);
   var status = "ready";
   var error = null;
   var _iterator11 = _createForOfIteratorHelper(candidates),
@@ -1341,6 +1344,16 @@ function buildRuntime() {
   result.receipt = emitReceipt(result);
   return result;
 }
+
+// Explicit CLI execution first prepares a fresh, immutable ranked snapshot.
+// The execution owner validates and freezes it before the first KoL action.
+// Never quietly fall back to Combo's shuffled route if WaterSheep is offline.
+function prepareWaterSheepRoute(requestedCombs) {
+  if (!Number.isInteger(requestedCombs) || requestedCombs < 1 || requestedCombs > 100) throw new Error("WaterSheep comb count must be between 1 and 100.");
+  var result = buildRuntime(Math.max(16, requestedCombs));
+  if (result.watersheep.status !== "ready" || result.candidates.length < requestedCombs || result.candidates.slice(0, requestedCombs).some(candidate => candidate.utility == null || candidate.watersheep == null)) throw new Error("WaterSheep unavailable or insufficient fully scored rare fronts; no combs started.");
+  writeRuntime(result);
+}
 function writeRuntime(result) {
   var encoded = JSON.stringify(result);
   kolmafia.bufferToFile(JSON.stringify(result, null, 2) + "\n", "don_combo_matrix_runtime.json");
@@ -1447,4 +1460,5 @@ function main(args) {
 }
 
 exports.main = main;
+exports.prepareWaterSheepRoute = prepareWaterSheepRoute;
 exports.traceTargetPrediction = traceTargetPrediction;

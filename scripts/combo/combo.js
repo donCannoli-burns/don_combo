@@ -1460,6 +1460,24 @@ var Session = /*#__PURE__*/function () {
 }();
 
 var WATERSHEEP_EVIDENCE_CONTRACT = "don-combo-watersheep-evidence/v1";
+function fact(kind, name, state, value, source) {
+  return {
+    kind,
+    name,
+    state,
+    value,
+    source
+  };
+}
+function relation(relationName, left, right, truth, basis) {
+  return {
+    relation: relationName,
+    left,
+    right,
+    truth,
+    basis
+  };
+}
 
 /* eslint-disable eqeqeq */
 // Evidence is per coordinate, not per beachfront. Unknown is not a successful harvest.
@@ -1828,6 +1846,7 @@ function recordBeachObservation(minute, layout, outcome) {
 }
 
 var GRID = 1024;
+var REAL = 1_000_000;
 var LABELS = ["rare", "whale", "sandcastle", "twinkle", "regular", "scratched"];
 var MODEL_KEYS = {
   A: "rare",
@@ -1846,6 +1865,71 @@ var WEIGHTS = {
   scratched: 0
 };
 var ENDPOINT = "http://127.0.0.1:8766/v1/kolmafia";
+var DESIGN_REFERENCE = {
+  repository: "es-3581100/math-by-design",
+  commit: "4f3cfebc0bc8f2f243080d9c758290323eeaf595",
+  use: "hierarchy, evidence/provenance separation, semantic handoff; reference not template"
+};
+var TYPE_REFERENCE = {
+  repository: "together-science/symtype",
+  use: "explicit properties, relations, and indeterminate truth as TypeScript design inspiration only"
+};
+var REPRESENTATION_REFERENCE = {
+  repository: "es-3581100/Kotlin-Studio",
+  path: "Sacred-Computations-Map",
+  commit: "244b4cf4445abc4026975cdd6d2bbef6ded1591f",
+  use: "one semantic dataset projected as linked graph, spatial matrix, inspector, signal profile, and exact readable cross-index"
+};
+var HILBERT_UI_REFERENCE = {
+  source: "user-provided hilbert_hashtable.html",
+  sha256: "6d2cb93d716a72789569005e3d41cd4eb3b227602eaace7e96720f45acd9ceac",
+  use: "direct cell -> Hilbert d -> bucket -> table inspection and bucket isolation"
+};
+function unescapeAshField(value) {
+  var output = "";
+  var escaped = false;
+  var _iterator = _createForOfIteratorHelper(value),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var ch = _step.value;
+      if (!escaped) {
+        if (ch === "\\") escaped = true;else output += ch;
+        continue;
+      }
+      if (ch === "n") output += "\n";else if (ch === "t") output += "\t";else output += ch;
+      escaped = false;
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  if (escaped) output += "\\";
+  return output;
+}
+function readFlatAshMap(path) {
+  var raw = String(kolmafia.fileToBuffer(path) || "");
+  var result = {};
+  var _iterator2 = _createForOfIteratorHelper(raw.split(/\r?\n/)),
+    _step2;
+  try {
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      var line = _step2.value;
+      if (!line) continue;
+      var tab = line.indexOf("\t");
+      if (tab < 0) continue;
+      var key = unescapeAshField(line.substring(0, tab));
+      var value = unescapeAshField(line.substring(tab + 1));
+      result[key] = value;
+    }
+  } catch (err) {
+    _iterator2.e(err);
+  } finally {
+    _iterator2.f();
+  }
+  return result;
+}
 function n(value) {
   var fallback = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
   var parsed = Number(value);
@@ -1882,6 +1966,101 @@ function xyFor(d) {
     s <<= 1;
   }
   return [x, y];
+}
+function parseFalseRares$1() {
+  var result = new Set();
+  var _iterator3 = _createForOfIteratorHelper(String(kolmafia.getProperty("combo_false_rares") || "").split(";")),
+    _step3;
+  try {
+    for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+      var raw = _step3.value;
+      if (/^\d+,\d+,\d+$/.test(raw)) result.add(raw);
+    }
+  } catch (err) {
+    _iterator3.e(err);
+  } finally {
+    _iterator3.f();
+  }
+  return result;
+}
+function loadRarePoints() {
+  var parsed = JSON.parse(String(kolmafia.fileToBuffer("raretiles.json") || "[]"));
+  var falseRares = parseFalseRares$1();
+  return parsed.filter(tile => Number.isInteger(tile.minute) && Number.isInteger(tile.row) && Number.isInteger(tile.column) && tile.minute >= 1 && tile.minute <= 10000 && tile.row >= 1 && tile.row <= 10 && tile.column >= 0 && tile.column <= 9).map(tile => {
+    var d = dFor(tile.minute, tile.row, tile.column);
+    var _xyFor = xyFor(d),
+      _xyFor2 = _slicedToArray(_xyFor, 2),
+      x = _xyFor2[0],
+      y = _xyFor2[1];
+    return _objectSpread2(_objectSpread2({}, tile), {}, {
+      d,
+      x,
+      y,
+      false_rare: falseRares.has("".concat(tile.minute, ",").concat(tile.row, ",").concat(tile.column))
+    });
+  });
+}
+function comboShuffle(points, player) {
+  var work = points.slice();
+  var output = [];
+  var seed = player;
+  while (work.length) {
+    seed++;
+    var index = Math.floor(Math.sin(seed) * work.length);
+    output.push.apply(output, _toConsumableArray(work.splice(index)));
+  }
+  return output;
+}
+function comboBaseline(points) {
+  if (!points.length) return null;
+  var shuffled = comboShuffle(points, n(kolmafia.myId()));
+  var day = 1 + kolmafia.gamedayToInt() % 8;
+  var rowsHidden = 4 - Math.abs(4 - day);
+  var last = n(kolmafia.getProperty("combo_lastTileCombed"), 0);
+  for (var step = 1; step <= shuffled.length; step++) {
+    var index = (last + step) % shuffled.length;
+    var tile = shuffled[index];
+    if (tile.row > rowsHidden && !tile.false_rare) {
+      return {
+        minute: tile.minute,
+        row: tile.row,
+        column: tile.column,
+        d: tile.d,
+        x: tile.x,
+        y: tile.y,
+        shuffled_index: index,
+        skipped_inaccessible: step - 1,
+        rows_hidden: rowsHidden,
+        player: n(kolmafia.myId()),
+        gameday: kolmafia.gamedayToInt()
+      };
+    }
+  }
+  return null;
+}
+function loadContext() {
+  var map = readFlatAshMap("kol-goblin-docs/runtime.tsv");
+  if (map.player_id && map.gameday) {
+    return {
+      context: {
+        player: n(map.player_id),
+        player_name: map.player || null,
+        gameday: n(map.gameday),
+        captured_at: map.generated_at || null,
+        source: "kol-goblin-docs"
+      },
+      file: "kol-goblin-docs/runtime.tsv"
+    };
+  }
+  return {
+    context: {
+      player: n(kolmafia.myId()),
+      gameday: kolmafia.gamedayToInt(),
+      captured_at: null,
+      source: "kolmafia-native"
+    },
+    file: "KoLmafia native functions"
+  };
 }
 function symbolRates(entry) {
   var symbols = entry.symbols || {};
@@ -1934,6 +2113,170 @@ function evidenceFor(minute, current, ledger, tile, recoveryLedger) {
       column: 0
     }
   };
+}
+function observationAtlas(ledger) {
+  return Object.entries(ledger.fronts).map(_ref => {
+    var _ref2 = _slicedToArray(_ref, 2),
+      minuteText = _ref2[0],
+      raw = _ref2[1];
+    var minute = n(minuteText);
+    var entry = raw;
+    var dStart = dFor(minute, 1, 0);
+    var dEnd = dFor(minute, 10, 9);
+    return {
+      minute,
+      d_start: dStart,
+      d_end: dEnd,
+      bucket_start_256: Math.floor(dStart / 4096),
+      bucket_end_256: Math.floor(dEnd / 4096),
+      layout_snapshots: n(entry.layout_snapshots),
+      session_events: n(entry.session_events),
+      observation_count: n(entry.layout_snapshots) + n(entry.session_events),
+      last_seen_epoch: entry.last_seen_epoch == null ? null : n(entry.last_seen_epoch),
+      last_seen_turn: entry.last_seen_turn == null ? null : n(entry.last_seen_turn),
+      symbol_counts: entry.symbols || {},
+      symbol_rates: symbolRates(entry),
+      outcome_counts: entry.outcomes || {},
+      outcome_rates: outcomeRates(entry),
+      items: entry.items || {},
+      sources: Array.isArray(entry.sources) ? entry.sources : [],
+      last_layout: entry.last_layout || null
+    };
+  }).sort((a, b) => a.minute - b.minute);
+}
+function sampleMinutes(ledger, eligibleMinutes, count, current, exclude) {
+  var allowed = new Set(eligibleMinutes);
+  var selected = [];
+  var sources = {};
+  var add = (minute, source) => {
+    if (allowed.has(minute) && !exclude.has(minute) && !sources[String(minute)]) {
+      selected.push(minute);
+      sources[String(minute)] = source;
+    }
+  };
+  if (current) add(current, "current");
+  var observed = Object.entries(ledger.fronts).map(_ref3 => {
+    var _ref4 = _slicedToArray(_ref3, 2),
+      minuteText = _ref4[0],
+      raw = _ref4[1];
+    var entry = raw;
+    var symbols = entry.symbols || {};
+    var outcomes = entry.outcomes || {};
+    var visible = Math.max(1, n(symbols.visible));
+    var events = Math.max(1, n(entry.session_events));
+    return {
+      minute: n(minuteText),
+      signal: (n(symbols.whale) * 4 + n(symbols.twinkle) * 2) / visible + (n(outcomes.whale) * 4 + n(outcomes.rare_target) * 3) / events,
+      observations: n(entry.layout_snapshots) + n(entry.session_events)
+    };
+  }).sort((a, b) => b.signal - a.signal || b.observations - a.observations || a.minute - b.minute);
+  var observedTarget = Math.max(1, Math.floor(count / 3)) + (current ? 1 : 0);
+  var _iterator4 = _createForOfIteratorHelper(observed),
+    _step4;
+  try {
+    for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+      var item = _step4.value;
+      if (selected.length >= observedTarget) break;
+      add(item.minute, "observed");
+    }
+    // Explore only tide-visible known-rare beachfronts. The map still shows all
+    // 1M cells, but executable suggestions must resolve to real rare coordinates.
+  } catch (err) {
+    _iterator4.e(err);
+  } finally {
+    _iterator4.f();
+  }
+  var seed = n(kolmafia.getProperty("combo_lastTileCombed")) * 2654435761 + current * 2246822519 + Object.keys(ledger.fronts).length * 3266489917 + count >>> 0;
+  var target = Math.min(count, eligibleMinutes.length - exclude.size);
+  for (var i = 0; i < eligibleMinutes.length * 3 && selected.length < target; i++) {
+    seed = Math.imul(1664525, seed) + 1013904223 >>> 0;
+    add(eligibleMinutes[seed % eligibleMinutes.length], "explore");
+  }
+  // Deterministic sequential fallback avoids collisions stalling the pool.
+  var _iterator5 = _createForOfIteratorHelper(eligibleMinutes),
+    _step5;
+  try {
+    for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+      var minute = _step5.value;
+      if (selected.length >= target) break;
+      add(minute, "explore");
+    }
+  } catch (err) {
+    _iterator5.e(err);
+  } finally {
+    _iterator5.f();
+  }
+  return selected.slice(0, count).map(minute => [minute, sources[String(minute)]]);
+}
+function candidateFrontier(ledger, baseline, points, recoveryLedger) {
+  var count = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : 16;
+  var current = n(kolmafia.getProperty("_beachMinutes"));
+  var day = 1 + kolmafia.gamedayToInt() % 8;
+  var rowsHidden = 4 - Math.abs(4 - day);
+  var eligible = points.filter(t => !t.false_rare && t.row > rowsHidden);
+  var grouped = new Map();
+  var _iterator6 = _createForOfIteratorHelper(eligible),
+    _step6;
+  try {
+    for (_iterator6.s(); !(_step6 = _iterator6.n()).done;) {
+      var tile = _step6.value;
+      var list = grouped.get(tile.minute) || [];
+      list.push(tile);
+      grouped.set(tile.minute, list);
+    }
+  } catch (err) {
+    _iterator6.e(err);
+  } finally {
+    _iterator6.f();
+  }
+  var chosen = minute => {
+    var list = grouped.get(minute) || [];
+    return list.slice().sort((a, b) => {
+      var fa = recoveryFeatures(recoveryLedger.tiles[tileKey(a.minute, a.row, a.column)], Date.now() / 1000);
+      var fb = recoveryFeatures(recoveryLedger.tiles[tileKey(b.minute, b.row, b.column)], Date.now() / 1000);
+      return (fb.revisit_signal ?? -1) - (fa.revisit_signal ?? -1) || a.row - b.row || a.column - b.column;
+    })[0];
+  };
+  var result = [];
+  var push = (minute, source, isBaseline) => {
+    var tile = isBaseline && baseline ? eligible.find(t => t.minute === baseline.minute && t.row === baseline.row && t.column === baseline.column) : chosen(minute);
+    if (!tile) return;
+    var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger);
+    result.push({
+      minute,
+      source,
+      is_combo_baseline: isBaseline,
+      evidence,
+      representative: {
+        d: tile.d,
+        x: tile.x,
+        y: tile.y,
+        row: tile.row,
+        column: tile.column
+      },
+      utility: null,
+      utility_components: null,
+      watersheep: null
+    });
+  };
+  if (baseline) push(baseline.minute, "combo-baseline", true);
+  var exclude = new Set(result.map(x => x.minute));
+  var eligibleMinutes = Array.from(grouped.keys()).sort((a, b) => a - b);
+  var _iterator7 = _createForOfIteratorHelper(sampleMinutes(ledger, eligibleMinutes, count, current, exclude)),
+    _step7;
+  try {
+    for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
+      var _step7$value = _slicedToArray(_step7.value, 2),
+        minute = _step7$value[0],
+        source = _step7$value[1];
+      push(minute, source, false);
+    }
+  } catch (err) {
+    _iterator7.e(err);
+  } finally {
+    _iterator7.f();
+  }
+  return result;
 }
 function waterSheepPayload(candidate) {
   var evidence = candidate.evidence;
@@ -2080,18 +2423,493 @@ function scoreCandidate(candidate, scores) {
     }
   };
 }
+function comparison(candidates, baseline, fronts) {
+  var scored = candidates.filter(candidate => candidate.utility != null);
+  var top = scored[0];
+  var second = scored[1];
+  var margin = top && second ? round(top.utility - second.utility) : null;
+  var observedCandidates = scored.filter(candidate => candidate.evidence.observation_count > 0).length;
+  var fraction = round(observedCandidates / Math.max(1, scored.length), 4);
+  var maturity = observedCandidates === 0 ? "COLD_START" : fraction < 0.5 || fronts < 10 ? "WARMING" : "EVIDENCE_RICH";
+  var separation = margin == null || margin < 0.01 ? "LOW" : margin < 0.03 ? "MEDIUM" : "HIGH";
+  var baselineIndex = scored.findIndex(candidate => candidate.is_combo_baseline);
+  var baselineCandidate = baselineIndex >= 0 ? scored[baselineIndex] : null;
+  return {
+    combo_baseline: baseline,
+    baseline_rank: baselineIndex >= 0 ? baselineIndex + 1 : null,
+    pool_size: scored.length,
+    shadow_top_minute: (top === null || top === void 0 ? void 0 : top.minute) ?? null,
+    shadow_top_source: (top === null || top === void 0 ? void 0 : top.source) ?? null,
+    agreement: Boolean(top === null || top === void 0 ? void 0 : top.is_combo_baseline),
+    top_vs_second_margin: margin,
+    top_vs_baseline_delta: top && baselineCandidate ? round(top.utility - baselineCandidate.utility) : null,
+    observed_candidates: observedCandidates,
+    observed_candidate_fraction: fraction,
+    evidence_maturity: maturity,
+    ranking_separation: separation,
+    readiness_note: "Ranking separation is descriptive, not calibrated confidence."
+  };
+}
+function layoutCells(minute, raw) {
+  if (!minute) return [];
+  var result = [];
+  var _iterator0 = _createForOfIteratorHelper(String(raw || "").split(",")),
+    _step0;
+  try {
+    for (_iterator0.s(); !(_step0 = _iterator0.n()).done;) {
+      var part = _step0.value;
+      var split = part.indexOf(":");
+      if (split < 0) continue;
+      var row = n(part.substring(0, split));
+      if (row < 1 || row > 10) continue;
+      var symbols = part.substring(split + 1).slice(0, 10);
+      for (var column = 0; column < symbols.length; column++) {
+        var d = dFor(minute, row, column);
+        var _xyFor5 = xyFor(d),
+          _xyFor6 = _slicedToArray(_xyFor5, 2),
+          x = _xyFor6[0],
+          y = _xyFor6[1];
+        result.push({
+          d,
+          x,
+          y,
+          row,
+          column,
+          symbol: symbols[column]
+        });
+      }
+    }
+  } catch (err) {
+    _iterator0.e(err);
+  } finally {
+    _iterator0.f();
+  }
+  return result;
+}
+function sha256(text) {
+  var rightRotate = (value, amount) => value >>> amount | value << 32 - amount;
+  var ascii = unescape(encodeURIComponent(text));
+  var byteLength = ascii.length;
+  var maxWord = Math.pow(2, 32);
+  var words = [];
+  var hash = [];
+  var k = [];
+  var primeCounter = 0;
+  var isComposite = {};
+  for (var candidate = 2; primeCounter < 64; candidate++) {
+    if (!isComposite[candidate]) {
+      for (var i = 0; i < 313; i += candidate) isComposite[i] = true;
+      hash[primeCounter] = Math.pow(candidate, 0.5) * maxWord | 0;
+      k[primeCounter++] = Math.pow(candidate, 1 / 3) * maxWord | 0;
+    }
+  }
+  ascii += "\x80";
+  while (ascii.length % 64 - 56) ascii += "\x00";
+  for (var _i4 = 0; _i4 < ascii.length; _i4++) {
+    var code = ascii.charCodeAt(_i4);
+    words[_i4 >> 2] |= code << (3 - _i4) % 4 * 8;
+  }
+  words[words.length] = byteLength * 8 / maxWord | 0;
+  words[words.length] = byteLength * 8;
+  for (var j = 0; j < words.length;) {
+    var w = words.slice(j, j += 16);
+    var oldHash = hash.slice(0, 8);
+    for (var _i5 = 0; _i5 < 64; _i5++) {
+      var w15 = w[_i5 - 15];
+      var w2 = w[_i5 - 2];
+      var a = hash[0];
+      var e = hash[4];
+      var temp1 = hash[7] + (rightRotate(e, 6) ^ rightRotate(e, 11) ^ rightRotate(e, 25)) + (e & hash[5] ^ ~e & hash[6]) + k[_i5] + (w[_i5] = _i5 < 16 ? w[_i5] : w[_i5 - 16] + (rightRotate(w15, 7) ^ rightRotate(w15, 18) ^ w15 >>> 3) + w[_i5 - 7] + (rightRotate(w2, 17) ^ rightRotate(w2, 19) ^ w2 >>> 10) | 0);
+      var temp2 = (rightRotate(a, 2) ^ rightRotate(a, 13) ^ rightRotate(a, 22)) + (a & hash[1] ^ a & hash[2] ^ hash[1] & hash[2]);
+      hash.unshift(temp1 + temp2 | 0);
+      hash[4] = hash[4] + temp1 | 0;
+      hash.pop();
+    }
+    for (var _i6 = 0; _i6 < 8; _i6++) hash[_i6] = hash[_i6] + oldHash[_i6] | 0;
+  }
+  return hash.map(value => {
+    var hex = "";
+    for (var _j = 3; _j + 1; _j--) hex += (value >> _j * 8 & 255).toString(16).padStart(2, "0");
+    return hex;
+  }).join("");
+}
+function loadJsonLines(path, limit) {
+  var raw = "";
+  try {
+    raw = String(kolmafia.fileToBuffer(path) || "");
+  } catch (_unused) {
+    raw = "";
+  }
+  var rows = [];
+  var _iterator1 = _createForOfIteratorHelper(raw.split(/\r?\n/)),
+    _step1;
+  try {
+    for (_iterator1.s(); !(_step1 = _iterator1.n()).done;) {
+      var line = _step1.value;
+      var trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        var parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed === "object") rows.push(parsed);
+      } catch (_unused2) {
+        // Historical diagnostics must never block live shadow scoring.
+      }
+    }
+  } catch (err) {
+    _iterator1.e(err);
+  } finally {
+    _iterator1.f();
+  }
+  return rows.slice(Math.max(0, rows.length - limit));
+}
+function modelUtility(scoreMass) {
+  if (!scoreMass) return null;
+  return round(LABELS.reduce((sum, label) => sum + n(scoreMass[label]) * WEIGHTS[label], 0));
+}
+function buildMlLab() {
+  var traceLog = loadMlTraceEvents(500);
+  var tracedEvents = traceLog.events.map((event, index) => {
+    var prediction = event.pre_action_prediction || null;
+    var items = event.items || {};
+    var itemNames = Object.keys(items).filter(name => n(items[name]) !== 0);
+    return {
+      index: traceLog.total - traceLog.events.length + index + 1,
+      event_id: event.event_id,
+      observed_at: event.observed_at,
+      turn: event.turn,
+      minute: event.minute,
+      outcome: event.outcome,
+      planned_target: event.planned_target,
+      actual_comb: event.actual_comb,
+      items,
+      meat: event.meat,
+      item_names: itemNames,
+      prediction_status: prediction ? prediction.error ? "error" : "ready" : "untraced",
+      prediction: prediction ? {
+        model_utility: prediction.model_utility ?? null,
+        policy_utility: prediction.policy_utility ?? null,
+        score_mass: prediction.score_mass ?? null,
+        ms: prediction.ms ?? null,
+        calibration: prediction.calibration ?? null,
+        generated_at: prediction.generated_at ?? null
+      } : null
+    };
+  });
+  var predicted = tracedEvents.filter(event => event.prediction_status === "ready");
+  var meanLatency = predicted.length > 0 ? round(predicted.reduce((sum, event) => {
+    var _event$prediction;
+    return sum + n((_event$prediction = event.prediction) === null || _event$prediction === void 0 ? void 0 : _event$prediction.ms);
+  }, 0) / predicted.length, 2) : null;
+  var receiptRows = loadJsonLines("don_combo_matrix_receipts.jsonl", 250);
+  var snapshotHistory = receiptRows.map((receipt, index) => {
+    var _receipt$comparison, _receipt$comparison2, _receipt$comparison3, _receipt$comparison4;
+    var candidates = Array.isArray(receipt.candidates) ? receipt.candidates : [];
+    var modelRanked = candidates.map(candidate => ({
+      minute: n(candidate.minute),
+      baseline: Boolean(candidate.is_combo_baseline),
+      utility: modelUtility(candidate.score_mass)
+    })).filter(candidate => candidate.utility != null).sort((a, b) => n(b.utility) - n(a.utility) || a.minute - b.minute);
+    var modelBaselineIndex = modelRanked.findIndex(candidate => candidate.baseline);
+    return {
+      index: index + 1,
+      generated_at: receipt.generated_at || null,
+      state_sha256: receipt.state_sha256 || null,
+      baseline_policy_rank: ((_receipt$comparison = receipt.comparison) === null || _receipt$comparison === void 0 ? void 0 : _receipt$comparison.baseline_rank) ?? null,
+      baseline_model_rank: modelBaselineIndex >= 0 ? modelBaselineIndex + 1 : null,
+      pool_size: ((_receipt$comparison2 = receipt.comparison) === null || _receipt$comparison2 === void 0 ? void 0 : _receipt$comparison2.pool_size) ?? candidates.length,
+      shadow_top_minute: ((_receipt$comparison3 = receipt.comparison) === null || _receipt$comparison3 === void 0 ? void 0 : _receipt$comparison3.shadow_top_minute) ?? null,
+      top_vs_baseline_delta: ((_receipt$comparison4 = receipt.comparison) === null || _receipt$comparison4 === void 0 ? void 0 : _receipt$comparison4.top_vs_baseline_delta) ?? null
+    };
+  });
+  var outcomeCounts = {};
+  var itemCounts = {};
+  var _iterator10 = _createForOfIteratorHelper(tracedEvents),
+    _step10;
+  try {
+    for (_iterator10.s(); !(_step10 = _iterator10.n()).done;) {
+      var event = _step10.value;
+      outcomeCounts[event.outcome] = (outcomeCounts[event.outcome] || 0) + 1;
+      for (var _i7 = 0, _Object$entries2 = Object.entries(event.items); _i7 < _Object$entries2.length; _i7++) {
+        var _Object$entries2$_i = _slicedToArray(_Object$entries2[_i7], 2),
+          name = _Object$entries2$_i[0],
+          amount = _Object$entries2$_i[1];
+        itemCounts[name] = (itemCounts[name] || 0) + n(amount);
+      }
+    }
+  } catch (err) {
+    _iterator10.e(err);
+  } finally {
+    _iterator10.f();
+  }
+  return {
+    schema: "don-combo-ml-lab/v0.1",
+    trace_property: "don_combo_ml_trace",
+    trace_enabled: ["1", "true", "target", "on"].includes(String(kolmafia.getProperty("don_combo_ml_trace") || "").toLowerCase()),
+    event_log_file: traceLog.file,
+    events_total: traceLog.total,
+    events_in_artifact: tracedEvents.length,
+    predicted_events: predicted.length,
+    untraced_events: tracedEvents.length - predicted.length,
+    mean_prediction_latency_ms: meanLatency,
+    outcome_counts: outcomeCounts,
+    item_counts: itemCounts,
+    events: tracedEvents,
+    receipt_log_file: "don_combo_matrix_receipts.jsonl",
+    snapshots_in_artifact: snapshotHistory.length,
+    snapshot_history: snapshotHistory,
+    note: "Per-comb target traces are pre-action WaterSheep scores for the actual Combo target. Snapshot history compares model-only baseline rank with final model+policy rank. Neither grants execution authority."
+  };
+}
+function buildRunControl() {
+  var status = String(kolmafia.getProperty("don_combo_last_run_status") || "unknown");
+  var endReason = String(kolmafia.getProperty("don_combo_last_run_end_reason") || "unknown");
+  var running = String(kolmafia.getProperty("don_combo_running") || "").toLowerCase() === "true";
+  var interruptRequested = String(kolmafia.getProperty("don_combo_interrupt") || "").toLowerCase() === "true";
+  var interruptConsumed = String(kolmafia.getProperty("don_combo_last_run_interrupt_consumed") || "").toLowerCase() === "true";
+  var requestedCombs = n(kolmafia.getProperty("don_combo_last_run_requested"));
+  var completedCombs = n(kolmafia.getProperty("don_combo_last_run_combs"));
+  var mlEventsBefore = n(kolmafia.getProperty("don_combo_last_run_ml_events_before"));
+  var mlEventsAfter = n(kolmafia.getProperty("don_combo_last_run_ml_events_after"));
+  var mlEventDelta = Math.max(0, mlEventsAfter - mlEventsBefore);
+  return {
+    schema: "don-combo-run-control/v0.1",
+    requested_combs: requestedCombs,
+    completed_combs: completedCombs,
+    route_mode: kolmafia.getProperty("don_combo_last_run_route_mode") || "combo-default",
+    paid_combs_observed: n(kolmafia.getProperty("don_combo_last_run_paid_combs")),
+    status,
+    end_reason: endReason,
+    running,
+    interrupt_requested: interruptRequested,
+    interrupt_consumed: interruptConsumed,
+    clean_early_end: status === "interrupted" && endReason === "user_cooperative_interrupt",
+    started_at: kolmafia.getProperty("don_combo_last_run_started_at") || null,
+    ended_at: kolmafia.getProperty("don_combo_last_run_ended_at") || null,
+    ml_events_before: mlEventsBefore,
+    ml_events_after: mlEventsAfter,
+    ml_event_delta: mlEventDelta,
+    ml_trace_span_complete: mlEventDelta === completedCombs
+  };
+}
+function emitReceipt(result) {
+  var _result$ml_lab, _result$ml_lab2;
+  var candidates = result.candidates.map(candidate => {
+    var _candidate$watersheep;
+    return {
+      minute: candidate.minute,
+      source: candidate.source,
+      is_combo_baseline: candidate.is_combo_baseline,
+      utility: candidate.utility,
+      score_mass: ((_candidate$watersheep = candidate.watersheep) === null || _candidate$watersheep === void 0 ? void 0 : _candidate$watersheep.score_mass) || null,
+      layout_snapshots: candidate.evidence.layout_snapshots,
+      session_events: candidate.evidence.session_events,
+      observation_count: candidate.evidence.observation_count
+    };
+  });
+  var stateBasis = {
+    combo_last_tile_index: result.combo.last_tile_index,
+    current_minute: result.combo.current_minute,
+    context: result.combo.context,
+    observation_fronts: result.observations.fronts_recorded,
+    ml_trace_events: ((_result$ml_lab = result.ml_lab) === null || _result$ml_lab === void 0 ? void 0 : _result$ml_lab.events_total) ?? 0,
+    run_control: result.run_control,
+    candidates
+  };
+  var stateSha = sha256(JSON.stringify(stateBasis));
+  var lastFile = "don_combo_matrix_last_receipt.json";
+  var logFile = "don_combo_matrix_receipts.jsonl";
+  var previous = "";
+  try {
+    previous = String(kolmafia.fileToBuffer(lastFile) || "");
+  } catch (_unused3) {
+    previous = "";
+  }
+  var appended = !previous.includes(stateSha);
+  var receipt = {
+    schema: "don-combo-shadow-receipt/v0.7",
+    generated_at: result.generated_at,
+    state_sha256: stateSha,
+    authority: "none",
+    comparison: result.comparison,
+    candidates,
+    observation_fronts: result.observations.fronts_recorded,
+    ml_trace_events: ((_result$ml_lab2 = result.ml_lab) === null || _result$ml_lab2 === void 0 ? void 0 : _result$ml_lab2.events_total) ?? 0,
+    run_control: result.run_control,
+    watersheep_calibration: result.watersheep.calibration
+  };
+  if (appended) {
+    kolmafia.appendBufferToFile("".concat(JSON.stringify(receipt), "\n"), logFile);
+    kolmafia.bufferToFile("".concat(JSON.stringify(receipt, null, 2), "\n"), lastFile);
+  }
+  return {
+    schema: receipt.schema,
+    state_sha256: stateSha,
+    appended_this_run: appended,
+    last_receipt_file: lastFile,
+    jsonl_file: logFile,
+    run_control: result.run_control
+  };
+}
+function buildRuntime() {
+  var frontierSize = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 16;
+  var points = loadRarePoints();
+  var baseline = comboBaseline(points);
+  var ledger = loadObservationLedger();
+  var recoveryLedger = loadTileRecoveryLedger();
+  var candidates = candidateFrontier(ledger, baseline, points, recoveryLedger, frontierSize);
+  var status = "ready";
+  var error = null;
+  var _iterator11 = _createForOfIteratorHelper(candidates),
+    _step11;
+  try {
+    for (_iterator11.s(); !(_step11 = _iterator11.n()).done;) {
+      var candidate = _step11.value;
+      if (error) break;
+      try {
+        var _askWaterSheep2 = askWaterSheep(candidate),
+          scores = _askWaterSheep2.scores,
+          ms = _askWaterSheep2.ms;
+        candidate.watersheep = {
+          score_mass: scores,
+          ms,
+          calibration: "UNVALIDATED_FOR_KOL_BEACH"
+        };
+        var scored = scoreCandidate(candidate, scores);
+        candidate.utility = scored.utility;
+        candidate.utility_components = scored.components;
+      } catch (caught) {
+        status = "offline";
+        error = caught instanceof Error ? caught.message : String(caught);
+      }
+    }
+  } catch (err) {
+    _iterator11.e(err);
+  } finally {
+    _iterator11.f();
+  }
+  candidates.sort((a, b) => (b.utility == null ? -1 : b.utility) - (a.utility == null ? -1 : a.utility) || a.minute - b.minute);
+  var current = n(kolmafia.getProperty("_beachMinutes"));
+  var context = loadContext();
+  var cmp = comparison(candidates, baseline, Object.keys(ledger.fronts).length);
+  var proof = {
+    facts: [fact("FACT", "rare-corpus", "known", points.length, "raretiles.json"), fact("FACT", "observation-fronts", "known", Object.keys(ledger.fronts).length, "native ledger"), fact("MODEL", "kol-beach-calibration", "unknown", null, "WaterSheep"), fact("FACT", "baseline-membership-model-input", "withheld", null, "input policy")],
+    relations: [relation("member-of", "combo-baseline", "candidate-pool", baseline ? true : null, "runtime construction"), relation("visible-to-model", "baseline-membership", "WaterSheep", false, "blinded input policy"), relation("authorizes", "WaterSheep", "KoL action", false, "authority boundary")],
+    design_reference: TYPE_REFERENCE
+  };
+  var result = {
+    schema: "don-combo-matrix-runtime/v0.8-ts",
+    generated_at: new Date().toISOString(),
+    player_id: n(kolmafia.myId()),
+    gameday: kolmafia.gamedayToInt(),
+    mode: "shadow-only",
+    authority: "none",
+    claim: "Score Combo's exact next successful target inside the same blinded WaterSheep pool as dynamic alternatives, without changing KoL state.",
+    note: "TypeScript/Libram runtime. WaterSheep score mass is experimental and uncalibrated for KoL beach outcomes. Known rare annotations, source labels, baseline membership, and Combo route identity are withheld from model input.",
+    matrix: {
+      order: 10,
+      width: GRID,
+      height: GRID,
+      total_cells: GRID * GRID,
+      real_tile_cells: REAL,
+      unused_cells: GRID * GRID - REAL,
+      address_rule: "d=(minute-1)*100+(row-1)*10+column; (x,y)=HilbertPoint(d,10)"
+    },
+    combo: {
+      rare_tile_records: points.length,
+      unique_rare_fronts: new Set(points.filter(point => !point.false_rare).map(point => point.minute)).size,
+      false_rare_records: parseFalseRares$1().size,
+      raretiles_file: "raretiles.json",
+      prefs_file: "KoLmafia native properties",
+      last_tile_index: n(kolmafia.getProperty("combo_lastTileCombed")),
+      current_minute: current || null,
+      current_layout: kolmafia.getProperty("_beachLayout"),
+      free_beach_combs_remaining: Math.max(0, 11 - n(kolmafia.getProperty("_freeBeachWalksUsed"))),
+      context: context.context,
+      context_file: context.file,
+      baseline_in_pool: baseline != null
+    },
+    observations: {
+      ledger_file: "don_combo_matrix_ledger.json",
+      tile_recovery_file: "don_combo_tile_recovery.json",
+      tiles_recorded: Object.keys(recoveryLedger.tiles).length,
+      recovery_intervals: Object.values(recoveryLedger.tiles).reduce((count, entry) => {
+        var _entry$recovery_inter;
+        return count + (((_entry$recovery_inter = entry.recovery_intervals) === null || _entry$recovery_inter === void 0 ? void 0 : _entry$recovery_inter.length) || 0);
+      }, 0),
+      fronts_recorded: Object.keys(ledger.fronts).length,
+      fronts: observationAtlas(ledger),
+      ledger_updated_this_run: false,
+      session_tail: {
+        mode: "native-event",
+        events_added: 0,
+        offset: 0,
+        path: null
+      },
+      rule: "Combo records beach observations directly into the local evidence ledger; KoLmafia session logs remain recovery evidence, not the hot-path trigger."
+    },
+    watersheep: {
+      endpoint: ENDPOINT,
+      evidence_contract: WATERSHEEP_EVIDENCE_CONTRACT,
+      status,
+      error,
+      options: LABELS.slice(),
+      weights: WEIGHTS,
+      input_policy: "Known tile cooldown evidence supplied; Combo target identity/order, source labels, baseline membership, and Combo-derived outcome labels withheld.",
+      calibration: "UNVALIDATED_FOR_KOL_BEACH"
+    },
+    comparison: cmp,
+    run_control: buildRunControl(),
+    ml_lab: buildMlLab(),
+    proof_graph: proof,
+    ui: {
+      design_reference: DESIGN_REFERENCE,
+      representation_reference: REPRESENTATION_REFERENCE,
+      hilbert_ui_reference: HILBERT_UI_REFERENCE,
+      type_reference: TYPE_REFERENCE,
+      semantic_order: ["claim", "context", "proof", "decision", "metadata", "exit"],
+      evidence_kinds: ["FACT", "MODEL", "POLICY"]
+    },
+    known_rare_points: points,
+    current_front_cells: layoutCells(current, kolmafia.getProperty("_beachLayout")),
+    candidates
+  };
+  result.receipt = emitReceipt(result);
+  return result;
+}
+
+// Explicit CLI execution first prepares a fresh, immutable ranked snapshot.
+// The execution owner validates and freezes it before the first KoL action.
+// Never quietly fall back to Combo's shuffled route if WaterSheep is offline.
+function prepareWaterSheepRoute(requestedCombs) {
+  if (!Number.isInteger(requestedCombs) || requestedCombs < 1 || requestedCombs > 100) throw new Error("WaterSheep comb count must be between 1 and 100.");
+  var result = buildRuntime(Math.max(16, requestedCombs));
+  if (result.watersheep.status !== "ready" || result.candidates.length < requestedCombs || result.candidates.slice(0, requestedCombs).some(candidate => candidate.utility == null || candidate.watersheep == null)) throw new Error("WaterSheep unavailable or insufficient fully scored rare fronts; no combs started.");
+  writeRuntime(result);
+}
+function writeRuntime(result) {
+  var encoded = JSON.stringify(result);
+  kolmafia.bufferToFile(JSON.stringify(result, null, 2) + "\n", "don_combo_matrix_runtime.json");
+  kolmafia.bufferToFile("window.DON_COMBO_MATRIX_RUNTIME=" + encoded + ";\n", "relay/don_combo_matrix_runtime.js");
+}
 
 /* eslint-disable eqeqeq */
 // Pure offline route compiler. The MODEL contributes rankings, never coordinates
 // or direct KoL actions. Only listed, tide-visible corpus tiles can be executed.
 
-function compileShadowTop11(snapshot, corpus, falseRares, playerId, gameday, usedFree, nowEpoch) {
+var MAX_WATERSHEEP_ROUTE_COMBS = 100;
+
+// Compiles an *already-scored* snapshot. Never requests model output or
+// executes game actions here. A caller opts into paid combs explicitly.
+function compileWaterSheepRoute(snapshot, corpus, falseRares, playerId, gameday, usedFree, nowEpoch, requestedCombs, freeOnly) {
   var _snapshot$watersheep;
   if (snapshot.schema !== "don-combo-matrix-runtime/v0.8-ts" || snapshot.player_id !== playerId || snapshot.gameday !== gameday || ((_snapshot$watersheep = snapshot.watersheep) === null || _snapshot$watersheep === void 0 ? void 0 : _snapshot$watersheep.status) !== "ready") throw new Error("Shadow snapshot identity, day, or WaterSheep status invalid; refresh first.");
   var stamped = Date.parse(snapshot.generated_at) / 1000;
   if (!Number.isFinite(stamped) || stamped > nowEpoch + 30 || nowEpoch - stamped > 1200) throw new Error("Shadow snapshot expired (20 minutes); refresh the relay first.");
-  if (!Number.isInteger(usedFree) || usedFree < 0 || usedFree >= 11) throw new Error("No unused free beach combs remain.");
-  var count = 11 - usedFree;
+  if (!Number.isInteger(usedFree) || usedFree < 0) throw new Error("Invalid KoLmafia free beach counter.");
+  if (!Number.isInteger(requestedCombs) || requestedCombs < 1 || requestedCombs > MAX_WATERSHEEP_ROUTE_COMBS) throw new Error("WaterSheep route count must be an integer from 1 to 100.");
+  var remainingFree = Math.max(0, 11 - usedFree);
+  if (freeOnly && (remainingFree === 0 || requestedCombs > remainingFree)) throw new Error("Requested route exceeds available free beach combs.");
+  var count = requestedCombs;
   if (!Array.isArray(snapshot.candidates) || snapshot.candidates.length < count) throw new Error("Insufficient scored candidate fronts for free-turn route.");
   var day = 1 + gameday % 8;
   var hidden = 4 - Math.abs(4 - day);
@@ -2125,6 +2943,12 @@ function compileShadowTop11(snapshot, corpus, falseRares, playerId, gameday, use
   }
   if (selected.length !== count) throw new Error("Not enough usable ranked candidates.");
   return selected;
+}
+
+// Backward-compatible legacy frozen relay route. It never authorizes paid combs.
+function compileShadowTop11(snapshot, corpus, falseRares, playerId, gameday, usedFree, nowEpoch) {
+  if (!Number.isInteger(usedFree) || usedFree < 0 || usedFree >= 11) throw new Error("No unused free beach combs remain.");
+  return compileWaterSheepRoute(snapshot, corpus, falseRares, playerId, gameday, usedFree, nowEpoch, 11 - usedFree, true);
 }
 
 var _templateObject;
@@ -2240,7 +3064,7 @@ function _comb(tile) {
   var minute = tile.minute,
     row = tile.row,
     column = tile.column;
-  kolmafia.cliExecute("beach wander ".concat(minute, ";"));
+  if (!kolmafia.cliExecute("beach wander ".concat(minute, ";"))) throw new Error("Could not visit beach minute ".concat(minute, "; route stopped."));
   var layoutString = getString("_beachLayout");
   kolmafia.print("DON_COMBO_OBSERVATION minute=".concat(minute, " layout=").concat(layoutString), "gray");
 
@@ -2404,12 +3228,14 @@ function comb() {
 
 // A relay confirmation selects a pre-scored local same-player/day snapshot.
 // No model inference runs during execution, and the model cannot supply coordinates.
-function loadShadowTop11Route() {
+function loadShadowTop11Route(requestedCombs) {
+  var freeOnly = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
   var raw = String(kolmafia.fileToBuffer("don_combo_matrix_runtime.json") || "");
   if (!raw) kolmafia.abort("No frozen Shadow Route Lab snapshot; refresh first.");
   var snapshot = JSON.parse(raw);
   var invalid = new Set(getFalseRares().map(tile => "".concat(tile.minute, ",").concat(tile.row, ",").concat(tile.column)));
-  return compileShadowTop11(snapshot, rareTiles, invalid, Number(kolmafia.myId()), kolmafia.gamedayToInt(), get("_freeBeachWalksUsed", 0), Date.now() / 1000);
+  var parameters = [snapshot, rareTiles, invalid, Number(kolmafia.myId()), kolmafia.gamedayToInt(), get("_freeBeachWalksUsed", 0), Date.now() / 1000];
+  return requestedCombs === undefined ? compileShadowTop11.apply(void 0, parameters) : compileWaterSheepRoute.apply(void 0, parameters.concat([requestedCombs, freeOnly]));
 }
 function printSession(session) {
   var items = _toConsumableArray(session.items);
@@ -2454,13 +3280,47 @@ function main(args) {
     printSession(_lifetime);
     return;
   }
+  if (args === "watersheep-preview") {
+    // Read-only relay validation. It cannot wander, comb or request paid actions.
+    kolmafia.setProperty("don_combo_shadow11_preview_status", "blocked");
+    kolmafia.setProperty("don_combo_shadow11_preview_snapshot", "");
+    try {
+      if (get("don_combo_running", false)) throw new Error("Combo is already running.");
+      var route = loadShadowTop11Route();
+      var snapshot = JSON.parse(String(kolmafia.fileToBuffer("don_combo_matrix_runtime.json")));
+      kolmafia.setProperty("don_combo_shadow11_preview_status", "ready");
+      kolmafia.setProperty("don_combo_shadow11_preview_snapshot", snapshot.generated_at);
+      kolmafia.setProperty("don_combo_shadow11_preview_message", "Ready: ".concat(route.length, " free-only WaterSheep targets from snapshot ").concat(snapshot.generated_at, "."));
+      kolmafia.print("WaterSheep preview: ".concat(route.length, " ranked free combs available; no KoL actions taken."));
+    } catch (error) {
+      var message = error instanceof Error ? error.message : String(error);
+      kolmafia.setProperty("don_combo_shadow11_preview_message", message);
+      kolmafia.print("WaterSheep preview blocked: ".concat(message), "red");
+    }
+    return;
+  }
 
   // Use a wrapper around session tracking to record our results
   // We do this by first tracking what the session results are right now
   // Later, we will subtract these items and meat from our final results
   if (get("don_combo_running", false)) kolmafia.abort("Another Combo run is already active.");
-  var shadow11 = args === "shadow11";
-  var frozenRoute = shadow11 ? loadShadowTop11Route() : null;
+  var rawArg = typeof args === "string" ? args.trim() : args;
+  var shadow11 = rawArg === "shadow11";
+  var wsFree = rawArg === "watersheep-free";
+  var wsPaidMatch = typeof rawArg === "string" ? /^watersheep-([1-9][0-9]*)$/.exec(rawArg) : null;
+  var wsPaid = wsPaidMatch !== null;
+  if (typeof rawArg === "string" && rawArg.startsWith("watersheep-") && !wsFree && !wsPaid) kolmafia.abort("Expected 'watersheep-free' or 'watersheep-<positive count>'.");
+  var freeRemaining = Math.max(0, 11 - get("_freeBeachWalksUsed", 0));
+  var wsCount = wsFree ? freeRemaining : wsPaid ? Number(wsPaidMatch[1]) : 0;
+  if ((wsFree || wsPaid) && (!Number.isInteger(wsCount) || wsCount < 1 || wsCount > MAX_WATERSHEEP_ROUTE_COMBS)) kolmafia.abort(wsFree ? "No free beach combs remain." : "WaterSheep route must request 1–100 combs.");
+  if (wsPaid && wsCount > freeRemaining + kolmafia.myAdventures()) kolmafia.abort("Insufficient remaining free combs and adventures for this explicit paid route.");
+  if (wsFree || wsPaid) {
+    kolmafia.print("WaterSheep: pre-scoring ".concat(wsCount, " rare-front targets (").concat(wsFree ? "free-only" : "adventure-cost allowed", ")..."), HIGHLIGHT);
+    prepareWaterSheepRoute(wsCount);
+  }
+  var frozenRoute = shadow11 ? loadShadowTop11Route() : wsFree || wsPaid ? loadShadowTop11Route(wsCount, wsFree) : null;
+  var routeMode = wsPaid ? "watersheep-paid" : wsFree || shadow11 ? "watersheep-free" : "combo-default";
+  var freeOnly = wsFree || shadow11;
   var baseline = Session.current();
 
   // Here we collapse our two possibilities into one
@@ -2474,6 +3334,8 @@ function main(args) {
   _set("don_combo_running", true);
   _set("don_combo_last_run_status", "running");
   _set("don_combo_last_run_requested", combs);
+  _set("don_combo_last_run_route_mode", routeMode);
+  _set("don_combo_last_run_paid_combs", 0);
   _set("don_combo_last_run_combs", 0);
   _set("don_combo_last_run_end_reason", "running");
   _set("don_combo_last_run_interrupt_consumed", false);
@@ -2481,7 +3343,7 @@ function main(args) {
   _set("don_combo_last_run_ended_at", "");
   _set("don_combo_last_run_ml_events_before", loadMlTraceEvents(0).total);
   _set("don_combo_last_run_ml_events_after", loadMlTraceEvents(0).total);
-  _set("logPreferenceChangeFilter", _toConsumableArray(new Set([].concat(_toConsumableArray(oldFilter.split(",")), ["spadingData", "combo_lastTileCombed", "_beachLayout", "_beachMinutes", "_beachCombing", "don_combo_interrupt", "don_combo_running", "don_combo_last_run_status", "don_combo_last_run_requested", "don_combo_last_run_combs", "don_combo_last_run_end_reason", "don_combo_last_run_interrupt_consumed", "don_combo_last_run_started_at", "don_combo_last_run_ended_at", "don_combo_last_run_ml_events_before", "don_combo_last_run_ml_events_after"]))).filter(x => x).join(","));
+  _set("logPreferenceChangeFilter", _toConsumableArray(new Set([].concat(_toConsumableArray(oldFilter.split(",")), ["spadingData", "combo_lastTileCombed", "_beachLayout", "_beachMinutes", "_beachCombing", "don_combo_interrupt", "don_combo_running", "don_combo_last_run_status", "don_combo_last_run_requested", "don_combo_last_run_route_mode", "don_combo_last_run_paid_combs", "don_combo_last_run_combs", "don_combo_last_run_end_reason", "don_combo_last_run_interrupt_consumed", "don_combo_last_run_started_at", "don_combo_last_run_ended_at", "don_combo_last_run_ml_events_before", "don_combo_last_run_ml_events_after"]))).filter(x => x).join(","));
   var frozenPlayer = Number(kolmafia.myId());
   var frozenGameday = kolmafia.gamedayToInt();
   var completedCombs = 0;
@@ -2499,12 +3361,19 @@ function main(args) {
         // Free-only guard at the exact action boundary. A changed counter
         // can never authorize paid turns or an unplanned tile.
         var before = get("_freeBeachWalksUsed", 0);
-        if (before < 0 || before >= 11) throw new Error("No free combs remain; paid comb prevented.");
+        var beforeAdventures = kolmafia.myAdventures();
+        if (freeOnly && (before < 0 || before >= 11)) throw new Error("No free combs remain; paid comb prevented.");
+        if (!freeOnly && before >= 11 && beforeAdventures < 1) throw new Error("No adventures remain for a paid beach comb.");
         var target = frozenRoute[completedCombs];
         if (!target || kolmafia.gamedayToInt() !== frozenGameday || Number(kolmafia.myId()) !== frozenPlayer) throw new Error("Shadow route day/player changed during execution.");
         _comb(target);
         var after = get("_freeBeachWalksUsed", 0);
-        if (after !== before + 1) throw new Error("Free beach counter did not advance exactly once; stopping.");
+        var afterAdventures = kolmafia.myAdventures();
+        var freeSpent = after === before + 1;
+        var paidSpent = afterAdventures < beforeAdventures;
+        if (freeOnly && (!freeSpent || paidSpent)) throw new Error("Free-only action could not be verified; stopping.");
+        if (!freeOnly && !freeSpent && !paidSpent) throw new Error("No verified beach comb or adventure spend; stopping.");
+        if (paidSpent) _set("don_combo_last_run_paid_combs", get("don_combo_last_run_paid_combs", 0) + 1);
         completedCombs++;
       } else {
         // Preserve normal Combo's deterministic shuffled rare route.

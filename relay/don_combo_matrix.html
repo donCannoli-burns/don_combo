@@ -110,9 +110,9 @@
 <div class="sectionhead"><div><div class="eyebrow">Human confirmation / deterministic execution</div><h2>WaterSheep top 11 · free-only route</h2></div><p>The shadow ranking is frozen before execution. Each candidate resolves to an accessible known rare tile. No paid combs, no re-ranking mid-run. Scores are not validated rare-spawn probabilities.</p></div>
 <article class="card">
   <p id="shadow11Info" class="muted">Awaiting a local WaterSheep snapshot.</p>
-  <form id="shadow11ReviewForm" method="POST" action="relay_DonComboRunTop11.ash" target="_blank">
+  <form id="shadow11ReviewForm" method="POST" action="relay_DonComboRunTop11.ash">
     <input type="hidden" name="action" value="preview">
-    <button id="reviewShadow11" class="btn" type="submit" disabled>Review top 11 and run free Combo</button>
+    <button id="reviewShadow11" class="btn" type="submit">Review top 11 and run free Combo</button>
   </form>
   <div id="shadow11Table" class="scrollTable" style="margin-top:12px">No executable ranking yet.</div>
   <p class="muted">Click Review for a second confirmation in a new tab. If fewer than 11 free combs remain, the route uses only the remaining free allotment. The normal Combo CLI route is unchanged.</p>
@@ -355,10 +355,10 @@ function renderShadowRoute(){
             t.row===c.representative.row&&t.column===c.representative.column&&!t.false_rare;
         });
     });
- var btn=document.getElementById("reviewShadow11");btn.disabled=!valid;
+ var btn=document.getElementById("reviewShadow11");btn.disabled=false;btn.title=valid?"Open confirmation before any KoL action":"Open read-only diagnostic of route readiness";
  document.getElementById("shadow11Info").textContent=valid
   ?"Ready: "+n+" ranked fronts; "+remaining+" free beach combs remaining today. Refresh to update the 20-minute snapshot."
-  :"Unavailable: requires a fresh same-player/day WaterSheep READY snapshot, tide-accessible rare coordinates, and unused free combs.";
+  :"Not ready: requires a fresh same-player/day WaterSheep READY snapshot, tide-accessible rare coordinates, and unused free combs. Review opens a diagnostic without acting.";
  document.getElementById("shadow11Table").innerHTML=selection.length
  ?"<table><thead><tr><th>Rank</th><th>Front</th><th>Rare tile</th><th>Model score mass</th><th>Final utility</th><th>Last state</th><th>Days since rare loot</th><th>Revisit signal</th></tr></thead><tbody>"+
  selection.map(function(c,i){var t=c.representative||{},e=c.evidence||{},h=e.cooldown||{};

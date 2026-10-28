@@ -51,6 +51,7 @@ export interface ScratchEvent {
   minute: number;
   layout: string;
   observed_at: string;
+  pre_action_observed_at?: string;
   run_context?: { player_id?: number } | null;
 }
 
@@ -160,9 +161,10 @@ export function backfillScratchHistory(
     if (typeof eventPlayer === "number" && eventPlayer !== persisted.player_id) continue;
     if (event.event_id && seen.has(event.event_id)) continue;
     if (event.event_id) seen.add(event.event_id);
-    const date = Date.parse(event.observed_at);
+    const preAction = event.pre_action_observed_at || event.observed_at;
+    const date = Date.parse(preAction);
     if (!Number.isFinite(date) || date > nowMs) continue;
-    if (addScratchVisit(ledger, event.minute, event.layout, event.observed_at, "historical"))
+    if (addScratchVisit(ledger, event.minute, event.layout, preAction, "historical"))
       imported++;
   }
   return { ledger, imported };

@@ -2927,11 +2927,16 @@ function compileWaterSheepRoute(snapshot, corpus, falseRares, playerId, gameday,
       if (candidate.utility > previousUtility + 1e-9) throw new Error("Shadow candidates are not in saved descending rank order.");
       previousUtility = candidate.utility;
       var t = candidate.representative;
-      var key = "".concat(t.minute, ",").concat(t.row, ",").concat(t.column);
-      if (candidate.minute !== t.minute || !known.has(key) || seen.has(t.minute)) throw new Error("Shadow candidate does not resolve to a unique accessible known rare tile.");
-      seen.add(t.minute);
+      // The actual scorer emits { candidate.minute, representative:{d,x,y,row,column} }.
+      // Never interpret an absent representative.minute as an invalid tile; bind
+      // its row/column to the authoritative candidate.minute instead.
+      if (t.minute !== undefined && t.minute !== candidate.minute) throw new Error("Shadow rank ".concat(selected.length + 1, ": representative minute conflicts with candidate front ").concat(candidate.minute, "."));
+      var key = "".concat(candidate.minute, ",").concat(t.row, ",").concat(t.column);
+      if (!known.has(key)) throw new Error("Shadow rank ".concat(selected.length + 1, ": front ").concat(candidate.minute, " tile ").concat(t.row, ",").concat(t.column, " is not a tide-accessible, non-false coordinate from raretiles.json."));
+      if (seen.has(candidate.minute)) throw new Error("Shadow rank ".concat(selected.length + 1, ": duplicate front ").concat(candidate.minute, "."));
+      seen.add(candidate.minute);
       selected.push({
-        minute: t.minute,
+        minute: candidate.minute,
         row: t.row,
         column: t.column
       });

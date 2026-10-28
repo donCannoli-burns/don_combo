@@ -91,6 +91,7 @@ export interface CandidateEvidence {
   historical_rare_curve: import("./two-pool-cooldown").HistoricalRareCurve;
   pool_timescales: import("./pool-timescales").PoolTimeScaleSummary | null;
   pool_cooldown: import("./two-pool-cooldown").PoolCooldownEvidence;
+  bottle_unknown_pool: import("./two-pool-cooldown").BottleTargetContext;
   pool_front_observations: Record<import("./two-pool-cooldown").PoolKind, number>;
   observed_symbol_rates: Record<string, number>;
   observed_outcome_rates: Record<string, number>;

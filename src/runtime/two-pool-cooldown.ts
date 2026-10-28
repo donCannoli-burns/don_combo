@@ -29,6 +29,8 @@ export interface PoolTraceEvent {
   planned_target?: { minute: number; row: number; column: number } | null;
   actual_comb?: { minute: number; row: number; column: number } | null;
   items?: Record<string, number>;
+  special_events?: ReadonlyArray<{ kind: string; source?: string; pool?: string }>;
+  action_output_capture?: "captured" | "empty" | "legacy-unavailable";
   run_context?: { player_id?: number; run_id?: string; route_mode?: string } | null;
 }
 export interface PoolObservation {
@@ -70,6 +72,21 @@ export interface PoolCooldownEvidence {
   uncertainty: "NO_VERIFIED_COOLDOWN" | "CENSORED_REWARD_INTERVALS_ONLY";
   hypothesis: "LONGER_RECOVERY_MAY_MEAN_RARER_REWARD_UNVALIDATED";
 }
+export interface BottleEventEvidence {
+  kind: "message_in_a_bottle";
+  coordinate: string;
+  observed_at: string;
+  event_id: string | null;
+  route_mode: string;
+  source: "native-cli-command-output";
+}
+export interface BottleTargetContext {
+  observed_events: number;
+  last_observed_at: string | null;
+  classification: "POOL_UNKNOWN";
+  weak_context_weight: { pool_1: 0.1; pool_2: 0.1 };
+  interpretation: "EXPLORATION_HINT_NOT_POOL_MEMBERSHIP_OR_DROP_PROBABILITY";
+}
 export interface PoolSummary {
   schema: "don-combo-two-pool-summary/v0.1";
   scanned_events: number;
@@ -84,12 +101,19 @@ export interface PoolSummary {
   distinct_reward_coordinates: number;
   historical_unbound_events: number;
   run_bound_events: number;
+  message_bottle_events: number;
+  message_bottle_unbound: number;
+  bottle_detection_output_captured: number;
+  bottle_detection_output_empty: number;
+  bottle_detection_legacy_unavailable: number;
   unclassified_item_deltas: Record<string, number>;
   hypothesis: string;
 }
 export interface PoolIndex {
   summary: PoolSummary;
   by_coordinate: Record<string, PoolCooldownEvidence>;
+  bottle_by_coordinate: Record<string, BottleTargetContext>;
+  bottle_events: BottleEventEvidence[];
   by_front: Record<string, Record<PoolKind, number>>;
   observations: PoolObservation[];
 }
@@ -164,6 +188,12 @@ export function buildPoolCooldownIndex(
   playerId: number,
 ): PoolIndex {
   const byCoordinate: Record<string, PoolCooldownEvidence> = {};
+  const bottleByCoordinate: Record<string, BottleTargetContext> = {};
+  const bottleEvents: BottleEventEvidence[] = [];
+  let bottleUnbound = 0;
+  let captureCovered = 0,
+    captureEmpty = 0,
+    captureLegacy = 0;
   const byFront: Record<string, Record<PoolKind, number>> = {};
   const observations: PoolObservation[] = [];
   const p1 = emptyCounts(),
@@ -263,6 +293,9 @@ export function buildPoolCooldownIndex(
     if (e.event_id && seen.has(e.event_id)) continue;
     if (e.event_id) seen.add(e.event_id);
     matched++;
+    if (e.action_output_capture === "captured") captureCovered++;
+    else if (e.action_output_capture === "empty") captureEmpty++;
+    else captureLegacy++;
     if (e.run_context?.run_id) bound++;
     else legacy++;
     // Observe any previously rewarded coordinate in the visible beachfront,
@@ -292,6 +325,40 @@ export function buildPoolCooldownIndex(
     }
     const actual = e.actual_comb;
     const actualKey = actual?.minute === e.minute ? key(actual) : null;
+    // Count a genuine beach-result message once, even if its text appears
+    // more than once in the command output. No synthetic inventory delta.
+    if (
+      e.special_events?.some(
+        (x) =>
+          x.kind === "message_in_a_bottle" &&
+          x.source === "native-cli-command-output" &&
+          x.pool === "unassigned",
+      )
+    ) {
+      if (actualKey) {
+        const bottle =
+          bottleByCoordinate[actualKey] ??
+          (bottleByCoordinate[actualKey] = {
+            observed_events: 0,
+            last_observed_at: null,
+            classification: "POOL_UNKNOWN",
+            weak_context_weight: { pool_1: 0.1, pool_2: 0.1 },
+            interpretation: "EXPLORATION_HINT_NOT_POOL_MEMBERSHIP_OR_DROP_PROBABILITY",
+          });
+        bottle.observed_events++;
+        bottle.last_observed_at = e.observed_at;
+        bottleEvents.push({
+          kind: "message_in_a_bottle",
+          coordinate: actualKey,
+          observed_at: e.observed_at,
+          event_id: e.event_id || null,
+          route_mode: e.run_context?.route_mode || "legacy-unbound",
+          source: "native-cli-command-output",
+        });
+      } else {
+        bottleUnbound++;
+      }
+    }
     if (
       e.outcome === "whale" &&
       actualKey &&
@@ -339,11 +406,23 @@ export function buildPoolCooldownIndex(
     distinct_reward_coordinates: rewardedCoords.size,
     historical_unbound_events: legacy,
     run_bound_events: bound,
+    message_bottle_events: bottleEvents.length,
+    message_bottle_unbound: bottleUnbound,
+    bottle_detection_output_captured: captureCovered,
+    bottle_detection_output_empty: captureEmpty,
+    bottle_detection_legacy_unavailable: captureLegacy,
     unclassified_item_deltas: unclassified,
     hypothesis:
       "User-proposed two-pool rarity ladder: shorter cooldown may correspond to common/rare, longer to uncommon/rare, longest to rare/rare. NOT CALIBRATED. Recorded deltas and sightings are observations, not a demonstrated cooldown-to-loot relationship.",
   };
-  return { summary, by_coordinate: byCoordinate, by_front: byFront, observations };
+  return {
+    summary,
+    by_coordinate: byCoordinate,
+    bottle_by_coordinate: bottleByCoordinate,
+    bottle_events: bottleEvents,
+    by_front: byFront,
+    observations,
+  };
 }
 export function cooldownForTarget(
   index: PoolIndex,
@@ -563,4 +642,21 @@ export function buildHistoricalRareCurve(
     inference_kind: "OBSERVED_ATTEMPT_GAPS_NOT_RESPAWN_PROBABILITY",
     note: "Historical known coordinates without timestamps are not training samples. Bins count elapsed time between two recorded rare-target attempts on the SAME exact coordinate, not actual cooldown length. A second positive item is associated with that later attempt; no rarity-to-cooldown law is assumed.",
   };
+}
+
+export function bottleForTarget(
+  index: PoolIndex,
+  minute: number,
+  row: number,
+  column: number,
+): BottleTargetContext {
+  return (
+    index.bottle_by_coordinate[`${minute},${row},${column}`] || {
+      observed_events: 0,
+      last_observed_at: null,
+      classification: "POOL_UNKNOWN",
+      weak_context_weight: { pool_1: 0.1, pool_2: 0.1 },
+      interpretation: "EXPLORATION_HINT_NOT_POOL_MEMBERSHIP_OR_DROP_PROBABILITY",
+    }
+  );
 }

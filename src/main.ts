@@ -20,6 +20,11 @@ import { $items, get, property, Session, set, sinceKolmafiaRevision } from "libr
 
 import { prepareWaterSheepRoute, traceTargetPrediction } from "./don_combo_runtime";
 import {
+  roundedPrescoreSeconds,
+  prescoreWaitPhrase,
+  prescoreProgressNotice,
+} from "./runtime/prescore-progress";
+import {
   loadMlTraceEvents,
   recordBeachObservation,
   type BeachOutcome,
@@ -449,10 +454,20 @@ export function main(args?: string | number): void {
     abort("Insufficient remaining free combs and adventures for this explicit paid route.");
   if (wsFree || wsPaid) {
     print(
-      `WaterSheep: pre-scoring ${wsCount} rare-front targets (${wsFree ? "free-only" : "adventure-cost allowed"})...`,
+      `WaterSheep: pre-scoring ${wsCount} rare-front targets (${wsFree ? "free-only" : "adventure-cost allowed"})... please wait ${prescoreWaitPhrase(wsCount)} (estimated)`,
       HIGHLIGHT,
     );
-    prepareWaterSheepRoute(wsCount);
+    let lastPrintedRemaining = roundedPrescoreSeconds(wsCount);
+    // Progress is tied to completed model responses, not an independent
+    // countdown. Candidate pool size can include a blinded baseline target.
+    prepareWaterSheepRoute(wsCount, (completed, total) => {
+      const progress = prescoreProgressNotice(completed, total, lastPrintedRemaining);
+      if (progress.message) {
+        print(progress.message, "gray");
+        lastPrintedRemaining = progress.rounded_remaining_seconds;
+      }
+    });
+    print("WaterSheep: pre-scoring complete; ranked snapshot saved.", HIGHLIGHT);
   }
   const frozenRoute = shadow11
     ? loadShadowTop11Route()

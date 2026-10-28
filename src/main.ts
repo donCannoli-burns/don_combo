@@ -346,8 +346,13 @@ function loadShadowTop11Route(requestedCombs?: number, freeOnly = true): BeachTi
     getFalseRares().map((tile) => `${tile.minute},${tile.row},${tile.column}`),
   );
   const parameters = [
-    snapshot, rareTiles, invalid, Number(myId()), gamedayToInt(),
-    get("_freeBeachWalksUsed", 0), Date.now() / 1000,
+    snapshot,
+    rareTiles,
+    invalid,
+    Number(myId()),
+    gamedayToInt(),
+    get("_freeBeachWalksUsed", 0),
+    Date.now() / 1000,
   ] as const;
   return requestedCombs === undefined
     ? compileShadowTop11(...parameters)
@@ -388,15 +393,20 @@ export function main(args?: string | number): void {
     setProperty("don_combo_shadow11_preview_status", "blocked");
     setProperty("don_combo_shadow11_preview_snapshot", "");
     try {
-      if (get("don_combo_running", false))
-        throw new Error("Combo is already running.");
+      if (get("don_combo_running", false)) throw new Error("Combo is already running.");
       const route = loadShadowTop11Route();
-      const snapshot = JSON.parse(String(fileToBuffer("don_combo_matrix_runtime.json"))) as ShadowRouteSnapshot;
+      const snapshot = JSON.parse(
+        String(fileToBuffer("don_combo_matrix_runtime.json")),
+      ) as ShadowRouteSnapshot;
       setProperty("don_combo_shadow11_preview_status", "ready");
       setProperty("don_combo_shadow11_preview_snapshot", snapshot.generated_at);
-      setProperty("don_combo_shadow11_preview_message",
-        `Ready: ${route.length} free-only WaterSheep targets from snapshot ${snapshot.generated_at}.`);
-      print(`WaterSheep preview: ${route.length} ranked free combs available; no KoL actions taken.`);
+      setProperty(
+        "don_combo_shadow11_preview_message",
+        `Ready: ${route.length} free-only WaterSheep targets from snapshot ${snapshot.generated_at}.`,
+      );
+      print(
+        `WaterSheep preview: ${route.length} ranked free combs available; no KoL actions taken.`,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setProperty("don_combo_shadow11_preview_message", message);
@@ -405,7 +415,6 @@ export function main(args?: string | number): void {
     return;
   }
 
-
   // Use a wrapper around session tracking to record our results
   // We do this by first tracking what the session results are right now
   // Later, we will subtract these items and meat from our final results
@@ -413,28 +422,36 @@ export function main(args?: string | number): void {
   const rawArg = typeof args === "string" ? args.trim() : args;
   const shadow11 = rawArg === "shadow11";
   const wsFree = rawArg === "watersheep-free";
-  const wsPaidMatch = typeof rawArg === "string"
-    ? /^watersheep-([1-9][0-9]*)$/.exec(rawArg) : null;
+  const wsPaidMatch = typeof rawArg === "string" ? /^watersheep-([1-9][0-9]*)$/.exec(rawArg) : null;
   const wsPaid = wsPaidMatch !== null;
-  if (typeof rawArg === "string" && rawArg.startsWith("watersheep-") &&
-      !wsFree && !wsPaid)
+  if (typeof rawArg === "string" && rawArg.startsWith("watersheep-") && !wsFree && !wsPaid)
     abort("Expected 'watersheep-free' or 'watersheep-<positive count>'.");
   const freeRemaining = Math.max(0, 11 - get("_freeBeachWalksUsed", 0));
   const wsCount = wsFree ? freeRemaining : wsPaid ? Number(wsPaidMatch![1]) : 0;
-  if ((wsFree || wsPaid) &&
-      (!Number.isInteger(wsCount) || wsCount < 1 ||
-        wsCount > MAX_WATERSHEEP_ROUTE_COMBS))
+  if (
+    (wsFree || wsPaid) &&
+    (!Number.isInteger(wsCount) || wsCount < 1 || wsCount > MAX_WATERSHEEP_ROUTE_COMBS)
+  )
     abort(wsFree ? "No free beach combs remain." : "WaterSheep route must request 1–100 combs.");
   if (wsPaid && wsCount > freeRemaining + myAdventures())
     abort("Insufficient remaining free combs and adventures for this explicit paid route.");
   if (wsFree || wsPaid) {
-    print(`WaterSheep: pre-scoring ${wsCount} rare-front targets (${wsFree ? "free-only" : "adventure-cost allowed"})...`, HIGHLIGHT);
+    print(
+      `WaterSheep: pre-scoring ${wsCount} rare-front targets (${wsFree ? "free-only" : "adventure-cost allowed"})...`,
+      HIGHLIGHT,
+    );
     prepareWaterSheepRoute(wsCount);
   }
-  const frozenRoute = shadow11 ? loadShadowTop11Route()
-    : (wsFree || wsPaid) ? loadShadowTop11Route(wsCount, wsFree) : null;
-  const routeMode = wsPaid ? "watersheep-paid" :
-    wsFree || shadow11 ? "watersheep-free" : "combo-default";
+  const frozenRoute = shadow11
+    ? loadShadowTop11Route()
+    : wsFree || wsPaid
+      ? loadShadowTop11Route(wsCount, wsFree)
+      : null;
+  const routeMode = wsPaid
+    ? "watersheep-paid"
+    : wsFree || shadow11
+      ? "watersheep-free"
+      : "combo-default";
   const freeOnly = wsFree || shadow11;
   const baseline = Session.current();
 
@@ -526,8 +543,8 @@ export function main(args?: string | number): void {
           throw new Error("Free-only action could not be verified; stopping.");
         if (!freeOnly && !freeSpent && !paidSpent)
           throw new Error("No verified beach comb or adventure spend; stopping.");
-        if (paidSpent) set("don_combo_last_run_paid_combs",
-          get("don_combo_last_run_paid_combs", 0) + 1);
+        if (paidSpent)
+          set("don_combo_last_run_paid_combs", get("don_combo_last_run_paid_combs", 0) + 1);
         completedCombs++;
       } else {
         // Preserve normal Combo's deterministic shuffled rare route.

@@ -47,8 +47,11 @@ export function compileWaterSheepRoute(
     throw new Error("Shadow snapshot expired (20 minutes); refresh the relay first.");
   if (!Number.isInteger(usedFree) || usedFree < 0)
     throw new Error("Invalid KoLmafia free beach counter.");
-  if (!Number.isInteger(requestedCombs) || requestedCombs < 1 ||
-      requestedCombs > MAX_WATERSHEEP_ROUTE_COMBS)
+  if (
+    !Number.isInteger(requestedCombs) ||
+    requestedCombs < 1 ||
+    requestedCombs > MAX_WATERSHEEP_ROUTE_COMBS
+  )
     throw new Error("WaterSheep route count must be an integer from 1 to 100.");
   const remainingFree = Math.max(0, 11 - usedFree);
   if (freeOnly && (remainingFree === 0 || requestedCombs > remainingFree))
@@ -112,8 +115,14 @@ export function compileShadowTop11(
   nowEpoch: number,
 ): RouteTile[] {
   return compileWaterSheepRoute(
-    snapshot, corpus, falseRares, playerId, gameday, usedFree, nowEpoch,
-    Math.max(0, 11 - usedFree), true,
+    snapshot,
+    corpus,
+    falseRares,
+    playerId,
+    gameday,
+    usedFree,
+    nowEpoch,
+    Math.max(0, 11 - usedFree),
+    true,
   );
 }
-

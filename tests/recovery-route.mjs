@@ -7,7 +7,9 @@ import {
   emptyTileRecovery,
 } from "../src/runtime/recovery.ts";
 import {
-  compileShadowTop11, compileWaterSheepRoute, MAX_WATERSHEEP_ROUTE_COMBS,
+  compileShadowTop11,
+  compileWaterSheepRoute,
+  MAX_WATERSHEEP_ROUTE_COMBS,
 } from "../src/runtime/shadow-route.ts";
 
 const layout = "4:rrrrrrrrrr,5:ccctrrrrrr,6:rrrrrrrrrr";
@@ -91,11 +93,12 @@ assert.throws(
 );
 const twenty = makeSnapshot();
 twenty.candidates = Array.from({ length: 25 }, (_, i) => ({
-  minute: 500 + i, utility: 1 - i / 100,
+  minute: 500 + i,
+  utility: 1 - i / 100,
   representative: { minute: 500 + i, row: 5, column: 1 },
   watersheep: { score_mass: { rare: 0.7 } },
 }));
-const twentyCorpus = twenty.candidates.map(c => c.representative);
+const twentyCorpus = twenty.candidates.map((c) => c.representative);
 assert.equal(
   compileWaterSheepRoute(twenty, twentyCorpus, new Set(), 77, 8, 11, seconds, 20, false).length,
   20,

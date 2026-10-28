@@ -1122,12 +1122,16 @@ export function prepareWaterSheepRoute(requestedCombs: number): void {
   if (!Number.isInteger(requestedCombs) || requestedCombs < 1 || requestedCombs > 100)
     throw new Error("WaterSheep comb count must be between 1 and 100.");
   const result = buildRuntime(Math.max(16, requestedCombs));
-  if (result.watersheep.status !== "ready" ||
-      result.candidates.length < requestedCombs ||
-      result.candidates.slice(0, requestedCombs).some(
-        (candidate: Candidate) => candidate.utility == null || candidate.watersheep == null,
-      ))
-    throw new Error("WaterSheep unavailable or insufficient fully scored rare fronts; no combs started.");
+  if (
+    result.watersheep.status !== "ready" ||
+    result.candidates.length < requestedCombs ||
+    result.candidates
+      .slice(0, requestedCombs)
+      .some((candidate: Candidate) => candidate.utility == null || candidate.watersheep == null)
+  )
+    throw new Error(
+      "WaterSheep unavailable or insufficient fully scored rare fronts; no combs started.",
+    );
   writeRuntime(result);
 }
 

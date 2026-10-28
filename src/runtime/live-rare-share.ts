@@ -12,8 +12,8 @@ const SHAREABLE_SCARCE_ITEMS = new Set([
 
 function nativeBottleSeen(output: string): boolean {
   return String(output || "")
-    .split(/\\r?\\n/)
-    .some((line) => /^\\s*(?:>\\s*)?You found a message in a bottle!\\s*$/i.test(line.trim()));
+    .split(/\r?\n/)
+    .some((line) => /^\s*(?:>\s*)?You found a message in a bottle!\s*$/i.test(line.trim()));
 }
 
 // The only data leaving the character via Kmail: timestamp + beach coordinate.
@@ -64,7 +64,7 @@ export function liveRareFromAction(e: LiveRareActionEvidence): LiveRareShareRow 
   const scarceItemFound = Object.entries(e.items).some(
     ([name, count]) =>
       count > 0 &&
-      SHAREABLE_SCARCE_ITEMS.has(name.trim().toLowerCase().replace(/\\s+/g, " ")),
+      SHAREABLE_SCARCE_ITEMS.has(name.trim().toLowerCase().replace(/\s+/g, " ")),
   );
   const bottleFound = nativeBottleSeen(e.action_output);
   if (!scarceItemFound && !bottleFound) return null;

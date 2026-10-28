@@ -41,15 +41,19 @@ import {
 } from "./runtime/observations";
 import { recoveryFeatures, tileKey, type TileRecoveryLedger } from "./runtime/recovery";
 import {
-  buildPoolCooldownIndex, buildHistoricalRareCurve, cooldownForTarget, type HistoricalRareCurve, type PoolIndex,
-} from "./runtime/two-pool-cooldown";
-import {
   backfillScratchHistory,
   emptyScratchLedger,
   evidenceForScratchFront,
   summarizeScratchLedger,
   type ScratchLedger,
 } from "./runtime/scratch-interest";
+import {
+  buildPoolCooldownIndex,
+  buildHistoricalRareCurve,
+  cooldownForTarget,
+  type HistoricalRareCurve,
+  type PoolIndex,
+} from "./runtime/two-pool-cooldown";
 
 const GRID = 1024;
 const REAL = 1_000_000;
@@ -341,14 +345,28 @@ function evidenceFor(
         ? historicalRareForTile(historicalIndex, tile.minute, tile.row, tile.column)
         : null,
     scratch_interest: evidenceForScratchFront(scratches || emptyScratchLedger(n(myId())), minute),
-    historical_rare_curve: historicalCurve || buildHistoricalRareCurve([],[],buildPoolCooldownIndex([],Date.now(),n(myId())),Date.now(),n(myId())),
+    historical_rare_curve:
+      historicalCurve ||
+      buildHistoricalRareCurve(
+        [],
+        [],
+        buildPoolCooldownIndex([], Date.now(), n(myId())),
+        Date.now(),
+        n(myId()),
+      ),
     pool_cooldown: cooldownForTarget(
       poolIndex || buildPoolCooldownIndex([], Date.now(), n(myId())),
-      minute, tile?.row ?? 0, tile?.column ?? -1,
+      minute,
+      tile?.row ?? 0,
+      tile?.column ?? -1,
     ),
     pool_front_observations: poolIndex?.by_front[String(minute)] || {
-      sand_castle: 0, beached_whale: 0, rainbow_pearl: 0,
-      piece_of_driftwood: 0, cursed_pirate_gear: 0, meteorite_fragment: 0,
+      sand_castle: 0,
+      beached_whale: 0,
+      rainbow_pearl: 0,
+      piece_of_driftwood: 0,
+      cursed_pirate_gear: 0,
+      meteorite_fragment: 0,
     },
     observed_symbol_rates: symbolRates(entry),
     observed_outcome_rates: outcomeRates(entry),
@@ -636,7 +654,13 @@ export function traceTargetPrediction(
     Date.now(),
   ).ledger;
   const poolIndex = buildPoolCooldownIndex(fullHistory.events, Date.now(), n(myId()));
-  const historicalCurve = buildHistoricalRareCurve(loadRarePoints(), fullHistory.events, poolIndex, Date.now(), n(myId()));
+  const historicalCurve = buildHistoricalRareCurve(
+    loadRarePoints(),
+    fullHistory.events,
+    poolIndex,
+    Date.now(),
+    n(myId()),
+  );
   const evidence = evidenceFor(
     minute,
     current,
@@ -1101,7 +1125,13 @@ function buildRuntime(frontierSize = 16) {
   const scratches = scratchBackfill.ledger;
   const scratchSummary = summarizeScratchLedger(scratches, scratchBackfill.imported);
   const poolIndex = buildPoolCooldownIndex(fullHistory.events, Date.now(), n(myId()));
-  const historicalCurve = buildHistoricalRareCurve(points, fullHistory.events, poolIndex, Date.now(), n(myId()));
+  const historicalCurve = buildHistoricalRareCurve(
+    points,
+    fullHistory.events,
+    poolIndex,
+    Date.now(),
+    n(myId()),
+  );
   const scratchTop = Object.keys(scratches.fronts)
     .map((minute) => evidenceForScratchFront(scratches, Number(minute)))
     .filter((x) => x.high_scratch_days > 0)

@@ -205,11 +205,11 @@ and route/run ID. Daily shadow cohorts tally these pool observations as well.
 
 The **user-proposed** three-tier, two-pool working hypothesis is:
 
-| Proposed tier | Pool 1 | Pool 2 |
-| --- | --- | --- |
-| common/rare | Sand castle | Piece of driftwood |
+| Proposed tier | Pool 1        | Pool 2                                                         |
+| ------------- | ------------- | -------------------------------------------------------------- |
+| common/rare   | Sand castle   | Piece of driftwood                                             |
 | uncommon/rare | Beached whale | Cursed tricorn hat, cursed swash buckle, cursed pirate cutlass |
-| rare/rare | Rainbow pearl | Meteorite fragment |
+| rare/rare     | Rainbow pearl | Meteorite fragment                                             |
 
 Sand castle (`C`) and beached whale (`W`) symbols are **layout
 sightings**. A whale comb is also recorded as an action if the actual

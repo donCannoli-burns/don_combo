@@ -53,7 +53,7 @@ export interface ShadowRunEvent {
   planned_target?: { minute: number; row: number; column: number } | null;
   actual_comb?: { minute: number; row: number; column: number } | null;
   pre_action_prediction?: Record<string, unknown> | null;
-  pool_observations?: Array<{pool: string;kind: string;certainty: string;quantity: number}>;
+  pool_observations?: Array<{ pool: string; kind: string; certainty: string; quantity: number }>;
   items: Record<string, number>;
 }
 export interface ShadowDailyRunSummary {

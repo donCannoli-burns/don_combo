@@ -19,6 +19,7 @@ import {
 import { $items, get, property, Session, set, sinceKolmafiaRevision } from "libram";
 
 import { prepareWaterSheepRoute, traceTargetPrediction } from "./don_combo_runtime";
+import { firstVisibleSandCastle } from "./runtime/sandcastle-observer";
 import {
   loadMlTraceEvents,
   recordBeachObservation,
@@ -250,7 +251,13 @@ function _comb(tile: BeachTile): void {
       }
 
       finishObservation(
-        falseRareRough ? "false_rare_rough" : hasCommonItem ? "false_rare_item" : "rare_target",
+        rareRow[column] === "C"
+          ? "sand_castle_target"
+          : falseRareRough
+            ? "false_rare_rough"
+            : hasCommonItem
+              ? "false_rare_item"
+              : "rare_target",
         row,
         column,
         before,
@@ -258,6 +265,18 @@ function _comb(tile: BeachTile): void {
       );
       return;
     }
+  }
+
+  // Preserve the existing whale and genuine uncombed rare target priorities.
+  // If the planned rare is already combed, a visible castle is a deliberate
+  // fallback before twinkle/rough sand. Its ordinary drops are NOT rare loot.
+  const castle = firstVisibleSandCastle(layoutString, minute);
+  if (castle) {
+    print("Our rare tile is combed, but a sand castle is visible. Demolishing it.", HIGHLIGHT);
+    const before = Session.current();
+    const output = cliExecuteOutput(`beach comb ${castle.row} ${castle.column}`);
+    finishObservation("sand_castle_fallback", castle.row, castle.column, before, output);
+    return;
   }
 
   const firstTwinkleRow = Array.from(layout.entries()).find((rowLayout) =>

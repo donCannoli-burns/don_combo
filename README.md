@@ -463,6 +463,20 @@ combo watersheep-20
   confirmation remains required before a free relay run. The confirmation
   is bound to the exact locally verified shadow snapshot.
 
+**gCLI progress while pre-scoring:** `combo watersheep-50` immediately
+prints a "please wait" estimate based on `50 × 2 seconds = 100 seconds`,
+rounded to the **nearest 30-second interval** (`~1 min 30 sec`).
+As WaterSheep actually completes candidate scores, the CLI updates
+`completed / total` approximately every 10 scored candidates or whenever
+the rounded remaining estimate changes. The candidate pool may include an
+additional blinded baseline candidate, so `total` can differ slightly from
+the number of comb attempts requested. Tiny positive remainders display
+`under 30 sec` rather than `0 sec`. These are **work-based estimates**,
+not a background timer or a guarantee that the HTTP model will respond
+in two seconds. The "complete" message is emitted only after the fully
+scored snapshot is validated and written. Errors still stop the routed
+run before any beach action.
+
 **No live KoL beach actions are part of the automated tests.** Start with a
 read-only relay Review, or a low-count CLI run you explicitly choose, and
 check KoLmafia's run log before using the paid route mode at larger counts.

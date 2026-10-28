@@ -155,6 +155,51 @@ set don_combo_ml_trace=false
 
 Trace failures are evidence failures only: Combo continues on its deterministic route and the failed prediction is logged instead of gaining fallback authority. New trace rows append to `data/don_combo_ml_events.jsonl`.
 
+### Historical rare baseline (read-only; all existing local records)
+
+WaterSheep now receives a **per-coordinate historical evidence summary** for
+every ranked candidate and every pre-action prediction, including
+`combo watersheep-N`. The compiler scans **all** locally recorded
+`data/don_combo_ml_events.jsonl` entries, not merely the last 500 entries
+shown in the UI, and cross-indexes them against `data/raretiles.json`.
+False-rare coordinates are excluded. It does **not** mutate these original
+files or overwrite the existing native recovery ledger.
+
+Three evidence grades remain separate:
+
+- **Historical rare-coordinate catalogue**: known locations in
+  `raretiles.json`; these records often lack discovery/harvest dates and are
+  **not retroactively dated events**.
+- **Legacy / unbound recorded observations**: past ML-event rows, with real
+  timestamps, planned and actual coordinates, pre-action layout, and outcome.
+  They keep `legacy-unbound` provenance; no run IDs or old predictions are
+  invented.
+- **Run-bound observations**: modern ordinary Combo and WaterSheep-routed
+  free/paid actions. Each records the actual result and optional or automatic
+  pre-action prediction, attached to an exact run ID, game day, and route mode.
+
+For each recorded rare coordinate the read-only baseline exposes observation
+counts, old versus run-bound evidence, previously-combed and visible-twinkle
+observations *at that coordinate*, rare-target attempt counts, dated first/last
+observation, and elapsed time between distinct rare-target attempts where
+observed. The WaterSheep **model input** includes that summary. It does not
+expose the full rare-coordinate catalogue, Combo's route order or baseline
+membership; per-target historical evidence is now an intentional input.
+
+**This is baseline evidence for a future cooldown curve, not fitted model
+weights.** A rare-target action with driftwood is an observed target attempt,
+not proof of a rare-item harvest. An interval between target attempts is not
+a verified respawn interval. No missing dates are fabricated; no unobserved
+negative samples, probabilities, or training labels are synthesized.
+The ML Lab shows catalogue coverage and historical/run-bound counts separately.
+
+Run `combo watersheep-20` to execute a human-authorized frozen WaterSheep
+route of 20 attempts (free first, then adventures if required). This mode already
+automatically records each attempt with its pre-action WaterSheep trace and
+outcome, as well as a daily learning cohort; `don_combo_ml_trace=true` is
+**not necessary** for WaterSheep-routed runs. A failed model inference is
+recorded as an error and cannot authorize a different route.
+
 ### Daily shadow learning (passive; no extra beach turns)
 
 Every Combo run already records its pre-comb beachfront layout, the planned rare tile,

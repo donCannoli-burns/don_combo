@@ -35,10 +35,18 @@ import {
 } from "./runtime/historical-rares";
 import {
   loadMlTraceEvents,
+  loadScratchLedger,
   loadObservationLedger,
   loadTileRecoveryLedger,
 } from "./runtime/observations";
 import { recoveryFeatures, tileKey, type TileRecoveryLedger } from "./runtime/recovery";
+import {
+  backfillScratchHistory,
+  emptyScratchLedger,
+  evidenceForScratchFront,
+  summarizeScratchLedger,
+  type ScratchLedger,
+} from "./runtime/scratch-interest";
 
 const GRID = 1024;
 const REAL = 1_000_000;
@@ -300,6 +308,7 @@ function evidenceFor(
   tile?: BeachTile,
   recoveryLedger?: TileRecoveryLedger,
   historicalIndex?: HistoricalRareIndex,
+  scratches?: ScratchLedger,
 ): CandidateEvidence {
   const entry = (ledger.fronts[String(minute)] || {}) as Record<string, any>;
   const layouts = n(entry.layout_snapshots);
@@ -326,6 +335,7 @@ function evidenceFor(
       tile && historicalIndex
         ? historicalRareForTile(historicalIndex, tile.minute, tile.row, tile.column)
         : null,
+    scratch_interest: evidenceForScratchFront(scratches || emptyScratchLedger(n(myId())), minute),
     observed_symbol_rates: symbolRates(entry),
     observed_outcome_rates: outcomeRates(entry),
     sand_per_event: events ? round(n((entry.items || {})["grain of sand"]) / events, 4) : 0,
@@ -333,7 +343,7 @@ function evidenceFor(
   };
 }
 
-function observationAtlas(ledger: ObservationLedger) {
+function observationAtlas(ledger: ObservationLedger, scratches: ScratchLedger) {
   return Object.entries(ledger.fronts)
     .map(([minuteText, raw]) => {
       const minute = n(minuteText);
@@ -349,6 +359,7 @@ function observationAtlas(ledger: ObservationLedger) {
         layout_snapshots: n(entry.layout_snapshots),
         session_events: n(entry.session_events),
         observation_count: n(entry.layout_snapshots) + n(entry.session_events),
+        scratch_interest: evidenceForScratchFront(scratches, minute),
         last_seen_epoch: entry.last_seen_epoch == null ? null : n(entry.last_seen_epoch),
         last_seen_turn: entry.last_seen_turn == null ? null : n(entry.last_seen_turn),
         symbol_counts: entry.symbols || {},
@@ -369,6 +380,7 @@ function sampleMinutes(
   count: number,
   current: number,
   exclude: Set<number>,
+  scratches: ScratchLedger,
 ): Array<[number, "current" | "observed" | "explore"]> {
   const allowed = new Set(eligibleMinutes);
   const selected: number[] = [];
@@ -391,7 +403,8 @@ function sampleMinutes(
         minute: n(minuteText),
         signal:
           (n(symbols.whale) * 4 + n(symbols.twinkle) * 2) / visible +
-          (n(outcomes.whale) * 4 + n(outcomes.rare_target) * 3) / events,
+          (n(outcomes.whale) * 4 + n(outcomes.rare_target) * 3) / events +
+          evidenceForScratchFront(scratches, n(minuteText)).interest_score * 2,
         observations: n(entry.layout_snapshots) + n(entry.session_events),
       };
     })
@@ -428,6 +441,7 @@ function candidateFrontier(
   points: RarePoint[],
   recoveryLedger: TileRecoveryLedger,
   historicalIndex: HistoricalRareIndex,
+  scratches: ScratchLedger,
   count = 16,
 ): Candidate[] {
   const current = n(getProperty("_beachMinutes"));
@@ -470,7 +484,7 @@ function candidateFrontier(
           )
         : chosen(minute);
     if (!tile) return;
-    const evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex);
+    const evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches);
     result.push({
       minute,
       source,
@@ -491,7 +505,7 @@ function candidateFrontier(
   if (baseline) push(baseline.minute, "combo-baseline", true);
   const exclude = new Set<number>(result.map((x) => x.minute));
   const eligibleMinutes = Array.from(grouped.keys()).sort((a, b) => a - b);
-  for (const [minute, source] of sampleMinutes(ledger, eligibleMinutes, count, current, exclude))
+  for (const [minute, source] of sampleMinutes(ledger, eligibleMinutes, count, current, exclude, scratches))
     push(minute, source, false);
   return result;
 }
@@ -511,6 +525,7 @@ function waterSheepPayload(candidate: Candidate): WaterSheepRequest {
       last_seen_age_hours: evidence.last_seen_age_hours,
       tile_recovery: evidence.cooldown,
       historical_rare: evidence.historical_rare,
+      scratch_interest: evidence.scratch_interest,
       observed_symbol_rates: evidence.observed_symbol_rates,
       sand_per_event: evidence.sand_per_event,
       current_layout_if_same_front:
@@ -573,7 +588,8 @@ export function traceTargetPrediction(
     fullHistory.events,
     Date.now(),
   );
-  const evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex);
+  const scratches = backfillScratchHistory(loadScratchLedger(), fullHistory.events, Date.now()).ledger;
+  const evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches);
   const candidate: Candidate = {
     minute,
     source: "current",
@@ -600,6 +616,7 @@ export function traceTargetPrediction(
       last_seen_age_hours: evidence.last_seen_age_hours,
       tile_recovery: evidence.cooldown,
       historical_rare: evidence.historical_rare,
+      scratch_interest: evidence.scratch_interest,
       observed_symbol_rates: evidence.observed_symbol_rates,
       sand_per_event: evidence.sand_per_event,
       current_layout_if_same_front:
@@ -633,7 +650,10 @@ function scoreCandidate(
     n(outcomes.twinkle_fallback) * 0.08 -
     n(outcomes.rough_fallback) * 0.02 -
     n(outcomes.exhausted_fallback) * 0.05 +
-    (evidence.cooldown.revisit_signal ?? 0) * 0.08 -
+    (evidence.cooldown.revisit_signal ?? 0) * 0.08 +
+    // Bounded exploration preference; not a fitted rare chance and never an
+    // action permission. Distinct-day recurrence compounds, same-day revisits do not.
+    evidence.scratch_interest.interest_score * 0.06 -
     (evidence.cooldown.still_combed_after_harvest &&
     (evidence.cooldown.days_since_observed ?? 999) < 1
       ? 0.04
@@ -1012,12 +1032,23 @@ function buildRuntime(frontierSize = 16) {
   // The historic coordinate catalogue is not assigned invented event dates.
   const fullHistory = loadMlTraceEvents(Number.MAX_SAFE_INTEGER);
   const historicalIndex = buildHistoricalRareIndex(points, fullHistory.events, Date.now());
+  const scratchBackfill = backfillScratchHistory(loadScratchLedger(), fullHistory.events, Date.now());
+  const scratches = scratchBackfill.ledger;
+  const scratchSummary = summarizeScratchLedger(scratches, scratchBackfill.imported);
+  const scratchTop = Object.keys(scratches.fronts)
+    .map((minute) => evidenceForScratchFront(scratches, Number(minute)))
+    .filter((x) => x.high_scratch_days > 0)
+    .sort((a, b) => b.interest_score - a.interest_score ||
+      b.very_interesting_days - a.very_interesting_days ||
+      b.max_scratch_count - a.max_scratch_count || a.front_minute - b.front_minute)
+    .slice(0, 30);
   const candidates = candidateFrontier(
     ledger,
     baseline,
     points,
     recoveryLedger,
     historicalIndex,
+    scratches,
     frontierSize,
   );
   let status = "ready";
@@ -1117,6 +1148,9 @@ function buildRuntime(frontierSize = 16) {
     observations: {
       ledger_file: "don_combo_matrix_ledger.json",
       tile_recovery_file: "don_combo_tile_recovery.json",
+      scratch_ledger_file: "don_combo_scratch_observations.json",
+      scratch_summary: scratchSummary,
+      scratch_top_fronts: scratchTop,
       tiles_recorded: Object.keys(recoveryLedger.tiles).length,
       historical_rare_baseline: historicalIndex.baseline,
       recovery_intervals: Object.values(recoveryLedger.tiles).reduce(
@@ -1124,7 +1158,7 @@ function buildRuntime(frontierSize = 16) {
         0,
       ),
       fronts_recorded: Object.keys(ledger.fronts).length,
-      fronts: observationAtlas(ledger),
+      fronts: observationAtlas(ledger, scratches),
       ledger_updated_this_run: false,
       session_tail: { mode: "native-event", events_added: 0, offset: 0, path: null },
       rule: "Combo records beach observations directly into the local evidence ledger; KoLmafia session logs remain recovery evidence, not the hot-path trigger.",

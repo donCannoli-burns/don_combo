@@ -1,6 +1,7 @@
 import { appendBufferToFile, bufferToFile, fileToBuffer, getProperty, turnsPlayed } from "kolmafia";
 
 import type { ObservationEntry, ObservationLedger } from "./contracts";
+import type { ShadowRunContext } from "./shadow-learning";
 import {
   emptyRecoveryLedger,
   observeTile,
@@ -25,6 +26,7 @@ export interface BeachObservationDetail {
   items?: Record<string, number>;
   meat?: number;
   pre_action_prediction?: Record<string, unknown> | null;
+  run_context?: ShadowRunContext | null;
 }
 
 export interface MlTraceEvent {
@@ -41,6 +43,7 @@ export interface MlTraceEvent {
   layout: string;
   layout_symbols: Record<string, number>;
   pre_action_prediction: Record<string, unknown> | null;
+  run_context?: ShadowRunContext | null;
 }
 
 export interface MlTraceLog {
@@ -279,6 +282,7 @@ export function recordBeachObservation(
     layout,
     layout_symbols: counts,
     pre_action_prediction: detail.pre_action_prediction || null,
+    run_context: detail.run_context || null,
   };
   appendBufferToFile(`${JSON.stringify(event)}\n`, ML_EVENT_FILE);
   try {

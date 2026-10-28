@@ -127,6 +127,10 @@
 <section id="ml-lab" class="section">
 <div class="sectionhead"><div><div class="eyebrow">Experiment / machine-learning trace</div><h2>WaterSheep evaluation log</h2></div><p>Paper-style plots inspired by the uploaded WaterSheep figures. Pre-action target scores are bound to the exact post-action outcome and loot; runtime snapshots separately compare model-only rank with model+policy rank.</p></div>
 <div id="mlStats" class="mlstats"></div>
+<article class="card" style="margin-bottom:10px"><div class="eyebrow">Scratch-density watch · historical + live</div>
+<p class="muted">Visible pre-action <code>c</code> (already-combed) squares across the visited beachfront: 6–10 is high interest; 11+ is very interesting. The maximum per UTC day counts once, and repeated qualifying days compound a bounded, uncalibrated exploration signal. Hidden tidal rows are not inferred.</p>
+<div id="mlScratchStats" class="evidence"></div>
+<div id="mlScratchTable" class="mltable muted" style="margin-top:10px">No scratch-density observations yet.</div></article>
 <article class="card" style="margin-bottom:10px"><div class="eyebrow">Historical rare evidence · read-only baseline</div>
 <p class="muted">All recorded rare-coordinate locations and the full local ML event ledger, including older unbound events, contribute to per-target WaterSheep evidence. A known coordinate is not a dated harvest, and target attempts are not validated respawn intervals.</p>
 <div id="mlHistoricalRare" class="evidence"></div></article>
@@ -335,6 +339,20 @@ function renderRankChart(rows){
 }
 function renderMlLab(){
  var ml=R.ml_lab||{},events=ml.events||[],history=ml.snapshot_history||[];
+ var obs=R.observations||{},scratch=obs.scratch_summary||{},hot=obs.scratch_top_fronts||[];
+ document.getElementById("mlScratchStats").innerHTML=
+   evItem("fronts observed",Number(scratch.fronts_observed||0).toLocaleString())+
+   evItem("6+ scratch fronts",Number(scratch.fronts_high||0).toLocaleString())+
+   evItem("11+ scratch fronts",Number(scratch.fronts_very_interesting||0).toLocaleString())+
+   evItem("repeat high-scratch days",Number(scratch.fronts_repeated_high||0).toLocaleString())+
+   evItem("recorded UTC days",Number(scratch.recorded_utc_days||0).toLocaleString());
+ document.getElementById("mlScratchTable").innerHTML=hot.length?
+   "<table><thead><tr><th>Front</th><th>Peak scratches</th><th>High days (6+)</th><th>Very days (11+)</th><th>Repeat days</th><th>Bounded interest</th></tr></thead><tbody>"+
+   hot.map(function(e){return"<tr><td><b>"+Number(e.front_minute)+"</b></td><td>"+Number(e.max_scratch_count)+"</td><td>"+
+     Number(e.high_scratch_days)+"</td><td>"+Number(e.very_interesting_days)+"</td><td>"+
+     Number(e.repeat_high_days)+"</td><td class='mono'>"+Number(e.interest_score||0).toFixed(3)+
+     " · heuristic</td></tr>"}).join("")+"</tbody></table>":
+   "No >=6 scratch observations yet; ordinary observations remain in the native ledger.";
  var historyRare=((R.observations||{}).historical_rare_baseline)||{};
  document.getElementById("mlHistoricalRare").innerHTML=
    evItem("catalogued historical coordinates",Number(historyRare.catalogue_coordinates||0).toLocaleString())+
@@ -346,7 +364,7 @@ function renderMlLab(){
  document.getElementById("mlStats").innerHTML=evItem("manual trace",ml.trace_enabled?"ON":"OFF")+evItem("run-bound cohorts",ml.daily_run_count_in_artifact||0)+evItem("per-comb events",Number(ml.events_total||0))+evItem("predicted events",Number(ml.predicted_events||0))+evItem("untraced events",Number(ml.untraced_events||0))+evItem("mean inference ms",ml.mean_prediction_latency_ms==null?"—":ml.mean_prediction_latency_ms);
  var daily=ml.daily_run_history||[];
  document.getElementById("mlDailyRuns").innerHTML=daily.length
- ?"<table><thead><tr><th>KoL game day</th><th>Run mode</th><th>Combs</th><th>Traced</th><th>Target already combed</th><th>Incidental twinkles</th><th>Rough fallback</th><th>Paid</th><th>State</th></tr></thead><tbody>"+
+ ?"<table><thead><tr><th>KoL game day</th><th>Run mode</th><th>Combs</th><th>Traced</th><th>Target already combed</th><th>Incidental twinkles</th><th>Rough fallback</th><th>6+ scratch</th><th>11+ scratch</th><th>Paid</th><th>State</th></tr></thead><tbody>"+
  daily.slice(-30).reverse().map(function(r){var c=r.context||{};
    return"<tr><td>"+esc(c.gameday==null?"—":c.gameday)+"</td><td>"+esc(c.route_mode||"unknown")+
    "</td><td>"+Number(r.completed_combs||0)+"/"+Number(r.requested_combs||0)+
@@ -354,6 +372,8 @@ function renderMlLab(){
    "</td><td>"+Number(r.planned_rare_previously_combed||0)+
    "</td><td>"+Number(r.incidental_fallback_twinkles||0)+
    "</td><td>"+Number(r.incidental_fallback_rough||0)+
+   "</td><td>"+Number(r.high_scratch_observations||0)+
+   "</td><td>"+Number(r.very_interesting_scratch_observations||0)+
    "</td><td>"+Number(r.paid_combs_observed||0)+
    "</td><td>"+esc(r.result||"unknown")+(r.events_match_completed?" · bound":" · incomplete")+"</td></tr>";
  }).join("")+"</tbody></table>":"No run-bound daily learning cohorts yet; historical observations remain in the ML event log.";
@@ -416,7 +436,7 @@ function render(){
  document.getElementById("readiness").innerHTML="<div class='mini'><b class='"+(cmp.evidence_maturity==="COLD_START"?"policy":"fact")+"'>"+esc(cmp.evidence_maturity||"—")+"</b><span>evidence maturity</span></div><div class='mini'><b>"+(cmp.top_vs_second_margin==null?"—":Number(cmp.top_vs_second_margin).toFixed(4))+"</b><span>top vs #2 margin</span></div><div class='mini'><b>"+esc(cmp.ranking_separation||"—")+"</b><span>ranking separation · not confidence</span></div>";
  var m=R.matrix||{},tail=obs.session_tail||{};document.getElementById("stats").innerHTML=evItem("real tile cells",Number(m.real_tile_cells||0).toLocaleString())+evItem("known rare records",Number(combo.rare_tile_records||0).toLocaleString())+evItem("observed fronts",Number(obs.fronts_recorded||0).toLocaleString())+evItem("session events +last poll",Number(tail.events_added||0))+evItem("pool members",cands.length)+evItem("observed pool members",Number(cmp.observed_candidates||0))+evItem("baseline rank",cmp.baseline_rank==null?"—":cmp.baseline_rank+"/"+cmp.pool_size)+evItem("session cursor bytes",Number(tail.offset||0).toLocaleString());
  renderShadowRoute();
- var mr=modelRankMap();document.getElementById("candidateTable").innerHTML=cands.length?"<table><thead><tr><th>Policy rank</th><th>Model rank</th><th>Front</th><th>Bucket</th><th>Human source</th><th>Model utility</th><th>Final utility</th><th>FACT evidence</th><th>MODEL score mass</th></tr></thead><tbody>"+cands.map(function(c,i){var e=c.evidence||{},u=c.utility_components||{},tag=c.is_combo_baseline?" <span class='fact'>BLINDED BASELINE</span>":"";return"<tr class='candidate' data-i='"+i+"'><td class='rank'>"+(i+1)+"</td><td class='rank'>"+mr[i]+"</td><td><b>"+c.minute+"</b>"+tag+"</td><td class='mono'>"+e.hilbert_bucket_256+"</td><td><span class='source'>"+esc(c.source)+"</span></td><td class='mono'>"+Number(u.model||0).toFixed(4)+"</td><td class='mono'>"+(c.utility==null?"—":Number(c.utility).toFixed(4))+"</td><td class='muted'>layouts "+(e.layout_snapshots||0)+" · events "+(e.session_events||0)+"<br>age "+(e.last_seen_age_hours==null?"never":e.last_seen_age_hours+"h")+"</td><td>"+scoreBars(c.watersheep&&c.watersheep.score_mass)+"</td></tr>"}).join("")+"</tbody></table>":"No candidates.";
+ var mr=modelRankMap();document.getElementById("candidateTable").innerHTML=cands.length?"<table><thead><tr><th>Policy rank</th><th>Model rank</th><th>Front</th><th>Bucket</th><th>Human source</th><th>Model utility</th><th>Final utility</th><th>FACT evidence</th><th>MODEL score mass</th></tr></thead><tbody>"+cands.map(function(c,i){var e=c.evidence||{},u=c.utility_components||{},tag=c.is_combo_baseline?" <span class='fact'>BLINDED BASELINE</span>":"";return"<tr class='candidate' data-i='"+i+"'><td class='rank'>"+(i+1)+"</td><td class='rank'>"+mr[i]+"</td><td><b>"+c.minute+"</b>"+tag+"</td><td class='mono'>"+e.hilbert_bucket_256+"</td><td><span class='source'>"+esc(c.source)+"</span></td><td class='mono'>"+Number(u.model||0).toFixed(4)+"</td><td class='mono'>"+(c.utility==null?"—":Number(c.utility).toFixed(4))+"</td><td class='muted'>layouts "+(e.layout_snapshots||0)+" · events "+(e.session_events||0)+"<br>age "+(e.last_seen_age_hours==null?"never":e.last_seen_age_hours+"h")+"<br>scratch "+Number((e.scratch_interest||{}).max_scratch_count||0)+" / days "+Number((e.scratch_interest||{}).high_scratch_days||0)+"</td><td>"+scoreBars(c.watersheep&&c.watersheep.score_mass)+"</td></tr>"}).join("")+"</tbody></table>":"No candidates.";
  document.querySelectorAll(".candidate").forEach(function(row){row.addEventListener("click",function(){selectCandidate(Number(row.getAttribute("data-i")))})});
  var ui=R.ui||{},ref=ui.design_reference||{},rep=ui.representation_reference||{},hRef=ui.hilbert_ui_reference||{},browser=comboBaseline(),parity=(browser&&bridge)?(browser.tile.minute===bridge.minute&&browser.tile.row===bridge.row&&browser.tile.column===bridge.column):null;
  document.getElementById("lineage").innerHTML="<dt>Runtime schema</dt><dd>"+esc(R.schema)+"</dd><dt>Generated</dt><dd>"+esc(R.generated_at)+"</dd><dt>Run status</dt><dd>"+esc(run.status||"unknown")+"</dd><dt>Requested combs</dt><dd>"+esc(run.requested_combs==null?"—":run.requested_combs)+"</dd><dt>Completed combs</dt><dd>"+esc(run.completed_combs==null?"—":run.completed_combs)+"</dd><dt>End reason</dt><dd>"+esc(run.end_reason||"unknown")+"</dd><dt>Interrupt consumed</dt><dd>"+esc(String(!!run.interrupt_consumed))+"</dd><dt>ML event delta</dt><dd>"+esc(run.ml_event_delta==null?"—":run.ml_event_delta)+"</dd><dt>Trace span complete</dt><dd>"+esc(String(!!run.ml_trace_span_complete))+"</dd><dt>Baseline parity</dt><dd>"+(parity===null?"pending":parity?"PASS":"MISMATCH")+"</dd><dt>Context</dt><dd>"+esc(combo.context_file)+"</dd><dt>Rare corpus</dt><dd>"+esc(combo.raretiles_file)+"</dd><dt>Prefs</dt><dd>"+esc(combo.prefs_file)+"</dd><dt>Observation ledger</dt><dd>"+esc(obs.ledger_file)+"</dd><dt>Receipt log</dt><dd>"+esc(receipt.jsonl_file)+"</dd><dt>Receipt state</dt><dd>"+esc(receipt.state_sha256)+"</dd><dt>WaterSheep</dt><dd>"+esc(ws.endpoint)+"</dd><dt>Calibration</dt><dd>"+esc(ws.calibration)+"</dd><dt>Layout reference</dt><dd>"+esc(ref.repository)+" @ "+esc(ref.commit)+"</dd><dt>Layout use</dt><dd>"+esc(ref.use)+"</dd><dt>Representation reference</dt><dd>"+esc(rep.repository)+"/"+esc(rep.path)+"</dd><dt>Representation use</dt><dd>"+esc(rep.use)+"</dd><dt>Hilbert interaction reference</dt><dd>"+esc(hRef.source)+"</dd>";

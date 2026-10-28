@@ -1752,10 +1752,188 @@ function recoveryFeatures(entry, nowEpoch) {
   };
 }
 
+// Scratch density is a count of PRE-ACTION "c" (already-combed) beach
+// squares in the visible KoLmafia _beachLayout, not a discovered rare drop.
+// Day buckets use UTC calendar dates, consistently for old and new events,
+// to avoid inventing KoL game-day identity for legacy unbound observations.
+var SCRATCH_LEDGER_SCHEMA = "don-combo-scratch-observations/v0.1";
+var SCRATCH_HIGH_THRESHOLD = 6;
+var SCRATCH_VERY_INTERESTING_THRESHOLD = 11;
+function emptyScratchLedger(player) {
+  return {
+    schema: SCRATCH_LEDGER_SCHEMA,
+    player_id: player,
+    fronts: {},
+    updated_at: null
+  };
+}
+
+// Strictly parse the rows we were able to see. Hidden tidal rows are absent
+// and never assumed to be zero scratches. Invalid/duplicate rows are rejected.
+function scratchCount$1(layout) {
+  var rows = new Set();
+  var scratches = 0;
+  var visible = 0;
+  var _iterator = _createForOfIteratorHelper(String(layout || "").split(",")),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var part = _step.value;
+      var match = /^(\d+):([A-Za-z?]{10})$/.exec(part.trim());
+      if (!match) return null;
+      var row = Number(match[1]);
+      if (row < 1 || row > 10 || rows.has(row)) return null;
+      rows.add(row);
+      visible += 10;
+      scratches += (match[2].match(/[cC]/g) || []).length;
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  return rows.size > 0 ? {
+    scratches,
+    visible
+  } : null;
+}
+function normalizeTime(value) {
+  var ms = Date.parse(value);
+  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+}
+function addScratchVisit(ledger, minute, layout, observedAt, provenance) {
+  var _ledger$fronts, _String;
+  var observation = scratchCount$1(layout);
+  var timestamp = normalizeTime(observedAt);
+  if (!Number.isInteger(minute) || minute < 1 || minute > 10000 || !observation || !timestamp) return false;
+  var day = timestamp.slice(0, 10);
+  var front = (_ledger$fronts = ledger.fronts)[_String = String(minute)] ?? (_ledger$fronts[_String] = {
+    days: {}
+  });
+  var existing = front.days[day];
+  var source = existing ? existing.provenance === provenance ? provenance : "both" : provenance;
+  front.days[day] = {
+    max_scratches: Math.max((existing === null || existing === void 0 ? void 0 : existing.max_scratches) ?? 0, observation.scratches),
+    visible_cells_at_max: !existing || observation.scratches >= existing.max_scratches ? observation.visible : existing.visible_cells_at_max,
+    last_observed_at: !existing || timestamp > existing.last_observed_at ? timestamp : existing.last_observed_at,
+    provenance: source
+  };
+  if (!ledger.updated_at || timestamp > ledger.updated_at) ledger.updated_at = timestamp;
+  return true;
+}
+function evidenceForScratchFront(ledger, minute) {
+  var _ledger$fronts$String;
+  var days = ((_ledger$fronts$String = ledger.fronts[String(minute)]) === null || _ledger$fronts$String === void 0 ? void 0 : _ledger$fronts$String.days) || {};
+  var dates = Object.keys(days).sort();
+  var high = dates.filter(day => days[day].max_scratches >= SCRATCH_HIGH_THRESHOLD);
+  var very = dates.filter(day => days[day].max_scratches >= SCRATCH_VERY_INTERESTING_THRESHOLD);
+  var max = dates.reduce((v, day) => Math.max(v, days[day].max_scratches), 0);
+  // A single observation matters; repeated distinct-day evidence compounds
+  // interest but can never become an unbounded positive-feedback loop.
+  var base = max >= 11 ? 0.7 : max >= 6 ? 0.35 : 0;
+  var repeatBonus = Math.min(0.2, Math.max(0, high.length - 1) * 0.08);
+  var veryRepeatBonus = Math.min(0.1, Math.max(0, very.length - 1) * 0.05);
+  var interest = Math.min(1, Math.round((base + repeatBonus + veryRepeatBonus) * 1000) / 1000);
+  return {
+    schema: "don-combo-scratch-interest/v0.1",
+    unit: "visible-pre-action-combed-squares",
+    day_basis: "UTC-calendar-date",
+    front_minute: minute,
+    observed_days: dates.length,
+    high_scratch_days: high.length,
+    very_interesting_days: very.length,
+    repeat_high_days: Math.max(0, high.length - 1),
+    max_scratch_count: max,
+    last_high_day: high[high.length - 1] || null,
+    interest_score: interest,
+    interest_kind: "BOUNDED_EXPLORATION_HEURISTIC_NOT_RARE_PROBABILITY",
+    evidence_source: "historical-and-live-layout-observations"
+  };
+}
+
+// Merge the persistent live ledger and the FULL ML-event history. Daily maxima
+// ensure a visited beach cannot earn extra interest simply by being revisited
+// repeatedly during one day. IDs are de-duplicated where available.
+function backfillScratchHistory(persisted, events, nowMs) {
+  var ledger = {
+    schema: SCRATCH_LEDGER_SCHEMA,
+    player_id: persisted.player_id,
+    updated_at: persisted.updated_at,
+    fronts: JSON.parse(JSON.stringify(persisted.fronts || {}))
+  };
+  var seen = new Set();
+  var imported = 0;
+  var _iterator2 = _createForOfIteratorHelper(events),
+    _step2;
+  try {
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      var _event$run_context;
+      var event = _step2.value;
+      var eventPlayer = (_event$run_context = event.run_context) === null || _event$run_context === void 0 ? void 0 : _event$run_context.player_id;
+      if (typeof eventPlayer === "number" && eventPlayer !== persisted.player_id) continue;
+      if (event.event_id && seen.has(event.event_id)) continue;
+      if (event.event_id) seen.add(event.event_id);
+      var date = Date.parse(event.observed_at);
+      if (!Number.isFinite(date) || date > nowMs) continue;
+      if (addScratchVisit(ledger, event.minute, event.layout, event.observed_at, "historical")) imported++;
+    }
+  } catch (err) {
+    _iterator2.e(err);
+  } finally {
+    _iterator2.f();
+  }
+  return {
+    ledger,
+    imported
+  };
+}
+function summarizeScratchLedger(ledger, importedHistoricalEvents) {
+  var minutes = Object.keys(ledger.fronts);
+  var fronts = minutes.map(minute => evidenceForScratchFront(ledger, Number(minute)));
+  var days = new Set();
+  for (var _i = 0, _Object$values = Object.values(ledger.fronts); _i < _Object$values.length; _i++) {
+    var front = _Object$values[_i];
+    for (var _i2 = 0, _Object$keys = Object.keys(front.days); _i2 < _Object$keys.length; _i2++) {
+      var day = _Object$keys[_i2];
+      days.add(day);
+    }
+  }
+  return {
+    schema: "don-combo-scratch-summary/v0.1",
+    fronts_observed: fronts.length,
+    fronts_high: fronts.filter(x => x.high_scratch_days > 0).length,
+    fronts_very_interesting: fronts.filter(x => x.very_interesting_days > 0).length,
+    fronts_repeated_high: fronts.filter(x => x.high_scratch_days > 1).length,
+    recorded_utc_days: days.size,
+    imported_historical_events: importedHistoricalEvents,
+    note: "Scratch count = pre-action c/combed squares in visible rows. >5 high, >=11 very interesting. Per-UTC-day maxima and bounded repeat-day interest; not a rare or respawn probability."
+  };
+}
+
 var LEDGER_FILE = "don_combo_matrix_ledger.json";
 var ML_EVENT_FILE = "don_combo_ml_events.jsonl";
 var RECOVERY_FILE = "don_combo_tile_recovery.json";
+var SCRATCH_FILE = "don_combo_scratch_observations.json";
 var NON_RARE_LOOT = new Set(["grain of sand", "sand dollar", "dull fish scale", "rough fish scale", "lucky rabbitfish fin", "spearfish fishing spear", "waders", "pristine fish scale", "piece of coral", "sea avocado", "sea cucumber", "cyan seashell", "kelp", "bunch of sea grapes"]);
+// The live scratch ledger is player-scoped. Legacy unbound ML events are kept
+// separately by the read-only historical backfill and never rewritten here.
+function loadScratchLedger() {
+  var player = Number(kolmafia.myId());
+  try {
+    var raw = String(kolmafia.fileToBuffer(SCRATCH_FILE) || "").trim();
+    if (!raw) return emptyScratchLedger(player);
+    var parsed = JSON.parse(raw);
+    if (parsed.schema !== SCRATCH_LEDGER_SCHEMA || parsed.player_id !== player || !parsed.fronts || typeof parsed.fronts !== "object") return emptyScratchLedger(player);
+    return parsed;
+  } catch (_unused) {
+    return emptyScratchLedger(player);
+  }
+}
+function recordScratchObservation(minute, layout, observedAt) {
+  var ledger = loadScratchLedger();
+  if (!addScratchVisit(ledger, minute, layout, observedAt, "live")) return;
+  kolmafia.bufferToFile("".concat(JSON.stringify(ledger), "\n"), SCRATCH_FILE);
+}
 function loadTileRecoveryLedger() {
   try {
     var raw = String(kolmafia.fileToBuffer(RECOVERY_FILE) || "").trim();
@@ -1763,7 +1941,7 @@ function loadTileRecoveryLedger() {
     var parsed = JSON.parse(raw);
     if (parsed.schema !== "don-combo-tile-recovery/v0.1" || !parsed.tiles || typeof parsed.tiles !== "object") return emptyRecoveryLedger();
     return parsed;
-  } catch (_unused) {
+  } catch (_unused2) {
     return emptyRecoveryLedger();
   }
 }
@@ -1827,7 +2005,7 @@ function loadObservationLedger() {
     }
     parsed.schema = "don-combo-observation-ledger/v0.6";
     return parsed;
-  } catch (_unused2) {
+  } catch (_unused3) {
     return blankLedger();
   }
 }
@@ -1836,7 +2014,7 @@ function loadMlTraceEvents() {
   var raw;
   try {
     raw = String(kolmafia.fileToBuffer(ML_EVENT_FILE) || "");
-  } catch (_unused3) {
+  } catch (_unused4) {
     raw = "";
   }
   var events = [];
@@ -1854,7 +2032,7 @@ function loadMlTraceEvents() {
           total++;
           events.push(parsed);
         }
-      } catch (_unused4) {
+      } catch (_unused5) {
         // Keep a malformed historical line from breaking live Combo.
       }
     }
@@ -1994,8 +2172,14 @@ function recordBeachObservation(minute, layout, outcome) {
   };
   kolmafia.appendBufferToFile("".concat(JSON.stringify(event), "\n"), ML_EVENT_FILE);
   try {
+    recordScratchObservation(minute, layout, now.toISOString());
+  } catch (_unused6) {
+    // Scratch evidence is supplemental; original ML event log is a durable
+    // backfill source, and errors cannot cause duplicate beach actions.
+  }
+  try {
     captureTileRecovery(minute, layout, outcome, detail, Math.floor(now.getTime() / 1000));
-  } catch (_unused5) {
+  } catch (_unused7) {
     // Recovery indexing is supplemental; never break the existing Combo path.
   }
 }
@@ -2237,7 +2421,7 @@ function outcomeRates(entry) {
   }
   return result;
 }
-function evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex) {
+function evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches) {
   var entry = ledger.fronts[String(minute)] || {};
   var layouts = n(entry.layout_snapshots);
   var events = n(entry.session_events);
@@ -2258,6 +2442,7 @@ function evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIn
     last_seen_turn: entry.last_seen_turn == null ? null : n(entry.last_seen_turn),
     cooldown: recoveryFeatures(tile && recoveryLedger ? recoveryLedger.tiles[tileKey(tile.minute, tile.row, tile.column)] : undefined, Date.now() / 1000),
     historical_rare: tile && historicalIndex ? historicalRareForTile(historicalIndex, tile.minute, tile.row, tile.column) : null,
+    scratch_interest: evidenceForScratchFront(scratches || emptyScratchLedger(n(kolmafia.myId())), minute),
     observed_symbol_rates: symbolRates(entry),
     observed_outcome_rates: outcomeRates(entry),
     sand_per_event: events ? round(n((entry.items || {})["grain of sand"]) / events, 4) : 0,
@@ -2270,7 +2455,7 @@ function evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIn
     }
   };
 }
-function observationAtlas(ledger) {
+function observationAtlas(ledger, scratches) {
   return Object.entries(ledger.fronts).map(_ref => {
     var _ref2 = _slicedToArray(_ref, 2),
       minuteText = _ref2[0],
@@ -2288,6 +2473,7 @@ function observationAtlas(ledger) {
       layout_snapshots: n(entry.layout_snapshots),
       session_events: n(entry.session_events),
       observation_count: n(entry.layout_snapshots) + n(entry.session_events),
+      scratch_interest: evidenceForScratchFront(scratches, minute),
       last_seen_epoch: entry.last_seen_epoch == null ? null : n(entry.last_seen_epoch),
       last_seen_turn: entry.last_seen_turn == null ? null : n(entry.last_seen_turn),
       symbol_counts: entry.symbols || {},
@@ -2300,7 +2486,7 @@ function observationAtlas(ledger) {
     };
   }).sort((a, b) => a.minute - b.minute);
 }
-function sampleMinutes(ledger, eligibleMinutes, count, current, exclude) {
+function sampleMinutes(ledger, eligibleMinutes, count, current, exclude, scratches) {
   var allowed = new Set(eligibleMinutes);
   var selected = [];
   var sources = {};
@@ -2311,18 +2497,18 @@ function sampleMinutes(ledger, eligibleMinutes, count, current, exclude) {
     }
   };
   if (current) add(current, "current");
-  var observed = Object.entries(ledger.fronts).map(_ref3 => {
-    var _ref4 = _slicedToArray(_ref3, 2),
-      minuteText = _ref4[0],
-      raw = _ref4[1];
-    var entry = raw;
+  // Historical scratch-only fronts are eligible for the observed discovery
+  // pool even when the native aggregate ledger has been lost or rotated.
+  var observedMinutes = new Set([].concat(_toConsumableArray(Object.keys(ledger.fronts)), _toConsumableArray(Object.keys(scratches.fronts))));
+  var observed = Array.from(observedMinutes).map(minuteText => {
+    var entry = ledger.fronts[minuteText] || {};
     var symbols = entry.symbols || {};
     var outcomes = entry.outcomes || {};
     var visible = Math.max(1, n(symbols.visible));
     var events = Math.max(1, n(entry.session_events));
     return {
       minute: n(minuteText),
-      signal: (n(symbols.whale) * 4 + n(symbols.twinkle) * 2) / visible + (n(outcomes.whale) * 4 + n(outcomes.rare_target) * 3) / events,
+      signal: (n(symbols.whale) * 4 + n(symbols.twinkle) * 2) / visible + (n(outcomes.whale) * 4 + n(outcomes.rare_target) * 3) / events + evidenceForScratchFront(scratches, n(minuteText)).interest_score * 2,
       observations: n(entry.layout_snapshots) + n(entry.session_events)
     };
   }).sort((a, b) => b.signal - a.signal || b.observations - a.observations || a.minute - b.minute);
@@ -2364,8 +2550,8 @@ function sampleMinutes(ledger, eligibleMinutes, count, current, exclude) {
   }
   return selected.slice(0, count).map(minute => [minute, sources[String(minute)]]);
 }
-function candidateFrontier(ledger, baseline, points, recoveryLedger, historicalIndex) {
-  var count = arguments.length > 5 && arguments[5] !== undefined ? arguments[5] : 16;
+function candidateFrontier(ledger, baseline, points, recoveryLedger, historicalIndex, scratches) {
+  var count = arguments.length > 6 && arguments[6] !== undefined ? arguments[6] : 16;
   var current = n(kolmafia.getProperty("_beachMinutes"));
   var day = 1 + kolmafia.gamedayToInt() % 8;
   var rowsHidden = 4 - Math.abs(4 - day);
@@ -2397,7 +2583,7 @@ function candidateFrontier(ledger, baseline, points, recoveryLedger, historicalI
   var push = (minute, source, isBaseline) => {
     var tile = isBaseline && baseline ? eligible.find(t => t.minute === baseline.minute && t.row === baseline.row && t.column === baseline.column) : chosen(minute);
     if (!tile) return;
-    var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex);
+    var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches);
     result.push({
       minute,
       source,
@@ -2418,7 +2604,7 @@ function candidateFrontier(ledger, baseline, points, recoveryLedger, historicalI
   if (baseline) push(baseline.minute, "combo-baseline", true);
   var exclude = new Set(result.map(x => x.minute));
   var eligibleMinutes = Array.from(grouped.keys()).sort((a, b) => a - b);
-  var _iterator7 = _createForOfIteratorHelper(sampleMinutes(ledger, eligibleMinutes, count, current, exclude)),
+  var _iterator7 = _createForOfIteratorHelper(sampleMinutes(ledger, eligibleMinutes, count, current, exclude, scratches)),
     _step7;
   try {
     for (_iterator7.s(); !(_step7 = _iterator7.n()).done;) {
@@ -2449,6 +2635,7 @@ function waterSheepPayload(candidate) {
       last_seen_age_hours: evidence.last_seen_age_hours,
       tile_recovery: evidence.cooldown,
       historical_rare: evidence.historical_rare,
+      scratch_interest: evidence.scratch_interest,
       observed_symbol_rates: evidence.observed_symbol_rates,
       sand_per_event: evidence.sand_per_event,
       current_layout_if_same_front: candidate.minute === n(kolmafia.getProperty("_beachMinutes")) ? kolmafia.getProperty("_beachLayout") : "not observed",
@@ -2531,7 +2718,8 @@ function traceTargetPrediction(minute, row, column) {
   };
   var fullHistory = loadMlTraceEvents(Number.MAX_SAFE_INTEGER);
   var historicalIndex = buildHistoricalRareIndex(loadRarePoints(), fullHistory.events, Date.now());
-  var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex);
+  var scratches = backfillScratchHistory(loadScratchLedger(), fullHistory.events, Date.now()).ledger;
+  var evidence = evidenceFor(minute, current, ledger, tile, recoveryLedger, historicalIndex, scratches);
   var candidate = {
     minute,
     evidence,
@@ -2554,6 +2742,7 @@ function traceTargetPrediction(minute, row, column) {
       last_seen_age_hours: evidence.last_seen_age_hours,
       tile_recovery: evidence.cooldown,
       historical_rare: evidence.historical_rare,
+      scratch_interest: evidence.scratch_interest,
       observed_symbol_rates: evidence.observed_symbol_rates,
       sand_per_event: evidence.sand_per_event,
       current_layout_if_same_front: minute === current ? kolmafia.getProperty("_beachLayout") : "not observed"
@@ -2573,7 +2762,10 @@ function scoreCandidate(candidate, scores) {
   var outcomes = evidence.observed_outcome_rates;
   var model = LABELS.reduce((sum, label) => sum + n(scores[label]) * WEIGHTS[label], 0);
   var exploration = 0.08 / Math.sqrt(1 + evidence.observation_count);
-  var observed = n(rates.whale) * 0.16 + n(rates.twinkle) * 0.08 - n(rates.combed) * 0.05 + n(outcomes.whale) * 0.16 + n(outcomes.rare_target) * 0.12 + n(outcomes.twinkle_fallback) * 0.08 - n(outcomes.rough_fallback) * 0.02 - n(outcomes.exhausted_fallback) * 0.05 + (evidence.cooldown.revisit_signal ?? 0) * 0.08 - (evidence.cooldown.still_combed_after_harvest && (evidence.cooldown.days_since_observed ?? 999) < 1 ? 0.04 : 0);
+  var observed = n(rates.whale) * 0.16 + n(rates.twinkle) * 0.08 - n(rates.combed) * 0.05 + n(outcomes.whale) * 0.16 + n(outcomes.rare_target) * 0.12 + n(outcomes.twinkle_fallback) * 0.08 - n(outcomes.rough_fallback) * 0.02 - n(outcomes.exhausted_fallback) * 0.05 + (evidence.cooldown.revisit_signal ?? 0) * 0.08 +
+  // Bounded exploration preference; not a fitted rare chance and never an
+  // action permission. Distinct-day recurrence compounds, same-day revisits do not.
+  evidence.scratch_interest.interest_score * 0.06 - (evidence.cooldown.still_combed_after_harvest && (evidence.cooldown.days_since_observed ?? 999) < 1 ? 0.04 : 0);
   return {
     utility: round(model + exploration + observed),
     components: {
@@ -2930,7 +3122,11 @@ function buildRuntime() {
   // The historic coordinate catalogue is not assigned invented event dates.
   var fullHistory = loadMlTraceEvents(Number.MAX_SAFE_INTEGER);
   var historicalIndex = buildHistoricalRareIndex(points, fullHistory.events, Date.now());
-  var candidates = candidateFrontier(ledger, baseline, points, recoveryLedger, historicalIndex, frontierSize);
+  var scratchBackfill = backfillScratchHistory(loadScratchLedger(), fullHistory.events, Date.now());
+  var scratches = scratchBackfill.ledger;
+  var scratchSummary = summarizeScratchLedger(scratches, scratchBackfill.imported);
+  var scratchTop = Object.keys(scratches.fronts).map(minute => evidenceForScratchFront(scratches, Number(minute))).filter(x => x.high_scratch_days > 0).sort((a, b) => b.interest_score - a.interest_score || b.very_interesting_days - a.very_interesting_days || b.max_scratch_count - a.max_scratch_count || a.front_minute - b.front_minute).slice(0, 30);
+  var candidates = candidateFrontier(ledger, baseline, points, recoveryLedger, historicalIndex, scratches, frontierSize);
   var status = "ready";
   var error = null;
   var _iterator11 = _createForOfIteratorHelper(candidates),
@@ -3005,6 +3201,9 @@ function buildRuntime() {
     observations: {
       ledger_file: "don_combo_matrix_ledger.json",
       tile_recovery_file: "don_combo_tile_recovery.json",
+      scratch_ledger_file: "don_combo_scratch_observations.json",
+      scratch_summary: scratchSummary,
+      scratch_top_fronts: scratchTop,
       tiles_recorded: Object.keys(recoveryLedger.tiles).length,
       historical_rare_baseline: historicalIndex.baseline,
       recovery_intervals: Object.values(recoveryLedger.tiles).reduce((count, entry) => {
@@ -3012,7 +3211,7 @@ function buildRuntime() {
         return count + (((_entry$recovery_inter = entry.recovery_intervals) === null || _entry$recovery_inter === void 0 ? void 0 : _entry$recovery_inter.length) || 0);
       }, 0),
       fronts_recorded: Object.keys(ledger.fronts).length,
-      fronts: observationAtlas(ledger),
+      fronts: observationAtlas(ledger, scratches),
       ledger_updated_this_run: false,
       session_tail: {
         mode: "native-event",
@@ -3075,23 +3274,51 @@ function writeRuntime(result) {
   kolmafia.setProperty("don_combo_matrix_refresh_run_status", String(((_result$run_control = result.run_control) === null || _result$run_control === void 0 ? void 0 : _result$run_control.status) ?? ""));
 }
 
-// Pure, passive evidence accounting: no model training or KoL actions.
-// A run's front-level prediction must not be mistaken for a verified rare
-// coordinate respawn when Combo falls back to an unrelated twinkle.
-function plannedWasPreviouslyCombed(layout, target) {
-  var _iterator = _createForOfIteratorHelper(String(layout || "").split(",")),
+// Run-cohort counting stays self-contained for direct Node regression tests.
+function scratchCount(layout) {
+  var seen = new Set();
+  var scratches = 0;
+  var _iterator = _createForOfIteratorHelper(layout.split(",")),
     _step;
   try {
     for (_iterator.s(); !(_step = _iterator.n()).done;) {
       var part = _step.value;
       var colon = part.indexOf(":");
-      if (colon < 0 || Number(part.slice(0, colon)) !== target.row) continue;
-      return part.slice(colon + 1).charAt(target.column) === "c";
+      if (colon < 1) return null;
+      var row = Number(part.slice(0, colon));
+      var symbols = part.slice(colon + 1);
+      if (!Number.isInteger(row) || row < 1 || row > 10 || seen.has(row) || symbols.length !== 10 || !/^[A-Za-z?]+$/.test(symbols)) return null;
+      seen.add(row);
+      scratches += (symbols.match(/[cC]/g) || []).length;
     }
   } catch (err) {
     _iterator.e(err);
   } finally {
     _iterator.f();
+  }
+  return seen.size ? {
+    scratches,
+    visible: seen.size * 10
+  } : null;
+}
+
+// Pure, passive evidence accounting: no model training or KoL actions.
+// A run's front-level prediction must not be mistaken for a verified rare
+// coordinate respawn when Combo falls back to an unrelated twinkle.
+function plannedWasPreviouslyCombed(layout, target) {
+  var _iterator2 = _createForOfIteratorHelper(String(layout || "").split(",")),
+    _step2;
+  try {
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      var part = _step2.value;
+      var colon = part.indexOf(":");
+      if (colon < 0 || Number(part.slice(0, colon)) !== target.row) continue;
+      return part.slice(colon + 1).charAt(target.column) === "c";
+    }
+  } catch (err) {
+    _iterator2.e(err);
+  } finally {
+    _iterator2.f();
   }
   return false;
 }
@@ -3110,13 +3337,26 @@ function summarizeShadowRun(source, context, endedAt, result, requested, complet
   var untraced = 0;
   var previouslyCombed = 0;
   var matched = 0;
-  var _iterator2 = _createForOfIteratorHelper(events),
-    _step2;
+  var highScratchEvents = 0;
+  var veryScratchEvents = 0;
+  var highScratchFronts = new Set();
+  var veryScratchFronts = new Set();
+  var _iterator3 = _createForOfIteratorHelper(events),
+    _step3;
   try {
-    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+    for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
       var _event$pre_action_pre, _event$pre_action_pre2;
-      var event = _step2.value;
+      var event = _step3.value;
       fronts.add(event.minute);
+      var scratch = scratchCount(event.layout);
+      if (scratch && scratch.scratches >= 6) {
+        highScratchEvents++;
+        highScratchFronts.add(event.minute);
+      }
+      if (scratch && scratch.scratches >= 11) {
+        veryScratchEvents++;
+        veryScratchFronts.add(event.minute);
+      }
       outcomeCounts[event.outcome] = (outcomeCounts[event.outcome] || 0) + 1;
       for (var _i = 0, _Object$entries = Object.entries(event.items || {}); _i < _Object$entries.length; _i++) {
         var _Object$entries$_i = _slicedToArray(_Object$entries[_i], 2),
@@ -3131,9 +3371,9 @@ function summarizeShadowRun(source, context, endedAt, result, requested, complet
       if (target && actual && target.minute === actual.minute && target.row === actual.row && target.column === actual.column) matched++;
     }
   } catch (err) {
-    _iterator2.e(err);
+    _iterator3.e(err);
   } finally {
-    _iterator2.f();
+    _iterator3.f();
   }
   return {
     schema: "don-combo-shadow-learning-run/v0.1",
@@ -3154,6 +3394,10 @@ function summarizeShadowRun(source, context, endedAt, result, requested, complet
     incidental_fallback_rough: outcomeCounts.rough_fallback || 0,
     planned_and_actual_match: matched,
     rare_target_attempts: outcomeCounts.rare_target || 0,
+    high_scratch_observations: highScratchEvents,
+    very_interesting_scratch_observations: veryScratchEvents,
+    high_scratch_fronts: highScratchFronts.size,
+    very_interesting_scratch_fronts: veryScratchFronts.size,
     // A positive inventory change alone is insufficient to certify rare-spawn
     // recovery; see the separate per-coordinate recovery index for provenance.
     verified_rare_harvests: null,

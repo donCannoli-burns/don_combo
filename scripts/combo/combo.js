@@ -8375,6 +8375,17 @@ function main(args) {
   // Sometimes people try to run things with insanely old mafia versions and run into problems
   // Think of this as babyproofing
   sinceKolmafiaRevision(26118);
+
+  // Read-only installation diagnostic. This string is deliberately absent
+  // from upstream Combo, making executable resolution easy to verify.
+  if (args === "info" || args === "help") {
+    kolmafia.print("DonCombo extended CLI active (collision-resistant entrypoint: doncombo).", HIGHLIGHT);
+    kolmafia.print("Commands: doncombo N | doncombo watersheep-N | doncombo watersheep-free | doncombo shadow11");
+    kolmafia.print("Read-only: doncombo info | doncombo help | doncombo lifetime | doncombo watersheep-preview");
+    kolmafia.print("Compatibility entrypoint: combo N (may conflict with upstream loathers/combo).");
+    kolmafia.print("No beach walks or WaterSheep requests were made by this diagnostic.");
+    return;
+  }
   if (args === "lifetime") {
     var _lifetime = Session.fromFile("combo_results.json");
     kolmafia.print("===LIFETIME RESULTS ===");

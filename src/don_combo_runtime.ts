@@ -5,6 +5,7 @@ import {
   fileToBuffer,
   gamedayToInt,
   getProperty,
+  setProperty,
   myId,
   print,
   sessionLogs,
@@ -1155,6 +1156,13 @@ function writeRuntime(result: Record<string, any>): void {
     "window.DON_COMBO_MATRIX_RUNTIME=" + encoded + ";\n",
     "relay/don_combo_matrix_runtime.js",
   );
+  // Commit marker last. The relay refresh endpoint only acknowledges a newly
+  // generated runtime after both local artifacts have been written.
+  // Export must subsequently read back the JS artifact and verify this exact
+  // generation, event total and run status, never trust browser reload alone.
+  setProperty("don_combo_matrix_refresh_generation", String(result.generated_at));
+  setProperty("don_combo_matrix_refresh_events", String(result.ml_lab?.events_total ?? ""));
+  setProperty("don_combo_matrix_refresh_run_status", String(result.run_control?.status ?? ""));
 }
 
 function readRequest(path: string): RuntimeRequestV1 {

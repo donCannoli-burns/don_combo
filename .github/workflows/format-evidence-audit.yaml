@@ -1,0 +1,33 @@
+name: Format evidence audit once
+on:
+  push:
+    branches: [audit/evidence-lifecycle-three-timescales-20261028]
+permissions:
+  contents: write
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit/evidence-lifecycle-three-timescales-20261028
+          persist-credentials: true
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: yarn install --immutable
+      - name: Apply ESLint and Prettier to audit changes
+        run: |
+          yarn exec eslint src --fix
+          yarn exec prettier --write src/runtime/pool-timescales.ts src/runtime/two-pool-cooldown.ts src/don_combo_runtime.ts src/main.ts src/runtime/contracts.ts src/runtime/observations.ts src/runtime/scratch-interest.ts tests/evidence-lifecycle-audit.mjs docs/audits/2026-10-28-evidence-lifecycle.md
+      - name: Commit canonical formatting
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add src/runtime/pool-timescales.ts src/runtime/two-pool-cooldown.ts src/don_combo_runtime.ts src/main.ts src/runtime/contracts.ts src/runtime/observations.ts src/runtime/scratch-interest.ts tests/evidence-lifecycle-audit.mjs docs/audits/2026-10-28-evidence-lifecycle.md
+            git commit -m "style: format evidence lifecycle audit"
+            git push origin HEAD:audit/evidence-lifecycle-three-timescales-20261028
+          fi

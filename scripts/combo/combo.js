@@ -1835,7 +1835,8 @@ function recordBeachObservation(minute, layout, outcome) {
     meat: detail.meat || 0,
     layout,
     layout_symbols: counts,
-    pre_action_prediction: detail.pre_action_prediction || null
+    pre_action_prediction: detail.pre_action_prediction || null,
+    run_context: detail.run_context || null
   };
   kolmafia.appendBufferToFile("".concat(JSON.stringify(event), "\n"), ML_EVENT_FILE);
   try {
@@ -2568,7 +2569,9 @@ function modelUtility(scoreMass) {
 }
 function buildMlLab() {
   var traceLog = loadMlTraceEvents(500);
+  var dailyLearningRuns = loadJsonLines("don_combo_daily_shadow_runs.jsonl", 90);
   var tracedEvents = traceLog.events.map((event, index) => {
+    var _event$run_context, _event$run_context2, _event$run_context3;
     var prediction = event.pre_action_prediction || null;
     var items = event.items || {};
     var itemNames = Object.keys(items).filter(name => n(items[name]) !== 0);
@@ -2578,6 +2581,9 @@ function buildMlLab() {
       observed_at: event.observed_at,
       turn: event.turn,
       minute: event.minute,
+      run_id: ((_event$run_context = event.run_context) === null || _event$run_context === void 0 ? void 0 : _event$run_context.run_id) || null,
+      gameday: ((_event$run_context2 = event.run_context) === null || _event$run_context2 === void 0 ? void 0 : _event$run_context2.gameday) ?? null,
+      route_mode: ((_event$run_context3 = event.run_context) === null || _event$run_context3 === void 0 ? void 0 : _event$run_context3.route_mode) || "legacy-unbound",
       outcome: event.outcome,
       planned_target: event.planned_target,
       actual_comb: event.actual_comb,
@@ -2644,6 +2650,11 @@ function buildMlLab() {
   return {
     schema: "don-combo-ml-lab/v0.1",
     trace_property: "don_combo_ml_trace",
+    routed_auto_trace_enabled: true,
+    daily_run_file: "don_combo_daily_shadow_runs.jsonl",
+    daily_run_count_in_artifact: dailyLearningRuns.length,
+    daily_run_history: dailyLearningRuns.slice(-30),
+    last_daily_run: dailyLearningRuns.length ? dailyLearningRuns[dailyLearningRuns.length - 1] : null,
     trace_enabled: ["1", "true", "target", "on"].includes(String(kolmafia.getProperty("don_combo_ml_trace") || "").toLowerCase()),
     event_log_file: traceLog.file,
     events_total: traceLog.total,
@@ -2657,7 +2668,7 @@ function buildMlLab() {
     receipt_log_file: "don_combo_matrix_receipts.jsonl",
     snapshots_in_artifact: snapshotHistory.length,
     snapshot_history: snapshotHistory,
-    note: "Per-comb target traces are pre-action WaterSheep scores for the actual Combo target. Snapshot history compares model-only baseline rank with final model+policy rank. Neither grants execution authority."
+    note: "Per-comb pre-action WaterSheep traces automatically pair with post-action results for WaterSheep-routed runs; ordinary Combo keeps don_combo_ml_trace opt-in. Daily learning receipts distinguish incidental fallback twinkles from verified rare-tile respawns. No online model training or execution authority."
   };
 }
 function buildRunControl() {
@@ -2892,6 +2903,95 @@ function writeRuntime(result) {
   kolmafia.bufferToFile("window.DON_COMBO_MATRIX_RUNTIME=" + encoded + ";\n", "relay/don_combo_matrix_runtime.js");
 }
 
+// Pure, passive evidence accounting: no model training or KoL actions.
+// A run's front-level prediction must not be mistaken for a verified rare
+// coordinate respawn when Combo falls back to an unrelated twinkle.
+function plannedWasPreviouslyCombed(layout, target) {
+  var _iterator = _createForOfIteratorHelper(String(layout || "").split(",")),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var part = _step.value;
+      var colon = part.indexOf(":");
+      if (colon < 0 || Number(part.slice(0, colon)) !== target.row) continue;
+      return part.slice(colon + 1).charAt(target.column) === "c";
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  return false;
+}
+function summarizeShadowRun(source, context, endedAt, result, requested, completed, freeUsed, paidObserved) {
+  // Exact-run identity avoids accidentally attributing a previous day's
+  // final observation to this run after a midnight / rollover transition.
+  var events = source.filter(event => {
+    var _event$run_context;
+    return ((_event$run_context = event.run_context) === null || _event$run_context === void 0 ? void 0 : _event$run_context.run_id) === context.run_id && event.run_context.gameday === context.gameday && event.run_context.player_id === context.player_id;
+  });
+  var outcomeCounts = {};
+  var itemCounts = {};
+  var fronts = new Set();
+  var ready = 0;
+  var error = 0;
+  var untraced = 0;
+  var previouslyCombed = 0;
+  var matched = 0;
+  var _iterator2 = _createForOfIteratorHelper(events),
+    _step2;
+  try {
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      var _event$pre_action_pre, _event$pre_action_pre2;
+      var event = _step2.value;
+      fronts.add(event.minute);
+      outcomeCounts[event.outcome] = (outcomeCounts[event.outcome] || 0) + 1;
+      for (var _i = 0, _Object$entries = Object.entries(event.items || {}); _i < _Object$entries.length; _i++) {
+        var _Object$entries$_i = _slicedToArray(_Object$entries[_i], 2),
+          name = _Object$entries$_i[0],
+          quantity = _Object$entries$_i[1];
+        itemCounts[name] = (itemCounts[name] || 0) + quantity;
+      }
+      if ((_event$pre_action_pre = event.pre_action_prediction) !== null && _event$pre_action_pre !== void 0 && _event$pre_action_pre.error) error++;else if ((_event$pre_action_pre2 = event.pre_action_prediction) !== null && _event$pre_action_pre2 !== void 0 && _event$pre_action_pre2.score_mass) ready++;else untraced++;
+      var target = event.planned_target;
+      var actual = event.actual_comb;
+      if (target && plannedWasPreviouslyCombed(event.layout, target)) previouslyCombed++;
+      if (target && actual && target.minute === actual.minute && target.row === actual.row && target.column === actual.column) matched++;
+    }
+  } catch (err) {
+    _iterator2.e(err);
+  } finally {
+    _iterator2.f();
+  }
+  return {
+    schema: "don-combo-shadow-learning-run/v0.1",
+    context,
+    ended_at: endedAt,
+    result,
+    requested_combs: requested,
+    completed_combs: completed,
+    free_combs_observed: Math.max(0, freeUsed),
+    paid_combs_observed: Math.max(0, paidObserved),
+    recorded_events: events.length,
+    events_match_completed: events.length === completed,
+    prediction_ready: ready,
+    prediction_error: error,
+    prediction_untraced: untraced,
+    planned_rare_previously_combed: previouslyCombed,
+    incidental_fallback_twinkles: outcomeCounts.twinkle_fallback || 0,
+    incidental_fallback_rough: outcomeCounts.rough_fallback || 0,
+    planned_and_actual_match: matched,
+    rare_target_attempts: outcomeCounts.rare_target || 0,
+    // A positive inventory change alone is insufficient to certify rare-spawn
+    // recovery; see the separate per-coordinate recovery index for provenance.
+    verified_rare_harvests: null,
+    outcome_counts: outcomeCounts,
+    item_counts: itemCounts,
+    distinct_fronts_observed: fronts.size,
+    note: "Passive daily cohort; fallback twinkles are not confirmed rare-tile respawns. WaterSheep scores are uncalibrated and do not update model weights."
+  };
+}
+
 /* eslint-disable eqeqeq */
 // Pure offline route compiler. The MODEL contributes rankings, never coordinates
 // or direct KoL actions. Only listed, tide-visible corpus tiles can be executed.
@@ -3015,11 +3115,13 @@ function addFalseRare(tile) {
 // We precede the function name with an underscore to show that it's not a front, user-facing function
 // In this script, really only main is, but we may port this code into libram at some point
 // We'd want to export the comb function, but not _comb
+var activeShadowRun = null;
+var autoTraceWaterSheepRun = false;
 function mlTraceEnabled() {
   return ["1", "true", "target", "on"].includes(String(kolmafia.getProperty("don_combo_ml_trace") || "").toLowerCase());
 }
 function captureTargetPrediction(minute, row, column) {
-  if (!mlTraceEnabled()) return null;
+  if (!mlTraceEnabled() && !autoTraceWaterSheepRun) return null;
   try {
     return traceTargetPrediction(minute, row, column);
   } catch (error) {
@@ -3098,7 +3200,8 @@ function _comb(tile) {
       },
       items: delta.items,
       meat: delta.meat,
-      pre_action_prediction: preActionPrediction
+      pre_action_prediction: preActionPrediction,
+      run_context: activeShadowRun
     });
   };
 
@@ -3351,6 +3454,18 @@ function main(args) {
   _set("logPreferenceChangeFilter", _toConsumableArray(new Set([].concat(_toConsumableArray(oldFilter.split(",")), ["spadingData", "combo_lastTileCombed", "_beachLayout", "_beachMinutes", "_beachCombing", "don_combo_interrupt", "don_combo_running", "don_combo_last_run_status", "don_combo_last_run_requested", "don_combo_last_run_route_mode", "don_combo_last_run_paid_combs", "don_combo_last_run_combs", "don_combo_last_run_end_reason", "don_combo_last_run_interrupt_consumed", "don_combo_last_run_started_at", "don_combo_last_run_ended_at", "don_combo_last_run_ml_events_before", "don_combo_last_run_ml_events_after"]))).filter(x => x).join(","));
   var frozenPlayer = Number(kolmafia.myId());
   var frozenGameday = kolmafia.gamedayToInt();
+  var runContext = {
+    run_id: "".concat(frozenGameday, "-").concat(frozenPlayer, "-").concat(Date.now()),
+    gameday: frozenGameday,
+    player_id: frozenPlayer,
+    route_mode: routeMode,
+    started_at: kolmafia.getProperty("don_combo_last_run_started_at")
+  };
+  var freeBefore = get("_freeBeachWalksUsed", 0);
+  activeShadowRun = runContext;
+  // Routed WaterSheep gets a pre-action prediction per target automatically;
+  // vanilla Combo keeps the existing opt-in don_combo_ml_trace property.
+  autoTraceWaterSheepRun = shadow11 || wsFree || wsPaid;
   var completedCombs = 0;
   var interrupted = false;
   var cleanFinish = false;
@@ -3409,6 +3524,20 @@ function main(args) {
     _set("don_combo_last_run_end_reason", cleanFinish ? interrupted ? "user_cooperative_interrupt" : "requested_combs_completed" : "runtime_failure");
     _set("don_combo_last_run_ended_at", new Date().toISOString());
     _set("don_combo_last_run_ml_events_after", loadMlTraceEvents(0).total);
+    try {
+      var tail = loadMlTraceEvents(Math.max(100, completedCombs + 12)).events;
+      var learned = summarizeShadowRun(tail, runContext, kolmafia.getProperty("don_combo_last_run_ended_at"), cleanFinish ? interrupted ? "interrupted" : "completed" : "failed", combs, completedCombs, get("_freeBeachWalksUsed", 0) - freeBefore, get("don_combo_last_run_paid_combs", 0));
+      kolmafia.appendBufferToFile("".concat(JSON.stringify(learned), "\n"), "don_combo_daily_shadow_runs.jsonl");
+      kolmafia.setProperty("don_combo_last_learning_run_id", runContext.run_id);
+      kolmafia.setProperty("don_combo_last_learning_traced", String(learned.prediction_ready));
+      kolmafia.setProperty("don_combo_last_learning_events", String(learned.recorded_events));
+      kolmafia.print("Shadow learning: ".concat(learned.recorded_events, "/").concat(completedCombs, " events, ").concat(learned.prediction_ready, " pre-action predictions, ").concat(learned.incidental_fallback_twinkles, " incidental twinkle fallbacks, ").concat(learned.planned_rare_previously_combed, " previously-combed rare targets (no model training or extra beach turns)."), "gray");
+    } catch (error) {
+      kolmafia.print("don_combo: daily shadow learning summary unavailable: ".concat(error instanceof Error ? error.message : String(error)), "gray");
+    } finally {
+      autoTraceWaterSheepRun = false;
+      activeShadowRun = null;
+    }
   }
 
   // Subtract the original session from our current session

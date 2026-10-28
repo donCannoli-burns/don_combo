@@ -131,6 +131,9 @@
 <article class="paper"><h3>(a) Pre-action target score and observed result</h3><svg id="mlTraceChart" viewBox="0 0 460 180" role="img" aria-label="Target model and policy utility over traced combs"></svg><p>Blue = WaterSheep model utility. Orange = final model+policy utility. Outcome markers are the actual comb results; hover in the live relay for exact loot.</p></article>
 <article class="paper"><h3>(b) Combo baseline rank across shadow snapshots</h3><svg id="mlRankChart" viewBox="0 0 460 180" role="img" aria-label="Model-only and model plus policy baseline rank history"></svg><p>Green = rank from WaterSheep score mass alone. Orange = final model+policy rank. Rank 1 is best.</p></article>
 </div>
+<article class="card" style="margin-top:10px"><div class="eyebrow">Daily shadow-learning cohorts</div>
+<p class="muted">One receipt per run, grouped by KoL game day. Twinkle fallback is an incidental beachfront find, not a confirmed rare-tile respawn. Pre-action WaterSheep traces are automatic for routed runs; ordinary Combo honors the existing opt-in.</p>
+<div id="mlDailyRuns" class="mltable muted">No run-bound learning cohorts yet.</div></article>
 <article class="card" style="margin-top:10px"><div class="eyebrow">Per-comb verification log</div><div class="callout" style="margin:8px 0"><b>Prediction is captured before the tile is combed.</b> Loot and outcome are appended afterward. WaterSheep failure never blocks Combo and never gains action authority.</div><div id="mlEventTable" class="mltable muted">No traced combs yet.</div></article>
 </section>
 
@@ -328,7 +331,20 @@ function renderRankChart(rows){
 }
 function renderMlLab(){
  var ml=R.ml_lab||{},events=ml.events||[],history=ml.snapshot_history||[];
- document.getElementById("mlStats").innerHTML=evItem("trace mode",ml.trace_enabled?"ON":"OFF")+evItem("per-comb events",Number(ml.events_total||0))+evItem("predicted events",Number(ml.predicted_events||0))+evItem("untraced events",Number(ml.untraced_events||0))+evItem("mean inference ms",ml.mean_prediction_latency_ms==null?"—":ml.mean_prediction_latency_ms);
+ document.getElementById("mlStats").innerHTML=evItem("manual trace",ml.trace_enabled?"ON":"OFF")+evItem("run-bound cohorts",ml.daily_run_count_in_artifact||0)+evItem("per-comb events",Number(ml.events_total||0))+evItem("predicted events",Number(ml.predicted_events||0))+evItem("untraced events",Number(ml.untraced_events||0))+evItem("mean inference ms",ml.mean_prediction_latency_ms==null?"—":ml.mean_prediction_latency_ms);
+ var daily=ml.daily_run_history||[];
+ document.getElementById("mlDailyRuns").innerHTML=daily.length
+ ?"<table><thead><tr><th>KoL game day</th><th>Run mode</th><th>Combs</th><th>Traced</th><th>Target already combed</th><th>Incidental twinkles</th><th>Rough fallback</th><th>Paid</th><th>State</th></tr></thead><tbody>"+
+ daily.slice(-30).reverse().map(function(r){var c=r.context||{};
+   return"<tr><td>"+esc(c.gameday==null?"—":c.gameday)+"</td><td>"+esc(c.route_mode||"unknown")+
+   "</td><td>"+Number(r.completed_combs||0)+"/"+Number(r.requested_combs||0)+
+   "</td><td>"+Number(r.prediction_ready||0)+"/"+Number(r.recorded_events||0)+
+   "</td><td>"+Number(r.planned_rare_previously_combed||0)+
+   "</td><td>"+Number(r.incidental_fallback_twinkles||0)+
+   "</td><td>"+Number(r.incidental_fallback_rough||0)+
+   "</td><td>"+Number(r.paid_combs_observed||0)+
+   "</td><td>"+esc(r.result||"unknown")+(r.events_match_completed?" · bound":" · incomplete")+"</td></tr>";
+ }).join("")+"</tbody></table>":"No run-bound daily learning cohorts yet; historical observations remain in the ML event log.";
  renderTraceChart(events);renderRankChart(history);
  var rows=events.slice(Math.max(0,events.length-120)).reverse();
  document.getElementById("mlEventTable").innerHTML=rows.length?"<table><thead><tr><th>#</th><th>Front</th><th>Prediction</th><th>Outcome</th><th>Actual comb</th><th>Loot</th><th>ms</th></tr></thead><tbody>"+rows.map(function(e){var p=e.prediction||{},actual=e.actual_comb||{},loot=Object.keys(e.items||{}).map(function(k){return(e.items[k]||0)+" "+k}).join(", ")||"—";return"<tr><td class='mono'>"+e.index+"</td><td><b>"+e.minute+"</b></td><td class='mono'>"+(p.model_utility==null?"untraced":"M "+Number(p.model_utility).toFixed(4)+" · P "+Number(p.policy_utility).toFixed(4))+"</td><td>"+esc(e.outcome)+"</td><td class='mono'>"+(actual.row==null?"—":actual.row+","+actual.column)+"</td><td class='mlitem'>"+esc(loot)+(Number(e.meat||0)?" · "+Number(e.meat)+" meat":"")+"</td><td class='mono'>"+(p.ms==null?"—":p.ms)+"</td></tr>"}).join("")+"</tbody></table>":"No per-comb events recorded yet.";

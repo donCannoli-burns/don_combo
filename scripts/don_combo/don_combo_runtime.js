@@ -1036,7 +1036,9 @@ function modelUtility(scoreMass) {
 }
 function buildMlLab() {
   var traceLog = loadMlTraceEvents(500);
+  var dailyLearningRuns = loadJsonLines("don_combo_daily_shadow_runs.jsonl", 90);
   var tracedEvents = traceLog.events.map((event, index) => {
+    var _event$run_context, _event$run_context2, _event$run_context3;
     var prediction = event.pre_action_prediction || null;
     var items = event.items || {};
     var itemNames = Object.keys(items).filter(name => n(items[name]) !== 0);
@@ -1046,6 +1048,9 @@ function buildMlLab() {
       observed_at: event.observed_at,
       turn: event.turn,
       minute: event.minute,
+      run_id: ((_event$run_context = event.run_context) === null || _event$run_context === void 0 ? void 0 : _event$run_context.run_id) || null,
+      gameday: ((_event$run_context2 = event.run_context) === null || _event$run_context2 === void 0 ? void 0 : _event$run_context2.gameday) ?? null,
+      route_mode: ((_event$run_context3 = event.run_context) === null || _event$run_context3 === void 0 ? void 0 : _event$run_context3.route_mode) || "legacy-unbound",
       outcome: event.outcome,
       planned_target: event.planned_target,
       actual_comb: event.actual_comb,
@@ -1112,6 +1117,11 @@ function buildMlLab() {
   return {
     schema: "don-combo-ml-lab/v0.1",
     trace_property: "don_combo_ml_trace",
+    routed_auto_trace_enabled: true,
+    daily_run_file: "don_combo_daily_shadow_runs.jsonl",
+    daily_run_count_in_artifact: dailyLearningRuns.length,
+    daily_run_history: dailyLearningRuns.slice(-30),
+    last_daily_run: dailyLearningRuns.length ? dailyLearningRuns[dailyLearningRuns.length - 1] : null,
     trace_enabled: ["1", "true", "target", "on"].includes(String(kolmafia.getProperty("don_combo_ml_trace") || "").toLowerCase()),
     event_log_file: traceLog.file,
     events_total: traceLog.total,
@@ -1125,7 +1135,7 @@ function buildMlLab() {
     receipt_log_file: "don_combo_matrix_receipts.jsonl",
     snapshots_in_artifact: snapshotHistory.length,
     snapshot_history: snapshotHistory,
-    note: "Per-comb target traces are pre-action WaterSheep scores for the actual Combo target. Snapshot history compares model-only baseline rank with final model+policy rank. Neither grants execution authority."
+    note: "Per-comb pre-action WaterSheep traces automatically pair with post-action results for WaterSheep-routed runs; ordinary Combo keeps don_combo_ml_trace opt-in. Daily learning receipts distinguish incidental fallback twinkles from verified rare-tile respawns. No online model training or execution authority."
   };
 }
 function buildRunControl() {

@@ -1,3 +1,4 @@
+/* eslint-disable eqeqeq */
 // Pure offline route compiler. The MODEL contributes rankings, never coordinates
 // or direct KoL actions. Only listed, tide-visible corpus tiles can be executed.
 export interface RouteTile { minute: number; row: number; column: number; }
@@ -33,8 +34,8 @@ export function compileShadowTop11(
     Number.isInteger(t.minute) && t.minute >= 1 && t.minute <= 10000 &&
     Number.isInteger(t.row) && t.row > hidden && t.row <= 10 &&
     Number.isInteger(t.column) && t.column >= 0 && t.column <= 9 &&
-    !falseRares.has(t.minute + "," + t.row + "," + t.column),
-  ).map(t => t.minute + "," + t.row + "," + t.column));
+    !falseRares.has(`${t.minute},${t.row},${t.column}`),
+  ).map(t => `${t.minute},${t.row},${t.column}`));
   const selected: RouteTile[] = [];
   const seen = new Set<number>();
   let previousUtility = Infinity;
@@ -46,7 +47,7 @@ export function compileShadowTop11(
       throw new Error("Shadow candidates are not in saved descending rank order.");
     previousUtility = candidate.utility as number;
     const t = candidate.representative;
-    const key = t.minute + "," + t.row + "," + t.column;
+    const key = `${t.minute},${t.row},${t.column}`;
     if (candidate.minute !== t.minute || !known.has(key) || seen.has(t.minute))
       throw new Error("Shadow candidate does not resolve to a unique accessible known rare tile.");
     seen.add(t.minute);

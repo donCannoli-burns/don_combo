@@ -46,6 +46,9 @@ jobs:
           console.log(`relay inline JS syntax: PASS (${scripts.length} script block)`);
           NODE
 
+      - name: Collision-resistant DonCombo CLI build and diagnostic regression
+        run: node tests/entrypoint-collision.mjs
+
       - name: Progressive WaterSheep gCLI pre-scoring estimate regression
         run: node --experimental-strip-types tests/prescore-progress.mjs
 

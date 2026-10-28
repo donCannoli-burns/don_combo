@@ -9,7 +9,11 @@ export interface RouteTile {
 export interface RouteCandidate {
   minute: number;
   utility: number | null;
-  representative: RouteTile;
+  // Runtime candidates carry the canonical minute at candidate.minute;
+  // representative carries only the row/column (and Hilbert metadata).
+  // An optional minute is tolerated for older external fixtures, but if
+  // supplied must agree with the canonical candidate minute.
+  representative: Pick<RouteTile, "row" | "column"> & { minute?: number };
   watersheep: { score_mass: Record<string, number> } | null;
 }
 export interface ShadowRouteSnapshot {
@@ -94,11 +98,22 @@ export function compileWaterSheepRoute(
       throw new Error("Shadow candidates are not in saved descending rank order.");
     previousUtility = candidate.utility as number;
     const t = candidate.representative;
-    const key = `${t.minute},${t.row},${t.column}`;
-    if (candidate.minute !== t.minute || !known.has(key) || seen.has(t.minute))
-      throw new Error("Shadow candidate does not resolve to a unique accessible known rare tile.");
-    seen.add(t.minute);
-    selected.push({ minute: t.minute, row: t.row, column: t.column });
+    // The actual scorer emits { candidate.minute, representative:{d,x,y,row,column} }.
+    // Never interpret an absent representative.minute as an invalid tile; bind
+    // its row/column to the authoritative candidate.minute instead.
+    if (t.minute !== undefined && t.minute !== candidate.minute)
+      throw new Error(
+        `Shadow rank ${selected.length + 1}: representative minute conflicts with candidate front ${candidate.minute}.`,
+      );
+    const key = `${candidate.minute},${t.row},${t.column}`;
+    if (!known.has(key))
+      throw new Error(
+        `Shadow rank ${selected.length + 1}: front ${candidate.minute} tile ${t.row},${t.column} is not a tide-accessible, non-false coordinate from raretiles.json.`,
+      );
+    if (seen.has(candidate.minute))
+      throw new Error(`Shadow rank ${selected.length + 1}: duplicate front ${candidate.minute}.`);
+    seen.add(candidate.minute);
+    selected.push({ minute: candidate.minute, row: t.row, column: t.column });
   }
   if (selected.length !== count) throw new Error("Not enough usable ranked candidates.");
   return selected;

@@ -5,6 +5,7 @@ import {
   fileToBuffer,
   gamedayToInt,
   getProperty,
+  setProperty,
   myId,
   print,
   sessionLogs,

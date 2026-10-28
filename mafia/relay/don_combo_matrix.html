@@ -346,13 +346,19 @@ function renderShadowRoute(){
  var n=Math.min(11,remaining),selection=cands.slice(0,n);
  var stamped=R?Date.parse(R.generated_at):NaN;
  var fresh=Number.isFinite(stamped)&&Date.now()-stamped>=-30000&&Date.now()-stamped<=1200000;
- var p=params(),valid=!!R&&R.watersheep&&R.watersheep.status==="ready"&&
+ var p=params(),hidden=4-Math.abs(4-(1+(p.gameday%8)));
+ var distinct=new Set(selection.map(function(c){return c.minute})).size===selection.length;
+ var valid=!!R&&R.watersheep&&R.watersheep.status==="ready"&&
     p.player===R.player_id&&p.gameday===R.gameday&&fresh&&
-    n>0&&selection.length===n&&selection.every(function(c){
+    n>0&&selection.length===n&&distinct&&selection.every(function(c){
       return c&&c.watersheep&&Number.isFinite(c.utility)&&c.representative&&
+        (c.representative.minute==null||c.representative.minute===c.minute)&&
         (R.known_rare_points||[]).some(function(t){
-          return t.minute===c.minute&&t.minute===c.representative.minute&&
-            t.row===c.representative.row&&t.column===c.representative.column&&!t.false_rare;
+          // The runtime records the canonical minute on the candidate, not
+          // in representative. Validate its row/column against the same rare
+          // corpus and tide visibility used by the native compiler.
+          return t.minute===c.minute&&t.row===c.representative.row&&
+            t.column===c.representative.column&&t.row>hidden&&!t.false_rare;
         });
     });
  var btn=document.getElementById("reviewShadow11");btn.disabled=false;btn.title=valid?"Open confirmation before any KoL action":"Open read-only diagnostic of route readiness";

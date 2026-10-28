@@ -560,7 +560,7 @@ function refreshAndVerify(){
    return response.text();
  }).then(function(markup){
    var doc=new DOMParser().parseFromString(markup,"text/html");
-   var marker=doc.getElementById("don-combo-refresh-result");
+   var marker=doc.querySelector("#don-combo-refresh-result");
    if(!marker)throw new Error("Native refresh returned no verified receipt.");
    if(marker.getAttribute("data-status")!=="refreshed")
      throw new Error((marker.textContent||"Native refresh refused.").trim());

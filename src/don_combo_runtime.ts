@@ -1130,7 +1130,7 @@ function emitReceipt(result: Record<string, any>) {
   };
 }
 
-function buildRuntime(frontierSize = 16) {
+function buildRuntime(frontierSize = 16, onScored?: (completed: number, total: number) => void) {
   const points = loadRarePoints();
   const baseline = comboBaseline(points);
   const ledger = loadObservationLedger();
@@ -1180,6 +1180,7 @@ function buildRuntime(frontierSize = 16) {
   );
   let status = "ready";
   let error: string | null = null;
+  let scoredCount = 0;
   for (const candidate of candidates) {
     if (error) break;
     try {
@@ -1192,6 +1193,10 @@ function buildRuntime(frontierSize = 16) {
       const scored = scoreCandidate(candidate, scores);
       candidate.utility = scored.utility;
       candidate.utility_components = scored.components;
+      // Optional reporting only; the CLI sees actual completed WaterSheep
+      // responses. No additional model calls, reranking, or beach actions.
+      scoredCount++;
+      onScored?.(scoredCount, candidates.length);
     } catch (caught) {
       status = "offline";
       error = caught instanceof Error ? caught.message : String(caught);
@@ -1330,10 +1335,13 @@ function buildRuntime(frontierSize = 16) {
 // Explicit CLI execution first prepares a fresh, immutable ranked snapshot.
 // The execution owner validates and freezes it before the first KoL action.
 // Never quietly fall back to Combo's shuffled route if WaterSheep is offline.
-export function prepareWaterSheepRoute(requestedCombs: number): void {
+export function prepareWaterSheepRoute(
+  requestedCombs: number,
+  onScored?: (completed: number, total: number) => void,
+): void {
   if (!Number.isInteger(requestedCombs) || requestedCombs < 1 || requestedCombs > 100)
     throw new Error("WaterSheep comb count must be between 1 and 100.");
-  const result = buildRuntime(Math.max(16, requestedCombs));
+  const result = buildRuntime(Math.max(16, requestedCombs), onScored);
   if (
     result.watersheep.status !== "ready" ||
     result.candidates.length < requestedCombs ||

@@ -49,7 +49,8 @@ const RECOVERY_FILE = "don_combo_tile_recovery.json";
 const NON_RARE_LOOT = new Set([
   "grain of sand", "sand dollar", "dull fish scale", "rough fish scale",
   "lucky rabbitfish fin", "spearfish fishing spear", "waders",
-  "pristine fish scale", "piece of coral",
+  "pristine fish scale", "piece of coral", "sea avocado", "sea cucumber",
+  "cyan seashell", "kelp", "bunch of sea grapes",
 ]);
 export function loadTileRecoveryLedger(): TileRecoveryLedger {
   try {
@@ -76,6 +77,8 @@ function captureTileRecovery(minute: number, layout: string, outcome: BeachOutco
     .sort(([a], [b]) => a.localeCompare(b));
   const twinkleVision = getProperty("hasTwinkleVision") === "true";
   for (const tile of matches) {
+    // A submerged row absent from the layout is not an observation.
+    if (!layout.split(",").some(part => part.startsWith(tile.row + ":"))) continue;
     const key = tileKey(tile.minute, tile.row, tile.column);
     const selected = !!actual && actual.minute === tile.minute &&
       actual.row === tile.row && actual.column === tile.column;

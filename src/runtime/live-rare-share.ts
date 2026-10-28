@@ -1,5 +1,20 @@
-import { parseBottleOutput } from "./bottle-observer";
-import { poolForItem } from "./two-pool-cooldown";
+// Deliberately independent of the exploratory pool classifier: expanding
+// model labels must never silently expand this opt-in data-sharing policy.
+// The exact native bottle match mirrors bottle-observer.ts.
+const SHAREABLE_SCARCE_ITEMS = new Set([
+  "piece of driftwood",
+  "rainbow pearl",
+  "meteorite fragment",
+  "cursed pirate cutlass",
+  "cursed swash buckle",
+  "cursed tricorn hat",
+]);
+
+function nativeBottleSeen(output: string): boolean {
+  return String(output || "")
+    .split(/\\r?\\n/)
+    .some((line) => /^\\s*(?:>\\s*)?You found a message in a bottle!\\s*$/i.test(line.trim()));
+}
 
 // The only data leaving the character via Kmail: timestamp + beach coordinate.
 // Sender identity is still visible in KoL Kmail transport metadata.
@@ -47,9 +62,11 @@ export function liveRareFromAction(e: LiveRareActionEvidence): LiveRareShareRow 
   if (tile !== "r" && tile !== "t") return null;
   if (e.outcome === "whale" || e.outcome.startsWith("sand_castle")) return null;
   const scarceItemFound = Object.entries(e.items).some(
-    ([name, count]) => count > 0 && poolForItem(name, count) !== null,
+    ([name, count]) =>
+      count > 0 &&
+      SHAREABLE_SCARCE_ITEMS.has(name.trim().toLowerCase().replace(/\\s+/g, " ")),
   );
-  const bottleFound = parseBottleOutput(e.action_output).length > 0;
+  const bottleFound = nativeBottleSeen(e.action_output);
   if (!scarceItemFound && !bottleFound) return null;
   return { timestamp_utc: e.observed_at_utc, minute, row, column };
 }

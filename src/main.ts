@@ -332,7 +332,7 @@ function loadShadowTop11Route(): BeachTile[] {
   if (!raw) abort("No frozen Shadow Route Lab snapshot; refresh first.");
   const snapshot = JSON.parse(raw) as ShadowRouteSnapshot;
   const invalid = new Set(getFalseRares().map(tile =>
-    tile.minute + "," + tile.row + "," + tile.column));
+    `${tile.minute},${tile.row},${tile.column}`));
   return compileShadowTop11(
     snapshot, rareTiles, invalid, Number(myId()), gamedayToInt(),
     get("_freeBeachWalksUsed", 0), Date.now() / 1000,

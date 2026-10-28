@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   stateAt,
@@ -70,7 +71,7 @@ assert.throws(
 );
 const duplicate = makeSnapshot();
 duplicate.candidates[1].representative.minute = 100;
-assert.throws(() => compile(duplicate), /unique accessible/);
+assert.throws(() => compile(duplicate), /representative minute conflicts/);
 const outOfOrder = makeSnapshot();
 outOfOrder.candidates[1].utility = 10;
 assert.throws(() => compile(outOfOrder), /descending rank/);
@@ -82,7 +83,7 @@ assert.throws(
       8,
       corpus.filter((t) => t.minute !== 100),
     ),
-  /accessible known rare/,
+  /tide-accessible/,
 );
 // CLI explicit-count routing is allowed after free combs are exhausted,
 // but only when the caller opted into paid mode. This compiler has no KoL I/O.
@@ -117,4 +118,66 @@ for (const bad of [0, -1, 101, 2.5, NaN, Infinity]) {
     /integer from 1 to 100/,
   );
 }
+// Regression: the ACTUAL runtime candidate shape places the front minute only
+// on candidate.minute, not on representative (which stores d/x/y/row/column).
+// Previously the executor required representative.minute and rejected every
+// legitimate candidate with "unique accessible known rare tile" on refresh.
+const realRareCorpus = JSON.parse(
+  readFileSync(new URL("../mafia/data/raretiles.json", import.meta.url), "utf8"),
+);
+const uniqueVisible = new Map();
+const gameDay = 30;
+const rowsHidden = 4 - Math.abs(4 - (1 + (gameDay % 8)));
+for (const tile of realRareCorpus) {
+  if (tile.row > rowsHidden && !uniqueVisible.has(tile.minute)) {
+    uniqueVisible.set(tile.minute, tile);
+  }
+}
+const realRankedTiles = [...uniqueVisible.values()].slice(0, 17);
+assert.equal(realRankedTiles.length, 17);
+const actualRuntimeSnapshot = {
+  ...makeSnapshot(),
+  gameday: gameDay,
+  candidates: realRankedTiles.map((tile, rank) => ({
+    minute: tile.minute,
+    representative: {
+      d: (tile.minute - 1) * 100 + (tile.row - 1) * 10 + tile.column,
+      x: 0, y: 0, row: tile.row, column: tile.column,
+    },
+    utility: 1 - rank / 100,
+    watersheep: { score_mass: { rare: 0.7, regular: 0.3 } },
+  })),
+};
+const verifiedRoute = compileWaterSheepRoute(
+  actualRuntimeSnapshot, realRareCorpus, new Set(), 77, gameDay, 0,
+  seconds, 11, true,
+);
+assert.equal(verifiedRoute.length, 11);
+assert.deepEqual(verifiedRoute[0], realRankedTiles[0]);
+assert.deepEqual(
+  compileWaterSheepRoute(
+    actualRuntimeSnapshot, realRareCorpus, new Set(), 77, gameDay,
+    10, seconds, 1, true,
+  ),
+  [realRankedTiles[0]],
+);
+assert.throws(
+  () => compileWaterSheepRoute(
+    actualRuntimeSnapshot, realRareCorpus,
+    new Set([`${realRankedTiles[0].minute},${realRankedTiles[0].row},${realRankedTiles[0].column}`]),
+    77, gameDay, 0, seconds, 11, true,
+  ),
+  /tide-accessible/,
+);
+const minuteConflict = structuredClone(actualRuntimeSnapshot);
+minuteConflict.candidates[0].representative.minute = realRankedTiles[0].minute + 1;
+assert.throws(
+  () => compileWaterSheepRoute(
+    minuteConflict, realRareCorpus, new Set(), 77, gameDay, 0,
+    seconds, 11, true,
+  ),
+  /representative minute conflicts/,
+);
+console.log("runtime-shaped raretiles.json candidate to frozen free route: PASS");
+
 console.log("recovery, frozen free-only and explicit-count paid routes: PASS");

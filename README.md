@@ -132,6 +132,38 @@ set don_combo_ml_trace=false
 
 Trace failures are evidence failures only: Combo continues on its deterministic route and the failed prediction is logged instead of gaining fallback authority. New trace rows append to `data/don_combo_ml_events.jsonl`.
 
+### Daily shadow learning (passive; no extra beach turns)
+
+Every Combo run already records its pre-comb beachfront layout, the planned rare tile,
+the **actual** comb coordinate, the fallback outcome, and inventory delta. Starting
+with this release, each run also stamps its events with an exact run ID, KoL game
+day, and route mode. At run completion, it appends a passive daily cohort receipt
+to `data/don_combo_daily_shadow_runs.jsonl`.
+
+The `combo watersheep-free`, `combo watersheep-N`, and relay top-11 routes
+**automatically enable pre-comb WaterSheep shadow predictions** for that run,
+even when `don_combo_ml_trace` is false. They still use the **original frozen
+route**: the additional inference cannot alter targets, buy beach turns or train
+the model in place. Pre-action inference failures are retained as errors, not
+successful predictions, and never interrupt gameplay. The ordinary `combo N`
+shuffled route keeps the existing opt-in `set don_combo_ml_trace=true` for
+additional model requests; it always records passive layout/outcome/loot events
+and produces a run summary without opt-in.
+
+Each cohort reports recorded vs completed combs, prediction success/failure,
+free and paid comb consumption, planned rare coordinates already combed, twinkle
+and rough **fallback** counts, actual-vs-planned coordinate matches, and loot.
+A twinkle on some other tile of the same beachfront is **not** a verified rare
+respawn. In particular, an 11-comb run with six twinkle fallbacks is **six
+incidental twinkles, not six rare-tile recoveries**. An observed rare-target
+attempt is not by itself evidence of a verified rare drop. This artifact is
+evidence for **later** offline calibration; it is not online weight training,
+a claimed cooldown probability, or automatic authorization of actions.
+
+The **ML Lab → Daily shadow-learning cohorts** table displays recent run
+receipts by KoL game day. Earlier events remain readable but cannot
+retroactively acquire a run ID or pre-action predictions.
+
 The exported HTML snapshot is self-contained and includes the rendered ML plots, per-comb verification table, current comparison, receipt history summary, run-control proof, and inert machine-readable runtime. Snapshot v0.6 surfaces requested/completed combs, status, end reason, interrupt-consumed state, ML event span, and trace-span completeness directly in the frozen manifest. Older observations cannot be retroactively assigned a pre-action WaterSheep score; exact prediction-to-loot attribution begins only after tracing is enabled.
 
 WaterSheep input intentionally excludes Combo-derived outcome labels such as `rare_target` and fallback classifications. Those remain available to deterministic policy and evaluation only.

@@ -1,5 +1,6 @@
 import {
   abort,
+  appendBufferToFile,
   cliExecute,
   cliExecuteOutput,
   fileToBuffer,
@@ -23,6 +24,7 @@ import {
   recordBeachObservation,
   type BeachOutcome,
 } from "./runtime/observations";
+import { summarizeShadowRun, type ShadowRunContext } from "./runtime/shadow-learning";
 import {
   compileShadowTop11,
   compileWaterSheepRoute,
@@ -98,6 +100,9 @@ function addFalseRare(tile: BeachTile) {
 // We precede the function name with an underscore to show that it's not a front, user-facing function
 // In this script, really only main is, but we may port this code into libram at some point
 // We'd want to export the comb function, but not _comb
+let activeShadowRun: ShadowRunContext | null = null;
+let autoTraceWaterSheepRun = false;
+
 function mlTraceEnabled(): boolean {
   return ["1", "true", "target", "on"].includes(
     String(getProperty("don_combo_ml_trace") || "").toLowerCase(),
@@ -109,7 +114,7 @@ function captureTargetPrediction(
   row: number,
   column: number,
 ): Record<string, unknown> | null {
-  if (!mlTraceEnabled()) return null;
+  if (!mlTraceEnabled() && !autoTraceWaterSheepRun) return null;
   try {
     return traceTargetPrediction(minute, row, column);
   } catch (error) {
@@ -179,6 +184,7 @@ function _comb(tile: BeachTile): void {
       items: delta.items,
       meat: delta.meat,
       pre_action_prediction: preActionPrediction,
+      run_context: activeShadowRun,
     });
   };
 
@@ -510,6 +516,18 @@ export function main(args?: string | number): void {
 
   const frozenPlayer = Number(myId());
   const frozenGameday = gamedayToInt();
+  const runContext: ShadowRunContext = {
+    run_id: `${frozenGameday}-${frozenPlayer}-${Date.now()}`,
+    gameday: frozenGameday,
+    player_id: frozenPlayer,
+    route_mode: routeMode,
+    started_at: getProperty("don_combo_last_run_started_at"),
+  };
+  const freeBefore = get("_freeBeachWalksUsed", 0);
+  activeShadowRun = runContext;
+  // Routed WaterSheep gets a pre-action prediction per target automatically;
+  // vanilla Combo keeps the existing opt-in don_combo_ml_trace property.
+  autoTraceWaterSheepRun = shadow11 || wsFree || wsPaid;
   let completedCombs = 0;
   let interrupted = false;
   let cleanFinish = false;
@@ -589,6 +607,35 @@ export function main(args?: string | number): void {
     );
     set("don_combo_last_run_ended_at", new Date().toISOString());
     set("don_combo_last_run_ml_events_after", loadMlTraceEvents(0).total);
+    try {
+      const tail = loadMlTraceEvents(Math.max(100, completedCombs + 12)).events;
+      const learned = summarizeShadowRun(
+        tail,
+        runContext,
+        getProperty("don_combo_last_run_ended_at"),
+        cleanFinish ? (interrupted ? "interrupted" : "completed") : "failed",
+        combs,
+        completedCombs,
+        get("_freeBeachWalksUsed", 0) - freeBefore,
+        get("don_combo_last_run_paid_combs", 0),
+      );
+      appendBufferToFile(`${JSON.stringify(learned)}\n`, "don_combo_daily_shadow_runs.jsonl");
+      setProperty("don_combo_last_learning_run_id", runContext.run_id);
+      setProperty("don_combo_last_learning_traced", String(learned.prediction_ready));
+      setProperty("don_combo_last_learning_events", String(learned.recorded_events));
+      print(
+        `Shadow learning: ${learned.recorded_events}/${completedCombs} events, ${learned.prediction_ready} pre-action predictions, ${learned.incidental_fallback_twinkles} incidental twinkle fallbacks, ${learned.planned_rare_previously_combed} previously-combed rare targets (no model training or extra beach turns).`,
+        "gray",
+      );
+    } catch (error) {
+      print(
+        `don_combo: daily shadow learning summary unavailable: ${error instanceof Error ? error.message : String(error)}`,
+        "gray",
+      );
+    } finally {
+      autoTraceWaterSheepRun = false;
+      activeShadowRun = null;
+    }
   }
 
   // Subtract the original session from our current session

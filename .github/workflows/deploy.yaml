@@ -49,6 +49,9 @@ jobs:
       - name: Offline recovery and top-11 route regressions
         run: node --experimental-strip-types tests/recovery-route.mjs
 
+      - name: Offline daily shadow cohort invariants
+        run: node --experimental-strip-types tests/shadow-learning.mjs
+
       - name: Relay DOM target contract
         run: |
           node <<'NODE'

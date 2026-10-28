@@ -191,7 +191,9 @@ export function buildPoolCooldownIndex(
   const bottleByCoordinate: Record<string, BottleTargetContext> = {};
   const bottleEvents: BottleEventEvidence[] = [];
   let bottleUnbound = 0;
-  let captureCovered = 0, captureEmpty = 0, captureLegacy = 0;
+  let captureCovered = 0,
+    captureEmpty = 0,
+    captureLegacy = 0;
   const byFront: Record<string, Record<PoolKind, number>> = {};
   const observations: PoolObservation[] = [];
   const p1 = emptyCounts(),

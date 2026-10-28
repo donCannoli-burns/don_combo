@@ -6135,31 +6135,41 @@ function loadMlTraceEvents() {
   } catch (_unused4) {
     raw = "";
   }
-  // All-time count stays exact; only the requested event tail is retained.
+  // Preserve the exact all-time valid event count, but keep only the tail in
+  // memory. In particular limit=0 must not allocate every historical event.
   var keep = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 500;
   var events = [];
   var total = 0;
-  var lines = raw.split(/\r?\n/);
-  for (var i = 0; i < lines.length; i++) {
-    var trimmed = lines[i].trim();
-    if (!trimmed) continue;
-    try {
-      var parsed = JSON.parse(trimmed);
-      if (parsed && parsed.schema === "don-combo-ml-event/v0.1") {
-        total++;
-        if (keep > 0) {
-          if (events.length < keep) events.push(parsed);else events[(total - 1) % keep] = parsed;
+  var _iterator2 = _createForOfIteratorHelper(raw.split(/\r?\n/)),
+    _step2;
+  try {
+    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
+      var line = _step2.value;
+      var trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        var parsed = JSON.parse(trimmed);
+        if (parsed && parsed.schema === "don-combo-ml-event/v0.1") {
+          total++;
+          if (keep > 0) {
+            if (events.length < keep) events.push(parsed);else events[(total - 1) % keep] = parsed;
+          }
         }
+      } catch (_unused5) {
+        // Keep a malformed historical line from breaking live Combo.
       }
-    } catch (_unused5) {
-      // Historical malformed events must not stop a run.
     }
+    // A full ring's next write position is the oldest retained event.
+  } catch (err) {
+    _iterator2.e(err);
+  } finally {
+    _iterator2.f();
   }
   var first = keep > 0 && total > keep ? total % keep : 0;
   return {
     file: ML_EVENT_FILE,
-    total: total,
-    events: first ? events.slice(first).concat(events.slice(0, first)) : events
+    total,
+    events: first ? [].concat(_toConsumableArray(events.slice(first)), _toConsumableArray(events.slice(0, first))) : events
   };
 }
 function ensureEntry(ledger, minute) {
@@ -8542,7 +8552,6 @@ function main(args) {
     if (interrupted) {
       kolmafia.print("don_combo: interrupt received; ending cleanly after ".concat(completedCombs, " completed comb").concat(completedCombs === 1 ? "" : "s", "."), HIGHLIGHT);
     }
-
     kolmafia.print("don_combo: beach combing finished; closing choice and finalizing results.", "gray");
     // Always leave the Beach choice cleanly, including cooperative interrupts.
     if (kolmafia.handlingChoice()) kolmafia.runChoice(5);
@@ -8591,6 +8600,7 @@ function main(args) {
     _set("don_combo_last_run_status", cleanFinish ? interrupted ? "interrupted" : "completed" : "failed");
     _set("don_combo_last_run_end_reason", cleanFinish ? interrupted ? "user_cooperative_interrupt" : "requested_combs_completed" : "runtime_failure");
     _set("don_combo_last_run_ended_at", new Date().toISOString());
+    // One readback supplies both the final counter and the run-scoped tail.
     var finalTrace = loadMlTraceEvents(Math.max(100, completedCombs + 12));
     _set("don_combo_last_run_ml_events_after", finalTrace.total);
     try {

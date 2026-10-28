@@ -1115,6 +1115,9 @@ function loadMlTraceEvents() {
   } catch (_unused4) {
     raw = "";
   }
+  // Preserve the exact all-time valid event count, but keep only the tail in
+  // memory. In particular limit=0 must not allocate every historical event.
+  var keep = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 500;
   var events = [];
   var total = 0;
   var _iterator2 = _createForOfIteratorHelper(raw.split(/\r?\n/)),
@@ -1128,21 +1131,25 @@ function loadMlTraceEvents() {
         var parsed = JSON.parse(trimmed);
         if (parsed && parsed.schema === "don-combo-ml-event/v0.1") {
           total++;
-          events.push(parsed);
+          if (keep > 0) {
+            if (events.length < keep) events.push(parsed);else events[(total - 1) % keep] = parsed;
+          }
         }
       } catch (_unused5) {
         // Keep a malformed historical line from breaking live Combo.
       }
     }
+    // A full ring's next write position is the oldest retained event.
   } catch (err) {
     _iterator2.e(err);
   } finally {
     _iterator2.f();
   }
+  var first = keep > 0 && total > keep ? total % keep : 0;
   return {
     file: ML_EVENT_FILE,
     total,
-    events: events.slice(Math.max(0, events.length - limit))
+    events: first ? [].concat(_toConsumableArray(events.slice(first)), _toConsumableArray(events.slice(0, first))) : events
   };
 }
 

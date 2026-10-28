@@ -1,3 +1,4 @@
+/* eslint-disable eqeqeq */
 // Evidence is per coordinate, not per beachfront. Unknown is not a successful harvest.
 export type TileState = "combed" | "twinkle" | "rough" | "whale" | "unknown";
 export interface RecoveryInterval {
@@ -24,7 +25,7 @@ export interface TileRecoveryLedger {
   updated_at: string | null;
 }
 export function tileKey(minute: number, row: number, column: number): string {
-  return minute + "," + row + "," + column;
+  return `${minute},${row},${column}`;
 }
 export function emptyTileRecovery(): TileRecovery {
   return {

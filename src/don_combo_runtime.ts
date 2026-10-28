@@ -392,9 +392,15 @@ function sampleMinutes(
     }
   };
   if (current) add(current, "current");
-  const observed = Object.entries(ledger.fronts)
-    .map(([minuteText, raw]) => {
-      const entry = raw as Record<string, any>;
+  // Historical scratch-only fronts are eligible for the observed discovery
+  // pool even when the native aggregate ledger has been lost or rotated.
+  const observedMinutes = new Set([
+    ...Object.keys(ledger.fronts),
+    ...Object.keys(scratches.fronts),
+  ]);
+  const observed = Array.from(observedMinutes)
+    .map((minuteText) => {
+      const entry = (ledger.fronts[minuteText] || {}) as Record<string, any>;
       const symbols = (entry.symbols || {}) as Record<string, number>;
       const outcomes = (entry.outcomes || {}) as Record<string, number>;
       const visible = Math.max(1, n(symbols.visible));

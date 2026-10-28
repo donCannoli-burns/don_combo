@@ -70,7 +70,7 @@ timestamp_utc,minute,row,column
 2026-10-28T09:30:06.000Z,6463,4,4
 ```
 
-These are UTC *observation* timestamps and KoLmafia's zero-indexed columns.
+These are UTC _observation_ timestamps and KoLmafia's zero-indexed columns.
 Duplicate coordinates within one run are sent once. The body contains **no
 player name or player ID, run ID, account state, items, meat, session log, or
 full beach layout**. There is no historical scan, persistent outbound queue,

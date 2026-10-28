@@ -24,6 +24,13 @@ import { $items, get, Kmail, property, Session, set, sinceKolmafiaRevision } fro
 
 import { prepareWaterSheepRoute, traceTargetPrediction } from "./don_combo_runtime";
 import {
+  LIVE_RARE_SHARE_PREF,
+  LIVE_RARE_SHARE_RECIPIENT,
+  liveRareFromAction,
+  liveRareKmailBatches,
+  type LiveRareShareRow,
+} from "./runtime/live-rare-share";
+import {
   loadMlTraceEvents,
   recordBeachObservation,
   type BeachOutcome,
@@ -34,13 +41,6 @@ import {
   prescoreProgressNotice,
 } from "./runtime/prescore-progress";
 import { firstVisibleSandCastle } from "./runtime/sandcastle-observer";
-import {
-  LIVE_RARE_SHARE_PREF,
-  LIVE_RARE_SHARE_RECIPIENT,
-  liveRareFromAction,
-  liveRareKmailBatches,
-  type LiveRareShareRow,
-} from "./runtime/live-rare-share";
 import { summarizeShadowRun, type ShadowRunContext } from "./runtime/shadow-learning";
 import {
   compileShadowTop11,
@@ -128,8 +128,13 @@ function shareDataEnabled(): boolean {
 
 function safeToKmail(): boolean {
   // Match Excavator's no-combat/no-choice transport boundary.
-  return currentRound() === 0 && !handlingChoice() &&
-    !fightFollowsChoice() && !choiceFollowsFight() && !inMultiFight();
+  return (
+    currentRound() === 0 &&
+    !handlingChoice() &&
+    !fightFollowsChoice() &&
+    !choiceFollowsFight() &&
+    !inMultiFight()
+  );
 }
 
 function mlTraceEnabled(): boolean {
@@ -696,8 +701,7 @@ export function main(args?: string | number): void {
         print("don_combo: sharing skipped (combat/choice state); no retry queued.", "red");
       } else {
         for (const batch of batches) {
-          if (!shareDataEnabled() || get("don_combo_interrupt", false) || !safeToKmail())
-            break;
+          if (!shareDataEnabled() || get("don_combo_interrupt", false) || !safeToKmail()) break;
           let delivered = false;
           try {
             delivered = Kmail.send(LIVE_RARE_SHARE_RECIPIENT, batch);
@@ -710,7 +714,11 @@ export function main(args?: string | number): void {
           }
           sent++;
         }
-        if (sent) print(`don_combo: sent ${sent} opt-in live rare-tile Kmail batch${sent === 1 ? "" : "es"}.`, "gray");
+        if (sent)
+          print(
+            `don_combo: sent ${sent} opt-in live rare-tile Kmail batch${sent === 1 ? "" : "es"}.`,
+            "gray",
+          );
       }
     }
   } finally {

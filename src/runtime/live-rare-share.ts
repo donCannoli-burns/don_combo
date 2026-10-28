@@ -63,8 +63,7 @@ export function liveRareFromAction(e: LiveRareActionEvidence): LiveRareShareRow 
   if (e.outcome === "whale" || e.outcome.startsWith("sand_castle")) return null;
   const scarceItemFound = Object.entries(e.items).some(
     ([name, count]) =>
-      count > 0 &&
-      SHAREABLE_SCARCE_ITEMS.has(name.trim().toLowerCase().replace(/\s+/g, " ")),
+      count > 0 && SHAREABLE_SCARCE_ITEMS.has(name.trim().toLowerCase().replace(/\s+/g, " ")),
   );
   const bottleFound = nativeBottleSeen(e.action_output);
   if (!scarceItemFound && !bottleFound) return null;
@@ -79,12 +78,19 @@ export function liveRareKmailBatches(rows: ReadonlyArray<LiveRareShareRow>): str
   let batch = LIVE_RARE_SHARE_HEADER;
   for (const r of rows) {
     if (
-      !Number.isInteger(r.minute) || r.minute < 1 || r.minute > 10000 ||
-      !Number.isInteger(r.row) || r.row < 1 || r.row > 10 ||
-      !Number.isInteger(r.column) || r.column < 0 || r.column > 9 ||
+      !Number.isInteger(r.minute) ||
+      r.minute < 1 ||
+      r.minute > 10000 ||
+      !Number.isInteger(r.row) ||
+      r.row < 1 ||
+      r.row > 10 ||
+      !Number.isInteger(r.column) ||
+      r.column < 0 ||
+      r.column > 9 ||
       !Number.isFinite(Date.parse(r.timestamp_utc)) ||
       new Date(Date.parse(r.timestamp_utc)).toISOString() !== r.timestamp_utc
-    ) continue;
+    )
+      continue;
     const key = `${r.minute},${r.row},${r.column}`;
     if (seen.has(key)) continue;
     seen.add(key);

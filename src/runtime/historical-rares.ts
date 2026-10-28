@@ -108,7 +108,7 @@ export function buildHistoricalRareIndex(
     if (!evidence) continue;
     const when = validEpoch(event.observed_at);
     // Ignore future events and bad timestamps, never manufacture a date.
-    if (when != null && when > nowMs) continue;
+    if (when !== null && when > nowMs) continue;
     matched++;
     evidence.prior_target_observations++;
     const isBound = !!event.run_context?.run_id;
@@ -119,7 +119,7 @@ export function buildHistoricalRareIndex(
       legacy++;
       evidence.legacy_unbound_observations++;
     }
-    if (when != null) {
+    if (when !== null) {
       const stamp = new Date(when).toISOString();
       if (!evidence.first_target_observed_at || stamp < evidence.first_target_observed_at)
         evidence.first_target_observed_at = stamp;
@@ -138,7 +138,7 @@ export function buildHistoricalRareIndex(
     ) {
       attempts++;
       evidence.rare_target_attempts++;
-      if (when != null) {
+      if (when !== null) {
         (hits[coord] ??= []).push(when);
         const stamp = new Date(when).toISOString();
         if (!evidence.last_rare_attempt_at || stamp > evidence.last_rare_attempt_at)

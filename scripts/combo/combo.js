@@ -6135,34 +6135,31 @@ function loadMlTraceEvents() {
   } catch (_unused4) {
     raw = "";
   }
+  // All-time count stays exact; only the requested event tail is retained.
+  var keep = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 500;
   var events = [];
   var total = 0;
-  var _iterator2 = _createForOfIteratorHelper(raw.split(/\r?\n/)),
-    _step2;
-  try {
-    for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
-      var line = _step2.value;
-      var trimmed = line.trim();
-      if (!trimmed) continue;
-      try {
-        var parsed = JSON.parse(trimmed);
-        if (parsed && parsed.schema === "don-combo-ml-event/v0.1") {
-          total++;
-          events.push(parsed);
+  var lines = raw.split(/\r?\n/);
+  for (var i = 0; i < lines.length; i++) {
+    var trimmed = lines[i].trim();
+    if (!trimmed) continue;
+    try {
+      var parsed = JSON.parse(trimmed);
+      if (parsed && parsed.schema === "don-combo-ml-event/v0.1") {
+        total++;
+        if (keep > 0) {
+          if (events.length < keep) events.push(parsed);else events[(total - 1) % keep] = parsed;
         }
-      } catch (_unused5) {
-        // Keep a malformed historical line from breaking live Combo.
       }
+    } catch (_unused5) {
+      // Historical malformed events must not stop a run.
     }
-  } catch (err) {
-    _iterator2.e(err);
-  } finally {
-    _iterator2.f();
   }
+  var first = keep > 0 && total > keep ? total % keep : 0;
   return {
     file: ML_EVENT_FILE,
-    total,
-    events: events.slice(Math.max(0, events.length - limit))
+    total: total,
+    events: first ? events.slice(first).concat(events.slice(0, first)) : events
   };
 }
 function ensureEntry(ledger, minute) {
@@ -8481,8 +8478,9 @@ function main(args) {
   _set("don_combo_last_run_interrupt_consumed", false);
   _set("don_combo_last_run_started_at", new Date().toISOString());
   _set("don_combo_last_run_ended_at", "");
-  _set("don_combo_last_run_ml_events_before", loadMlTraceEvents(0).total);
-  _set("don_combo_last_run_ml_events_after", loadMlTraceEvents(0).total);
+  var mlEventsBefore = loadMlTraceEvents(0).total;
+  _set("don_combo_last_run_ml_events_before", mlEventsBefore);
+  _set("don_combo_last_run_ml_events_after", mlEventsBefore);
   _set("logPreferenceChangeFilter", _toConsumableArray(new Set([].concat(_toConsumableArray(oldFilter.split(",")), ["spadingData", "combo_lastTileCombed", "_beachLayout", "_beachMinutes", "_beachCombing", "don_combo_interrupt", "don_combo_running", "don_combo_last_run_status", "don_combo_last_run_requested", "don_combo_last_run_route_mode", "don_combo_last_run_paid_combs", "don_combo_last_run_combs", "don_combo_last_run_end_reason", "don_combo_last_run_interrupt_consumed", "don_combo_last_run_started_at", "don_combo_last_run_ended_at", "don_combo_last_run_ml_events_before", "don_combo_last_run_ml_events_after"]))).filter(x => x).join(","));
   var frozenPlayer = Number(kolmafia.myId());
   var frozenGameday = kolmafia.gamedayToInt();
@@ -8545,6 +8543,7 @@ function main(args) {
       kolmafia.print("don_combo: interrupt received; ending cleanly after ".concat(completedCombs, " completed comb").concat(completedCombs === 1 ? "" : "s", "."), HIGHLIGHT);
     }
 
+    kolmafia.print("don_combo: beach combing finished; closing choice and finalizing results.", "gray");
     // Always leave the Beach choice cleanly, including cooperative interrupts.
     if (kolmafia.handlingChoice()) kolmafia.runChoice(5);
     if (get("spadingScript").toLowerCase().includes("excavator")) kolmafia.cliExecute("spade autoconfirm");
@@ -8592,10 +8591,10 @@ function main(args) {
     _set("don_combo_last_run_status", cleanFinish ? interrupted ? "interrupted" : "completed" : "failed");
     _set("don_combo_last_run_end_reason", cleanFinish ? interrupted ? "user_cooperative_interrupt" : "requested_combs_completed" : "runtime_failure");
     _set("don_combo_last_run_ended_at", new Date().toISOString());
-    _set("don_combo_last_run_ml_events_after", loadMlTraceEvents(0).total);
+    var finalTrace = loadMlTraceEvents(Math.max(100, completedCombs + 12));
+    _set("don_combo_last_run_ml_events_after", finalTrace.total);
     try {
-      var tail = loadMlTraceEvents(Math.max(100, completedCombs + 12)).events;
-      var learned = summarizeShadowRun(tail, runContext, kolmafia.getProperty("don_combo_last_run_ended_at"), cleanFinish ? interrupted ? "interrupted" : "completed" : "failed", combs, completedCombs, get("_freeBeachWalksUsed", 0) - freeBefore, get("don_combo_last_run_paid_combs", 0));
+      var learned = summarizeShadowRun(finalTrace.events, runContext, kolmafia.getProperty("don_combo_last_run_ended_at"), cleanFinish ? interrupted ? "interrupted" : "completed" : "failed", combs, completedCombs, get("_freeBeachWalksUsed", 0) - freeBefore, get("don_combo_last_run_paid_combs", 0));
       kolmafia.appendBufferToFile("".concat(JSON.stringify(learned), "\n"), "don_combo_daily_shadow_runs.jsonl");
       kolmafia.setProperty("don_combo_last_learning_run_id", runContext.run_id);
       kolmafia.setProperty("don_combo_last_learning_traced", String(learned.prediction_ready));
@@ -8617,6 +8616,7 @@ function main(args) {
   printSession(final);
   var lifetime = Session.add(final, Session.fromFile("combo_results.json"));
   lifetime.toFile("combo_results.json");
+  kolmafia.print("don_combo: results saved; script finished.", "gray");
 }
 
 exports.main = main;

@@ -126,7 +126,7 @@ function captureTileRecovery(
     );
   }
   ledger.updated_at = new Date(atEpoch * 1000).toISOString();
-  bufferToFile(JSON.stringify(ledger) + "\n", RECOVERY_FILE);
+  bufferToFile(`${JSON.stringify(ledger)}\n`, RECOVERY_FILE);
 }
 
 function blankLedger(): ObservationLedger {

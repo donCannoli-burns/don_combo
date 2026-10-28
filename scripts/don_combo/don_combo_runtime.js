@@ -2306,6 +2306,7 @@ function emitReceipt(result) {
 }
 function buildRuntime() {
   var frontierSize = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 16;
+  var onScored = arguments.length > 1 ? arguments[1] : undefined;
   var points = loadRarePoints();
   var baseline = comboBaseline(points);
   var ledger = loadObservationLedger();
@@ -2324,6 +2325,7 @@ function buildRuntime() {
   var candidates = candidateFrontier(ledger, baseline, points, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve, timescales, frontierSize);
   var status = "ready";
   var error = null;
+  var scoredCount = 0;
   var _iterator11 = _createForOfIteratorHelper(candidates),
     _step11;
   try {
@@ -2342,6 +2344,10 @@ function buildRuntime() {
         var scored = scoreCandidate(candidate, scores);
         candidate.utility = scored.utility;
         candidate.utility_components = scored.components;
+        // Optional reporting only; the CLI sees actual completed WaterSheep
+        // responses. No additional model calls, reranking, or beach actions.
+        scoredCount++;
+        onScored === null || onScored === void 0 || onScored(scoredCount, candidates.length);
       } catch (caught) {
         status = "offline";
         error = caught instanceof Error ? caught.message : String(caught);
@@ -2455,9 +2461,9 @@ function buildRuntime() {
 // Explicit CLI execution first prepares a fresh, immutable ranked snapshot.
 // The execution owner validates and freezes it before the first KoL action.
 // Never quietly fall back to Combo's shuffled route if WaterSheep is offline.
-function prepareWaterSheepRoute(requestedCombs) {
+function prepareWaterSheepRoute(requestedCombs, onScored) {
   if (!Number.isInteger(requestedCombs) || requestedCombs < 1 || requestedCombs > 100) throw new Error("WaterSheep comb count must be between 1 and 100.");
-  var result = buildRuntime(Math.max(16, requestedCombs));
+  var result = buildRuntime(Math.max(16, requestedCombs), onScored);
   if (result.watersheep.status !== "ready" || result.candidates.length < requestedCombs || result.candidates.slice(0, requestedCombs).some(candidate => candidate.utility == null || candidate.watersheep == null)) throw new Error("WaterSheep unavailable or insufficient fully scored rare fronts; no combs started.");
   writeRuntime(result);
 }

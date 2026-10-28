@@ -3889,6 +3889,7 @@ function emitReceipt(result) {
 }
 function buildRuntime() {
   var frontierSize = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 16;
+  var onScored = arguments.length > 1 ? arguments[1] : undefined;
   var points = loadRarePoints();
   var baseline = comboBaseline(points);
   var ledger = loadObservationLedger();
@@ -3907,6 +3908,7 @@ function buildRuntime() {
   var candidates = candidateFrontier(ledger, baseline, points, recoveryLedger, historicalIndex, scratches, poolIndex, historicalCurve, timescales, frontierSize);
   var status = "ready";
   var error = null;
+  var scoredCount = 0;
   var _iterator11 = _createForOfIteratorHelper(candidates),
     _step11;
   try {
@@ -3925,6 +3927,10 @@ function buildRuntime() {
         var scored = scoreCandidate(candidate, scores);
         candidate.utility = scored.utility;
         candidate.utility_components = scored.components;
+        // Optional reporting only; the CLI sees actual completed WaterSheep
+        // responses. No additional model calls, reranking, or beach actions.
+        scoredCount++;
+        onScored === null || onScored === void 0 || onScored(scoredCount, candidates.length);
       } catch (caught) {
         status = "offline";
         error = caught instanceof Error ? caught.message : String(caught);
@@ -4038,9 +4044,9 @@ function buildRuntime() {
 // Explicit CLI execution first prepares a fresh, immutable ranked snapshot.
 // The execution owner validates and freezes it before the first KoL action.
 // Never quietly fall back to Combo's shuffled route if WaterSheep is offline.
-function prepareWaterSheepRoute(requestedCombs) {
+function prepareWaterSheepRoute(requestedCombs, onScored) {
   if (!Number.isInteger(requestedCombs) || requestedCombs < 1 || requestedCombs > 100) throw new Error("WaterSheep comb count must be between 1 and 100.");
-  var result = buildRuntime(Math.max(16, requestedCombs));
+  var result = buildRuntime(Math.max(16, requestedCombs), onScored);
   if (result.watersheep.status !== "ready" || result.candidates.length < requestedCombs || result.candidates.slice(0, requestedCombs).some(candidate => candidate.utility == null || candidate.watersheep == null)) throw new Error("WaterSheep unavailable or insufficient fully scored rare fronts; no combs started.");
   writeRuntime(result);
 }
@@ -4056,6 +4062,41 @@ function writeRuntime(result) {
   kolmafia.setProperty("don_combo_matrix_refresh_generation", String(result.generated_at));
   kolmafia.setProperty("don_combo_matrix_refresh_events", String(((_result$ml_lab3 = result.ml_lab) === null || _result$ml_lab3 === void 0 ? void 0 : _result$ml_lab3.events_total) ?? ""));
   kolmafia.setProperty("don_combo_matrix_refresh_run_status", String(((_result$run_control = result.run_control) === null || _result$run_control === void 0 ? void 0 : _result$run_control.status) ?? ""));
+}
+
+// Pure, UI-only estimates for native gCLI WaterSheep pre-scoring.
+// A candidate costs an assumed two seconds, rounded to the nearest 30 s.
+// These are progress hints, not elapsed-time guarantees or action gates.
+var PRESCORE_ASSUMED_SECONDS_PER_TARGET = 2;
+var PRESCORE_ROUNDING_SECONDS = 30;
+function roundedPrescoreSeconds(remainingTargets) {
+  if (!Number.isFinite(remainingTargets) || remainingTargets <= 0) return 0;
+  return Math.round(remainingTargets * PRESCORE_ASSUMED_SECONDS_PER_TARGET / PRESCORE_ROUNDING_SECONDS) * PRESCORE_ROUNDING_SECONDS;
+}
+function prescoreWaitPhrase(remainingTargets) {
+  if (!Number.isFinite(remainingTargets) || remainingTargets <= 0) return "complete";
+  var rounded = roundedPrescoreSeconds(remainingTargets);
+  if (rounded === 0) return "under 30 sec";
+  var minutes = Math.floor(rounded / 60);
+  var seconds = rounded % 60;
+  return "~".concat(minutes, " min ").concat(seconds, " sec");
+}
+// A score completion triggers a printed status at a 30-second bucket change,
+// or at each 10th completed candidate. The final status comes from the caller
+// ONLY after snapshot validation and commit, not before.
+function prescoreProgressNotice(completed, total, lastPrintedRoundedSeconds) {
+  var left = Math.max(0, total - completed);
+  var rounded = roundedPrescoreSeconds(left);
+  if (!Number.isInteger(completed) || !Number.isInteger(total) || completed <= 0 || total <= 0 || completed >= total || rounded === lastPrintedRoundedSeconds && completed % 10 !== 0) {
+    return {
+      rounded_remaining_seconds: rounded,
+      message: null
+    };
+  }
+  return {
+    rounded_remaining_seconds: rounded,
+    message: "WaterSheep: pre-scoring ".concat(completed, "/").concat(total, " targets \xB7 please wait ").concat(prescoreWaitPhrase(left), " remaining...")
+  };
 }
 
 // Run-cohort counting stays self-contained for direct Node regression tests.
@@ -4644,8 +4685,18 @@ function main(args) {
   if ((wsFree || wsPaid) && (!Number.isInteger(wsCount) || wsCount < 1 || wsCount > MAX_WATERSHEEP_ROUTE_COMBS)) kolmafia.abort(wsFree ? "No free beach combs remain." : "WaterSheep route must request 1–100 combs.");
   if (wsPaid && wsCount > freeRemaining + kolmafia.myAdventures()) kolmafia.abort("Insufficient remaining free combs and adventures for this explicit paid route.");
   if (wsFree || wsPaid) {
-    kolmafia.print("WaterSheep: pre-scoring ".concat(wsCount, " rare-front targets (").concat(wsFree ? "free-only" : "adventure-cost allowed", ")..."), HIGHLIGHT);
-    prepareWaterSheepRoute(wsCount);
+    kolmafia.print("WaterSheep: pre-scoring ".concat(wsCount, " rare-front targets (").concat(wsFree ? "free-only" : "adventure-cost allowed", ")... please wait ").concat(prescoreWaitPhrase(wsCount), " (estimated)"), HIGHLIGHT);
+    var lastPrintedRemaining = roundedPrescoreSeconds(wsCount);
+    // Progress is tied to completed model responses, not an independent
+    // countdown. Candidate pool size can include a blinded baseline target.
+    prepareWaterSheepRoute(wsCount, (completed, total) => {
+      var progress = prescoreProgressNotice(completed, total, lastPrintedRemaining);
+      if (progress.message) {
+        kolmafia.print(progress.message, "gray");
+        lastPrintedRemaining = progress.rounded_remaining_seconds;
+      }
+    });
+    kolmafia.print("WaterSheep: pre-scoring complete; ranked snapshot saved.", HIGHLIGHT);
   }
   var frozenRoute = shadow11 ? loadShadowTop11Route() : wsFree || wsPaid ? loadShadowTop11Route(wsCount, wsFree) : null;
   var routeMode = wsPaid ? "watersheep-paid" : wsFree || shadow11 ? "watersheep-free" : "combo-default";

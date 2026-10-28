@@ -48,6 +48,11 @@ import {
   type ScratchLedger,
 } from "./runtime/scratch-interest";
 import {
+  buildPoolTimeScaleAudit,
+  compactPoolTimeScales,
+  type PoolTimeScaleAudit,
+} from "./runtime/pool-timescales";
+import {
   buildPoolCooldownIndex,
   buildHistoricalRareCurve,
   cooldownForTarget,
@@ -318,6 +323,7 @@ function evidenceFor(
   scratches?: ScratchLedger,
   poolIndex?: PoolIndex,
   historicalCurve?: HistoricalRareCurve,
+  timescales?: PoolTimeScaleAudit,
 ): CandidateEvidence {
   const entry = (ledger.fronts[String(minute)] || {}) as Record<string, any>;
   const layouts = n(entry.layout_snapshots);
@@ -354,6 +360,7 @@ function evidenceFor(
         Date.now(),
         n(myId()),
       ),
+    pool_timescales: timescales ? compactPoolTimeScales(timescales) : null,
     pool_cooldown: cooldownForTarget(
       poolIndex || buildPoolCooldownIndex([], Date.now(), n(myId())),
       minute,
@@ -482,6 +489,7 @@ function candidateFrontier(
   scratches: ScratchLedger,
   poolIndex: PoolIndex,
   historicalCurve: HistoricalRareCurve,
+  timescales: PoolTimeScaleAudit,
   count = 16,
 ): Candidate[] {
   const current = n(getProperty("_beachMinutes"));
@@ -534,6 +542,7 @@ function candidateFrontier(
       scratches,
       poolIndex,
       historicalCurve,
+      timescales,
     );
     result.push({
       minute,
@@ -584,6 +593,7 @@ function waterSheepPayload(candidate: Candidate): WaterSheepRequest {
       historical_rare: evidence.historical_rare,
       scratch_interest: evidence.scratch_interest,
       pool_cooldown: evidence.pool_cooldown,
+      pool_timescales: evidence.pool_timescales,
       historical_rare_curve: evidence.historical_rare_curve,
       pool_front_observations: evidence.pool_front_observations,
       observed_symbol_rates: evidence.observed_symbol_rates,
@@ -661,6 +671,7 @@ export function traceTargetPrediction(
     Date.now(),
     n(myId()),
   );
+  const timescales = buildPoolTimeScaleAudit(poolIndex);
   const evidence = evidenceFor(
     minute,
     current,
@@ -671,6 +682,7 @@ export function traceTargetPrediction(
     scratches,
     poolIndex,
     historicalCurve,
+    timescales,
   );
   const candidate: Candidate = {
     minute,
@@ -1132,6 +1144,7 @@ function buildRuntime(frontierSize = 16) {
     Date.now(),
     n(myId()),
   );
+  const timescales = buildPoolTimeScaleAudit(poolIndex);
   const scratchTop = Object.keys(scratches.fronts)
     .map((minute) => evidenceForScratchFront(scratches, Number(minute)))
     .filter((x) => x.high_scratch_days > 0)
@@ -1152,6 +1165,7 @@ function buildRuntime(frontierSize = 16) {
     scratches,
     poolIndex,
     historicalCurve,
+    timescales,
     frontierSize,
   );
   let status = "ready";
@@ -1257,6 +1271,8 @@ function buildRuntime(frontierSize = 16) {
       tiles_recorded: Object.keys(recoveryLedger.tiles).length,
       historical_rare_baseline: historicalIndex.baseline,
       two_pool_cooldown_summary: poolIndex.summary,
+      pool_timescales: compactPoolTimeScales(timescales),
+      pool_recent_transitions: timescales.gaps.slice(-40),
       historical_rare_curve: historicalCurve,
       two_pool_observations_tail: poolIndex.observations.slice(-60),
       recovery_intervals: Object.values(recoveryLedger.tiles).reduce(

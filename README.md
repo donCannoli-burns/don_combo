@@ -140,16 +140,16 @@ See [docs/WATERSHEEP_MATRIX_PROTOTYPE.md](docs/WATERSHEEP_MATRIX_PROTOTYPE.md) f
 
 ## WaterSheep cooldown evidence and free-only top-11 route (experimental)
 
-The native Combo observer writes a per-coordinate \`data/don_combo_tile_recovery.json\`
+The native Combo observer writes a per-coordinate `data/don_combo_tile_recovery.json`
 index alongside the existing ML trace and beachfront aggregate ledger. For every
 known rare coordinate on a visited visible beachfront, the index records its
 last observed state, observation count, last positive *loot-inferred* rare
 harvest, observed still-combed states, and bounded intervals between a combed
 observation and a subsequently observed twinkle.
 
-**Evidence caveat:** A \`rare_target\` action is an attempt, not proof of a rare
+**Evidence caveat:** A `rare_target` action is an attempt, not proof of a rare
 drop. Candidate harvests require a positive inventory item delta and may still
-need item-class verification; they are marked \`loot-inferred\`. Observing an
+need item-class verification; they are marked `loot-inferred`. Observing an
 available tile bounds a cooldown interval; it does not establish the exact
 respawn time. A 12-day revisit signal is an uncalibrated deterministic
 exploration heuristic **not a probability or a claimed game mechanic**.
@@ -171,8 +171,8 @@ observed state, and uncalibrated revisit signal. Choose
 **Review top 11 and run free Combo**, then use the explicit confirmation on
 the next page.
 
-- KoLmafia's \`_freeBeachWalksUsed\` provides the daily budget: at most
-  \`11 - _freeBeachWalksUsed\` combs can be executed. The guard is checked
+- KoLmafia's `_freeBeachWalksUsed` provides the daily budget: at most
+  `11 - _freeBeachWalksUsed` combs can be executed. The guard is checked
   before **each** action and verified after the action. It never pays for
   additional combs.
 - The saved scoring snapshot must be from the same player and in-game day,
@@ -181,9 +181,9 @@ the next page.
   If any check fails, refresh the matrix and review again.
 - The confirmation token is single-use. The model cannot supply arbitrary
   tile coordinates, rerank during a run or cause fallback paid actions.
-- The normal \`combo N\` shuffle/cursor path is unchanged. The special
-  \`combo shadow11\` argument uses a frozen route and does **not** advance
-  \`combo_lastTileCombed\`. A clean cooperative interrupt is still supported.
+- The normal `combo N` shuffle/cursor path is unchanged. The special
+  `combo shadow11` argument uses a frozen route and does **not** advance
+  `combo_lastTileCombed`. A clean cooperative interrupt is still supported.
   If a target is already combed, Combo's existing in-front twinkle/rough
   fallback logic still applies. Execution can finish with fewer than 11
   actual rare harvests; this is an experimental route, not a guarantee.

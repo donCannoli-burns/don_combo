@@ -22,6 +22,7 @@ import {
   type ScratchLedger,
 } from "./scratch-interest";
 import type { ShadowRunContext } from "./shadow-learning";
+import { recordPoolLabels, type PoolObservation } from "./two-pool-cooldown";
 
 export type BeachOutcome =
   | "whale"
@@ -56,6 +57,7 @@ export interface MlTraceEvent {
   layout: string;
   layout_symbols: Record<string, number>;
   pre_action_prediction: Record<string, unknown> | null;
+  pool_observations?: PoolObservation[];
   run_context?: ShadowRunContext | null;
 }
 
@@ -325,6 +327,13 @@ export function recordBeachObservation(
     pre_action_prediction: detail.pre_action_prediction || null,
     run_context: detail.run_context || null,
   };
+  // Explicit structured pool labels in EVERY ordinary, shadow, free and paid
+  // routed event; original deltas/layout are preserved for historical replay.
+  try {
+    event.pool_observations = recordPoolLabels(event, Number(myId()));
+  } catch {
+    event.pool_observations = [];
+  }
   appendBufferToFile(`${JSON.stringify(event)}\n`, ML_EVENT_FILE);
   try {
     recordScratchObservation(minute, layout, now.toISOString());

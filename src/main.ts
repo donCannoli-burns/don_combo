@@ -177,6 +177,7 @@ function _comb(tile: BeachTile): void {
     actualRow: number,
     actualColumn: number,
     before: Session,
+    actionOutput: string,
   ) => {
     const delta = sessionDelta(before);
     recordBeachObservation(minute, layoutString, outcome, {
@@ -184,6 +185,7 @@ function _comb(tile: BeachTile): void {
       actual_comb: { minute, row: actualRow, column: actualColumn },
       items: delta.items,
       meat: delta.meat,
+      action_output: actionOutput,
       pre_action_prediction: preActionPrediction,
       pre_action_observed_at: preActionObservedAt,
       run_context: activeShadowRun,
@@ -200,8 +202,8 @@ function _comb(tile: BeachTile): void {
     const whaleColumn = whaleRow[1].findIndex((x) => x === "W");
     print("We found a whale. To hey deze's heart, we'll stab at it.", "red");
     const before = Session.current();
-    cliExecute(`beach comb ${whaleRow[0]} ${whaleColumn}`);
-    finishObservation("whale", whaleRow[0], whaleColumn, before);
+    const output = cliExecuteOutput(`beach comb ${whaleRow[0]} ${whaleColumn}`);
+    finishObservation("whale", whaleRow[0], whaleColumn, before, output);
     // By returning partway through, we avoid needing to use "else"
     // With the exception of try...finally shenanigans, using the return keyword will just immediately terminate the function
     return;
@@ -227,7 +229,8 @@ function _comb(tile: BeachTile): void {
       print("Our rare tile is uncombed, so let's go ahead and change that.", "red");
       // Grab the output of our comb and lowercase the resulting text
       const before = Session.current();
-      const output = cliExecuteOutput(`beach comb ${row} ${column}`).toLowerCase();
+      const actionOutput = cliExecuteOutput(`beach comb ${row} ${column}`);
+      const output = actionOutput.toLowerCase();
 
       // We exclude grain of sand as it means we didn't comb a twinkle as expected
       // We check if the output contained an item only found in infrequent twinkles
@@ -246,6 +249,7 @@ function _comb(tile: BeachTile): void {
         row,
         column,
         before,
+        actionOutput,
       );
       return;
     }
@@ -258,8 +262,8 @@ function _comb(tile: BeachTile): void {
     print("Our rare tile is combed, but we found a twinkle!", HIGHLIGHT);
     const twinkleColumn = firstTwinkleRow[1].findIndex((x) => x === "t");
     const before = Session.current();
-    cliExecute(`beach comb ${firstTwinkleRow[0]} ${twinkleColumn}`);
-    finishObservation("twinkle_fallback", firstTwinkleRow[0], twinkleColumn, before);
+    const output = cliExecuteOutput(`beach comb ${firstTwinkleRow[0]} ${twinkleColumn}`);
+    finishObservation("twinkle_fallback", firstTwinkleRow[0], twinkleColumn, before, output);
     return;
   }
 
@@ -273,15 +277,15 @@ function _comb(tile: BeachTile): void {
     );
     const roughcolumn = firstRoughRow[1].findIndex((x) => x === "r");
     const before = Session.current();
-    cliExecute(`beach comb ${firstRoughRow[0]} ${roughcolumn}`);
-    finishObservation("rough_fallback", firstRoughRow[0], roughcolumn, before);
+    const output = cliExecuteOutput(`beach comb ${firstRoughRow[0]} ${roughcolumn}`);
+    finishObservation("rough_fallback", firstRoughRow[0], roughcolumn, before, output);
     return;
   }
 
   print("We've exhausted all other options, so we're combing an already-combed tile.", HIGHLIGHT);
   const before = Session.current();
-  cliExecute(`beach comb ${row} ${column}`);
-  finishObservation("exhausted_fallback", row, column, before);
+  const output = cliExecuteOutput(`beach comb ${row} ${column}`);
+  finishObservation("exhausted_fallback", row, column, before, output);
 }
 
 // Alright now this is pretty cool

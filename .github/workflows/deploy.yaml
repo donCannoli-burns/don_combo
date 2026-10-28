@@ -55,6 +55,9 @@ jobs:
       - name: Scratch-density live, shadow and historical daily-interest regressions
         run: node --experimental-strip-types tests/scratch-interest.mjs
 
+      - name: Dual rare pool and historical cooldown baseline regressions
+        run: node --experimental-strip-types tests/two-pool-cooldown.mjs
+
       - name: Historical rare baseline and WaterSheep paid/free learning regressions
         run: node --experimental-strip-types tests/historical-rares.mjs
 

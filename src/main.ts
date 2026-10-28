@@ -619,7 +619,7 @@ export function main(args?: string | number): void {
         get("_freeBeachWalksUsed", 0) - freeBefore,
         get("don_combo_last_run_paid_combs", 0),
       );
-      appendBufferToFile(`${JSON.stringify(learned)}\\n`, "don_combo_daily_shadow_runs.jsonl");
+      appendBufferToFile(`${JSON.stringify(learned)}\n`, "don_combo_daily_shadow_runs.jsonl");
       setProperty("don_combo_last_learning_run_id", runContext.run_id);
       setProperty("don_combo_last_learning_traced", String(learned.prediction_ready));
       setProperty("don_combo_last_learning_events", String(learned.recorded_events));

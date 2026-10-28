@@ -1,0 +1,31 @@
+name: Format daily shadow learning once
+on:
+  push:
+    branches: [feature/daily-shadow-learning-cohorts-20261028]
+permissions:
+  contents: write
+jobs:
+  format:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/daily-shadow-learning-cohorts-20261028
+          persist-credentials: true
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: yarn install --immutable
+      - name: Apply pinned project Prettier
+        run: yarn exec prettier --write README.md src/main.ts src/don_combo_runtime.ts src/runtime/observations.ts src/runtime/shadow-learning.ts tests/shadow-learning.mjs
+      - name: Commit formatting
+        run: |
+          if ! git diff --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add README.md src/main.ts src/don_combo_runtime.ts src/runtime/observations.ts src/runtime/shadow-learning.ts tests/shadow-learning.mjs
+            git commit -m "style: format daily shadow learning"
+            git push origin HEAD:feature/daily-shadow-learning-cohorts-20261028
+          fi

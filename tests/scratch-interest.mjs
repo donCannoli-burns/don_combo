@@ -153,7 +153,7 @@ const observations = readFileSync(
 );
 const runtime = readFileSync(new URL("../src/don_combo_runtime.ts", import.meta.url), "utf8");
 const html = readFileSync(new URL("../mafia/relay/don_combo_matrix.html", import.meta.url), "utf8");
-assert.match(observations, /recordScratchObservation\(minute, layout, now\.toISOString\(\)\)/);
+assert.match(observations, /recordScratchObservation\(minute, layout, detail\.pre_action_observed_at/);
 assert.match(observations, /don_combo_scratch_observations\.json/);
 assert.match(runtime, /const scratchBackfill = backfillScratchHistory\(/);
 assert.match(runtime, /const scratches = backfillScratchHistory\(/);

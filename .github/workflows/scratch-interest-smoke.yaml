@@ -1,0 +1,25 @@
+name: Scratch interest offline smoke (temporary)
+on:
+  push:
+    branches: [feature/scratch-density-daily-evidence-20261028]
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --experimental-strip-types tests/scratch-interest.mjs
+      - run: node --experimental-strip-types tests/shadow-learning.mjs
+      - run: |
+          node <<'NODE'
+          const fs=require("fs");
+          const source=fs.readFileSync("mafia/relay/don_combo_matrix.html","utf8");
+          for(const match of source.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi)){
+            if(match[1].trim())new Function(match[1]);
+          }
+          console.log("Relay inline script syntax: PASS");
+          NODE

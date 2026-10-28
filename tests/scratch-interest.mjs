@@ -155,10 +155,8 @@ const runtime = readFileSync(new URL("../src/don_combo_runtime.ts", import.meta.
 const html = readFileSync(new URL("../mafia/relay/don_combo_matrix.html", import.meta.url), "utf8");
 assert.match(observations, /recordScratchObservation\(minute, layout, now\.toISOString\(\)\)/);
 assert.match(observations, /don_combo_scratch_observations\.json/);
-assert.match(
-  runtime,
-  /backfillScratchHistory\(loadScratchLedger\(\), fullHistory\.events, Date\.now\(\)\)/,
-);
+assert.match(runtime, /const scratchBackfill = backfillScratchHistory\(/);
+assert.match(runtime, /const scratches = backfillScratchHistory\(/);
 assert.match(runtime, /scratch_interest: evidence\.scratch_interest/);
 assert.match(runtime, /evidence\.scratch_interest\.interest_score \* 0\.06/);
 assert.match(runtime, /evidenceForScratchFront\(scratches, n\(minuteText\)\)\.interest_score \* 2/);

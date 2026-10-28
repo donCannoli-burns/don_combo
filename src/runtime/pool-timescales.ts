@@ -46,6 +46,7 @@ export interface TimingGap {
   interpretation:"INTER_REWARD_OBSERVATION_GAP_NOT_PROVEN_TRANSFER_OR_COOLDOWN";
 }
 export interface TimePeakHypothesis {
+  pool:PoolName;
   tier:RewardTier;
   conceptual_peak:"short"|"middle"|"long";
   event_count:number;
@@ -132,9 +133,11 @@ export function buildPoolTimeScaleAudit(index:PoolIndex):PoolTimeScaleAudit {
   const tiers: Array<[RewardTier,"short"|"middle"|"long"]> = [
     ["common_rare","short"],["uncommon_rare","middle"],["rare_rare","long"]
   ];
-  const tier_hypotheses=tiers.map(([tier,conceptual_peak]):TimePeakHypothesis=>{
-    const e=events.filter(q=>q.tier===tier);
-    const g=gaps.filter(q=>q.tier===tier);
+  // Each pool gets three independent hypothesis lanes. Pool 1 whale actions
+  // and Pool 2 item drops must never be merged into one fitted cooldown.
+  const tier_hypotheses=(["pool_1","pool_2"] as PoolName[]).flatMap(pool=>tiers.map(([tier,conceptual_peak]):TimePeakHypothesis=>{
+    const e=events.filter(q=>q.pool===pool&&q.tier===tier);
+    const g=gaps.filter(q=>q.pool===pool&&q.tier===tier);
     const bins=blankBins();
     for(const v of g)bins[v.bucket]++;
     const ordered=g.map(v=>v.gap_days).sort((a,b)=>a-b);
@@ -144,15 +147,16 @@ export function buildPoolTimeScaleAudit(index:PoolIndex):PoolTimeScaleAudit {
     const credible=g.length>=5 && new Set(e.map(v=>v.observed_at.slice(0,10))).size>=3
       && new Set(e.map(v=>v.coordinate)).size>=3;
     return {
-      tier,conceptual_peak,event_count:e.length,category_interval_count:g.length,
+      pool,tier,conceptual_peak,event_count:e.length,category_interval_count:g.length,
       cross_coordinate_interval_count:g.filter(v=>v.moved_coordinate).length,
       median_observed_gap_days:median,
       modal_gap_bucket:g.length?modal.key:null,
-      detected_peak_days:credible?median:null,
+      // A sample median cannot itself establish a real cooldown mode.
+      detected_peak_days:null,
       peak_status:credible?"OBSERVATIONAL_MODE_ONLY_NOT_COOLDOWN_PEAK":"INSUFFICIENT_DATED_EVENTS",
       observation_count_by_bucket:bins,
     };
-  });
+  }));
   return {
     schema:"don-combo-pool-timescales/v0.1",
     total_layout_sightings:layout,raw_item_delta_quantity:rawQty,

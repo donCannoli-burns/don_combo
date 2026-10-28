@@ -37,10 +37,14 @@ export function compileShadowTop11(
   ).map(t => t.minute + "," + t.row + "," + t.column));
   const selected: RouteTile[] = [];
   const seen = new Set<number>();
+  let previousUtility = Infinity;
   for (const candidate of snapshot.candidates) {
     if (selected.length === count) break;
     if (!Number.isFinite(candidate.utility) || candidate.utility == null ||
         !candidate.watersheep || !candidate.representative) throw new Error("Unscored or invalid shadow candidate; refresh first.");
+    if ((candidate.utility as number) > previousUtility + 1e-9)
+      throw new Error("Shadow candidates are not in saved descending rank order.");
+    previousUtility = candidate.utility as number;
     const t = candidate.representative;
     const key = t.minute + "," + t.row + "," + t.column;
     if (candidate.minute !== t.minute || !known.has(key) || seen.has(t.minute))

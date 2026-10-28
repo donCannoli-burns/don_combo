@@ -1,7 +1,17 @@
 // Pure, passive evidence accounting: no model training or KoL actions.
 // A run's front-level prediction must not be mistaken for a verified rare
 // coordinate respawn when Combo falls back to an unrelated twinkle.
-import { stateAt } from "./recovery";
+function plannedWasPreviouslyCombed(
+  layout: string,
+  target: { row: number; column: number },
+): boolean {
+  for (const part of String(layout || "").split(",")) {
+    const colon = part.indexOf(":");
+    if (colon < 0 || Number(part.slice(0, colon)) !== target.row) continue;
+    return part.slice(colon + 1).charAt(target.column) === "c";
+  }
+  return false;
+}
 
 export interface ShadowRunContext {
   run_id: string;
@@ -81,7 +91,7 @@ export function summarizeShadowRun(
     else untraced++;
     const target = event.planned_target;
     const actual = event.actual_comb;
-    if (target && stateAt(event.layout, target.row, target.column, false) === "combed")
+    if (target && plannedWasPreviouslyCombed(event.layout, target))
       previouslyCombed++;
     if (target && actual && target.minute === actual.minute &&
         target.row === actual.row && target.column === actual.column) matched++;

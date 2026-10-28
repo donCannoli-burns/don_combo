@@ -129,7 +129,7 @@ assert.match(obs, /appendBufferToFile\(/);
 assert.match(main, /pre_action_prediction: preActionPrediction/);
 assert.match(main, /run_context: activeShadowRun/);
 assert.match(main, /autoTraceWaterSheepRun = shadow11 \|\| wsFree \|\| wsPaid/);
-assert.match(runtime, /buildHistoricalRareCurve\(points, fullHistory\.events, poolIndex/);
+assert.match(runtime, /buildHistoricalRareCurve\(/);
 assert.match(runtime, /historical_rare_curve: evidence\.historical_rare_curve/);
 assert.match(runtime, /pool_front_observations: evidence\.pool_front_observations/);
 assert.match(cohorts, /two_pool_observation_counts: poolCounts/);

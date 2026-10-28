@@ -12,7 +12,7 @@ import {
 
 const phrase = "> You found a message in a bottle!";
 assert.equal(parseBottleOutput(phrase).length, 1);
-assert.equal(parseBottleOutput("  " + phrase + "\n"), 1);
+assert.equal(parseBottleOutput("  " + phrase + "\n").length, 1);
 assert.equal(parseBottleOutput("You found a message in a bottle!").length, 1);
 for (const no of [
   "",

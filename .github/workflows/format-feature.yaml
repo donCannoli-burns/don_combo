@@ -19,7 +19,7 @@ jobs:
           node-version: '22'
       - run: yarn install --immutable
       - name: Autoformat changed TypeScript
-        run: yarn exec prettier --write src/main.ts src/don_combo_runtime.ts src/runtime/contracts.ts src/runtime/observations.ts src/runtime/recovery.ts src/runtime/shadow-route.ts
+        run: yarn exec prettier --write src/main.ts src/don_combo_runtime.ts src/runtime/contracts.ts src/runtime/observations.ts src/runtime/recovery.ts src/runtime/shadow-route.ts tests/recovery-route.mjs
       - name: Commit format-only changes
         run: |
           if ! git diff --quiet; then

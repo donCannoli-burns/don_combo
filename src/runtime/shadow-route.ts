@@ -20,7 +20,11 @@ export interface ShadowRouteSnapshot {
   watersheep: { status: string };
   candidates: RouteCandidate[];
 }
-export function compileShadowTop11(
+export const MAX_WATERSHEEP_ROUTE_COMBS = 100;
+
+// Compiles an *already-scored* snapshot. Never requests model output or
+// executes game actions here. A caller opts into paid combs explicitly.
+export function compileWaterSheepRoute(
   snapshot: ShadowRouteSnapshot,
   corpus: RouteTile[],
   falseRares: Set<string>,
@@ -28,6 +32,8 @@ export function compileShadowTop11(
   gameday: number,
   usedFree: number,
   nowEpoch: number,
+  requestedCombs: number,
+  freeOnly: boolean,
 ): RouteTile[] {
   if (
     snapshot.schema !== "don-combo-matrix-runtime/v0.8-ts" ||
@@ -39,9 +45,15 @@ export function compileShadowTop11(
   const stamped = Date.parse(snapshot.generated_at) / 1000;
   if (!Number.isFinite(stamped) || stamped > nowEpoch + 30 || nowEpoch - stamped > 1200)
     throw new Error("Shadow snapshot expired (20 minutes); refresh the relay first.");
-  if (!Number.isInteger(usedFree) || usedFree < 0 || usedFree >= 11)
-    throw new Error("No unused free beach combs remain.");
-  const count = 11 - usedFree;
+  if (!Number.isInteger(usedFree) || usedFree < 0)
+    throw new Error("Invalid KoLmafia free beach counter.");
+  if (!Number.isInteger(requestedCombs) || requestedCombs < 1 ||
+      requestedCombs > MAX_WATERSHEEP_ROUTE_COMBS)
+    throw new Error("WaterSheep route count must be an integer from 1 to 100.");
+  const remainingFree = Math.max(0, 11 - usedFree);
+  if (freeOnly && (remainingFree === 0 || requestedCombs > remainingFree))
+    throw new Error("Requested route exceeds available free beach combs.");
+  const count = requestedCombs;
   if (!Array.isArray(snapshot.candidates) || snapshot.candidates.length < count)
     throw new Error("Insufficient scored candidate fronts for free-turn route.");
   const day = 1 + (gameday % 8);
@@ -88,3 +100,20 @@ export function compileShadowTop11(
   if (selected.length !== count) throw new Error("Not enough usable ranked candidates.");
   return selected;
 }
+
+// Backward-compatible legacy frozen relay route. It never authorizes paid combs.
+export function compileShadowTop11(
+  snapshot: ShadowRouteSnapshot,
+  corpus: RouteTile[],
+  falseRares: Set<string>,
+  playerId: number,
+  gameday: number,
+  usedFree: number,
+  nowEpoch: number,
+): RouteTile[] {
+  return compileWaterSheepRoute(
+    snapshot, corpus, falseRares, playerId, gameday, usedFree, nowEpoch,
+    Math.max(0, 11 - usedFree), true,
+  );
+}
+

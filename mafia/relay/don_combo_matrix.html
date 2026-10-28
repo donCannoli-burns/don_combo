@@ -386,7 +386,10 @@ function renderMlLab(){
    evItem("censored same-tile intervals",Number(pools.censored_intervals||0).toLocaleString())+
    evItem("historical unbound",Number(pools.historical_unbound_events||0).toLocaleString())+
    evItem("run-bound",Number(pools.run_bound_events||0).toLocaleString())+
-   evItem("Unassigned message bottles",Number(pools.message_bottle_events||0).toLocaleString());
+   evItem("Unassigned message bottles",Number(pools.message_bottle_events||0).toLocaleString())+
+   evItem("Bottle output captured",Number(pools.bottle_detection_output_captured||0).toLocaleString())+
+   evItem("Legacy output unavailable",Number(pools.bottle_detection_legacy_unavailable||0).toLocaleString())+
+   evItem("New empty output",Number(pools.bottle_detection_output_empty||0).toLocaleString());
  document.getElementById("mlPoolTable").innerHTML=
    "<table><thead><tr><th>Pool</th><th>Tier hypothesis</th><th>Observed finding</th><th>Count</th></tr></thead><tbody>"+
    [["pool_1","common/rare","Sand castle sightings","sand_castle"],["pool_1","uncommon/rare","Beached whale sights + actions","beached_whale"],

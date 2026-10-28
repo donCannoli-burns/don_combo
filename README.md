@@ -194,6 +194,60 @@ highest-interest fronts. Daily shadow-learning cohorts separately count
 their 6+ and 11+ observed scratches. Neither mode changes paid-action gates,
 frozen routes, or model authority.
 
+### Message in a bottle: pool-unassigned beach encounter (2026-10-28)
+
+The user-provided 2023 Ascension Speed Society beach spading discussion,
+cross-checked against Veracity's KoLmafia BeachComber notes (Apr 27–30 2025),
+reveals one **critical non-inventory rare**: a beach-combed `message in a
+bottle` does NOT produce a normal positive acquired-item delta. Since
+KoLmafia r28508 the session log emits a standalone
+`You found a message in a bottle!` message. This is **not** an Ocean
+City `cryptic message in a bottle` or `mysterious message in a bottle`
+inventory item.
+
+Every actual native comb path (whale, intended rare, incidental twinkle,
+rough fallback, exhausted fallback) now captures its own
+`cliExecuteOutput("beach comb ...")` and passes it once into the
+same `recordBeachObservation` JSONL path as the usual item deltas.
+The event records `special_events` with the exact recognized success
+message and `action_output_capture` status, alongside actual tile
+minute/row/column, UTC capture time, prior layout, pre-action prediction,
+item deltas, and run identity. **No fake item acquisition is produced.**
+This includes ordinary `combo N`, `combo watersheep-free`,
+`combo watersheep-N`, and `shadow11`.
+
+**Pool remains UNASSIGNED.** One bottle produces one event, not one
+Pool 1 reward plus one Pool 2 reward. The per-target input includes a
+symmetric **weak context coefficient of 0.10 for each pool** (heuristic
+feature, *not* a posterior pool probability or fitted rarity). The
+fixed policy exploration bonus is capped at **+0.004** for a coordinate
+with at least one bottle observation, independently of how many bottles
+were seen. The known Pool 1/2 tier counts, tier intervals and assumed
+cooldowns are **not** populated by bottles. ML Lab shows the separate
+unknown-pool count, actual coordinates, source and route mode.
+
+**Historical limitation:** the native reader can recover bottles from
+existing `don_combo_ml_events.jsonl` only if a prior record contains a
+structured `special_events` observation. Older log lines were not
+retrospectively imported: Veracity reports that some historical bottle
+messages were not in the standard session-log position. Never interpret
+missing pre-2025 bottle records as negative evidence or assert the old
+catalogue implies dated bottle observations.
+
+The August 3, 2023 discussion separately proposes common tile resets
+of 2, 3 or 4 hours, rare tile cooldowns of roughly 15 days or more, and
+rarer categories perhaps taking longer. These are **community spading
+claims**, not hardcoded clocks, tier probabilities, or authorization for
+extra observations/actions. Same-tile and cross-coordinate timing
+hypotheses remain explicitly unvalidated. In particular, repeated
+per-day **scratch** observations do not establish exact rare-tile
+respawn times.
+
+References:
+- https://kolmafia.us/threads/beachcomber-fast-and-efficient-beach-combing.23993/page-8
+- https://kolmafia.us/threads/r28508-whats-changed-log-message-when-beach-comb-a-message-in-a-bottle-by-veracity0-in-2897-full-changelog-r28507-r28508.30555/
+- User-supplied 2023 Discord export, The Ascension Speed Society `#kol-🗡🍸` (observation-only external source; not a database of individual game events).
+
 ### Two-pool rare observer and dated historical baseline (experimental)
 
 Normal `combo N`, `combo watersheep-free` and `combo watersheep-N`

@@ -1,4 +1,4 @@
-import { appendBufferToFile, bufferToFile, fileToBuffer, getProperty, turnsPlayed } from "kolmafia";
+import { appendBufferToFile, bufferToFile, fileToBuffer, getProperty, myId, turnsPlayed } from "kolmafia";
 
 import type { ObservationEntry, ObservationLedger } from "./contracts";
 import {
@@ -9,6 +9,7 @@ import {
   type TileRecoveryLedger,
 } from "./recovery";
 import type { ShadowRunContext } from "./shadow-learning";
+import { addScratchVisit, emptyScratchLedger, SCRATCH_LEDGER_SCHEMA, type ScratchLedger } from "./scratch-interest";
 
 export type BeachOutcome =
   | "whale"
@@ -55,6 +56,7 @@ export interface MlTraceLog {
 const LEDGER_FILE = "don_combo_matrix_ledger.json";
 const ML_EVENT_FILE = "don_combo_ml_events.jsonl";
 const RECOVERY_FILE = "don_combo_tile_recovery.json";
+const SCRATCH_FILE = "don_combo_scratch_observations.json";
 const NON_RARE_LOOT = new Set([
   "grain of sand",
   "sand dollar",
@@ -71,6 +73,28 @@ const NON_RARE_LOOT = new Set([
   "kelp",
   "bunch of sea grapes",
 ]);
+// The live scratch ledger is player-scoped. Legacy unbound ML events are kept
+// separately by the read-only historical backfill and never rewritten here.
+export function loadScratchLedger(): ScratchLedger {
+  const player = Number(myId());
+  try {
+    const raw = String(fileToBuffer(SCRATCH_FILE) || "").trim();
+    if (!raw) return emptyScratchLedger(player);
+    const parsed = JSON.parse(raw) as ScratchLedger;
+    if (parsed.schema !== SCRATCH_LEDGER_SCHEMA || parsed.player_id !== player ||
+        !parsed.fronts || typeof parsed.fronts !== "object") return emptyScratchLedger(player);
+    return parsed;
+  } catch {
+    return emptyScratchLedger(player);
+  }
+}
+
+export function recordScratchObservation(minute: number, layout: string, observedAt: string): void {
+  const ledger = loadScratchLedger();
+  if (!addScratchVisit(ledger, minute, layout, observedAt, "live")) return;
+  bufferToFile(`${JSON.stringify(ledger)}\n`, SCRATCH_FILE);
+}
+
 export function loadTileRecoveryLedger(): TileRecoveryLedger {
   try {
     const raw = String(fileToBuffer(RECOVERY_FILE) || "").trim();
@@ -285,6 +309,12 @@ export function recordBeachObservation(
     run_context: detail.run_context || null,
   };
   appendBufferToFile(`${JSON.stringify(event)}\n`, ML_EVENT_FILE);
+  try {
+    recordScratchObservation(minute, layout, now.toISOString());
+  } catch {
+    // Scratch evidence is supplemental; original ML event log is a durable
+    // backfill source, and errors cannot cause duplicate beach actions.
+  }
   try {
     captureTileRecovery(minute, layout, outcome, detail, Math.floor(now.getTime() / 1000));
   } catch {

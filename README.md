@@ -165,6 +165,44 @@ tile-level recovery evidence but remains advisory: exact Combo baseline membersh
 candidate source labels and target order remain withheld. The candidate table
 shows final model-plus-policy rank separately from model-only rank.
 
+### gCLI: explicit WaterSheep routes (experimental)
+
+The installed `combo` gCLI alias still calls the DonCombo listener, which forwards
+arguments unchanged to the native Combo execution owner. The new modes are:
+
+```text
+combo watersheep-free
+combo watersheep-20
+```
+
+- `watersheep-free` scores a fresh eligible rare-front pool and runs **only**
+  the remaining daily free beach combs (up to 11). It refuses if none remain.
+- `watersheep-N` scores a fresh eligible rare-front pool and executes exactly
+  **N beach comb attempts** in descending frozen WaterSheep+policy order. It may
+  use adventures once free beach combs are exhausted. **This explicitly
+  authorizes adventure spending**; no extra free-only permission is inferred.
+- `N` must be a positive integer, **1–100 per invocation**. The caller must
+  have enough free combs and remaining adventures for the requested attempts.
+  If WaterSheep cannot score enough accessible known rare fronts, the script
+  refuses before touching KoL. It never silently returns to the original
+  shuffled Combo path.
+- The player, game day, snapshot age, unique coordinates, tide availability,
+  model scoring, and each action's counter/adventure change are checked. A
+  discrepancy stops further beach actions; existing cooperative interrupt
+  support is preserved.
+- Neither mode promises N *rare items*: an already-combed coordinate may
+  fall back to the ordinary in-front twinkle/rough selection. The CLI argument
+  counts beach comb attempts, not guaranteed loot or exactly N adventures
+  deducted. A 20-comb run might use some free combs and some paid ones.
+- Opening the relay **Review** page is read-only; it now reports why a route
+  is blocked rather than presenting a dead disabled button. A second
+  confirmation remains required before a free relay run. The confirmation
+  is bound to the exact locally verified shadow snapshot.
+
+**No live KoL beach actions are part of the automated tests.** Start with a
+read-only relay Review, or a low-count CLI run you explicitly choose, and
+check KoLmafia's run log before using the paid route mode at larger counts.
+
 ### Relay: run WaterSheep's top 11 with free beach combs only
 
 Open **DonComboMatrix** and scroll to **WaterSheep top 11 · free-only route**.

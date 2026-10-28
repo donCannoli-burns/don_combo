@@ -8,8 +8,14 @@ const unique = new URL("../dist/scripts/don_combo/doncombo.js", import.meta.url)
 
 assert.match(buildConfig, /"scripts\/combo\/combo": "src\/main\.ts"/);
 assert.match(buildConfig, /"scripts\/don_combo\/doncombo": "src\/main\.ts"/);
-assert.ok(source.indexOf('if (args === "info" || args === "help")') < source.indexOf('if (args === "lifetime")'));
-assert.ok(source.indexOf('if (args === "info" || args === "help")') < source.indexOf('prepareWaterSheepRoute(wsCount'));
+assert.ok(
+  source.indexOf('if (args === "info" || args === "help")') <
+    source.indexOf('if (args === "lifetime")'),
+);
+assert.ok(
+  source.indexOf('if (args === "info" || args === "help")') <
+    source.indexOf("prepareWaterSheepRoute(wsCount"),
+);
 assert.match(source, /const wsPaidMatch = typeof rawArg === "string" \? \/\^watersheep-/);
 assert.match(source, /DON_COMBO_OBSERVATION minute=/);
 assert.match(source, /"DonCombo extended CLI active/);
@@ -29,4 +35,6 @@ for (const file of [legacy, unique]) {
   }
 }
 
-console.log("DonCombo distinct CLI binary, legacy compatibility and read-only self-identification PASS");
+console.log(
+  "DonCombo distinct CLI binary, legacy compatibility and read-only self-identification PASS",
+);

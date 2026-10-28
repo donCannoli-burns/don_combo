@@ -55,8 +55,8 @@ call don_combo/doncombo.js watersheep-30
 **Do not run `combo 1` to test which implementation is selected: it
 spends a beach comb.** To keep the old `combo` command reliably mapped
 to the downstream variant, remove the upstream `loathers/combo` Git
-project *only after verifying that it is installed and that you want
-to remove that project*. Removing a Git project is not required if you
+project _only after verifying that it is installed and that you want
+to remove that project_. Removing a Git project is not required if you
 use `doncombo`. Do not delete the shared `raretiles.json`, session
 logs, or personal Combo preferences as a collision workaround.
 

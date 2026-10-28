@@ -463,8 +463,12 @@ export function main(args?: string | number): void {
   // from upstream Combo, making executable resolution easy to verify.
   if (args === "info" || args === "help") {
     print("DonCombo extended CLI active (collision-resistant entrypoint: doncombo).", HIGHLIGHT);
-    print("Commands: doncombo N | doncombo watersheep-N | doncombo watersheep-free | doncombo shadow11");
-    print("Read-only: doncombo info | doncombo help | doncombo lifetime | doncombo watersheep-preview");
+    print(
+      "Commands: doncombo N | doncombo watersheep-N | doncombo watersheep-free | doncombo shadow11",
+    );
+    print(
+      "Read-only: doncombo info | doncombo help | doncombo lifetime | doncombo watersheep-preview",
+    );
     print("Compatibility entrypoint: combo N (may conflict with upstream loathers/combo).");
     print("No beach walks or WaterSheep requests were made by this diagnostic.");
     return;

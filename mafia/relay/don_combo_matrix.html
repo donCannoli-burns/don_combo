@@ -24,7 +24,7 @@
 </style>
 </head>
 <body>
-<header class="top"><div class="topin"><div class="brand"><b>don_combo · Shadow Route Lab</b><span>dense memory · sparse inference · no model authority</span></div><nav class="nav"><a href="#overview">Overview</a><a href="#matrix">Atlas</a><a href="#candidates">Candidates</a><a href="#shadow11">Free route</a><a href="#evidence">Evidence</a><a href="#ml-lab">ML Lab</a><a href="#packet">Agent packet</a><a href="#runtime">Runtime</a></nav><div><span id="status" class="status">loading</span> <button id="interruptCombo" class="btn interrupt" title="Ask a running Combo invocation to stop after its current comb">Interrupt after current comb</button> <button id="exportSnapshot" class="btn">Export HTML snapshot</button> <button class="btn" onclick="location.reload()">Refresh</button></div></div></header>
+<header class="top"><div class="topin"><div class="brand"><b>don_combo · Shadow Route Lab</b><span>dense memory · sparse inference · no model authority</span></div><nav class="nav"><a href="#overview">Overview</a><a href="#matrix">Atlas</a><a href="#candidates">Candidates</a><a href="#shadow11">Free route</a><a href="#evidence">Evidence</a><a href="#ml-lab">ML Lab</a><a href="#packet">Agent packet</a><a href="#runtime">Runtime</a></nav><div><span id="status" class="status">loading</span> <button id="interruptCombo" class="btn interrupt" title="Ask a running Combo invocation to stop after its current comb">Interrupt after current comb</button> <button id="exportSnapshot" class="btn">Export HTML snapshot</button> <button id="refreshMatrix" class="btn" title="Rebuild KoLmafia evidence and WaterSheep scores before reading the runtime">Refresh data</button> <span id="refreshFeedback" class="status" aria-live="polite">Ready to refresh</span></div></div></header>
 
 <main class="shell">
 <section id="overview" class="hero">
@@ -153,6 +153,7 @@
 <script>
 (function(){
 "use strict";
+var refreshBusy=false,verifiedGeneration=null;
 var R=window.DON_COMBO_MATRIX_RUNTIME||null,N=1024,REAL=1000000,TOTAL=N*N,C=document.getElementById("map"),ctx=C.getContext("2d"),selected=0,baseline=null,atlasLens="all",focusedBucket=null,atlasAddress=null;
 var colors={rare:"#ffd166",model:"#82b7ff",current:"#72dfa6",combo:"#ff8e88",selected:"#f7f9fb"};
 function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(ch){return({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[ch]})}
@@ -422,8 +423,11 @@ function snapshotFilename(){
 function safeSnapshotJson(value){
  return JSON.stringify(value,null,2).replace(/</g,"\\u003c").replace(/-->/g,"--\\u003e")
 }
-function exportHtmlSnapshot(){
- if(!R)return;
+function exportHtmlSnapshotVerified(){
+ if(!R||R.generated_at!==verifiedGeneration){
+   document.getElementById("refreshFeedback").textContent="Export blocked: refresh was not verified";
+   return;
+ }
  render();
  buildPacket();
  var clone=document.documentElement.cloneNode(true),head=clone.querySelector("head"),body=clone.querySelector("body");
@@ -446,6 +450,8 @@ function exportHtmlSnapshot(){
  var meta=[
    ["don-combo-snapshot-schema","don-combo-html-snapshot/v0.6"],
    ["don-combo-snapshot-exported-at",exportedAt],
+   ["don-combo-refresh-verified-generation",verifiedGeneration],
+   ["don-combo-refresh-verified","true"],
    ["don-combo-runtime-schema",R.schema||""],
    ["don-combo-runtime-generated-at",runtimeGenerated||""],
    ["don-combo-receipt-state-sha256",receipt.state_sha256||""],
@@ -505,15 +511,110 @@ function requestComboInterrupt(){
      setTimeout(function(){button.textContent=original},2200)
    })
 }
+// A browser reload is not a native refresh. A fresh commit marker and
+// corroborating JS readback are required before any evidence export.
+function validateRefreshedRuntime(next,receipt){
+ if(!next||next.schema!=="don-combo-matrix-runtime/v0.8-ts")
+   throw new Error("Returned runtime schema is missing or invalid.");
+ if(!receipt||!receipt.generation||next.generated_at!==receipt.generation)
+   throw new Error("Runtime readback does not match the server's new generation.");
+ if(next.generated_at===receipt.previousGeneration)
+   throw new Error("Runtime is unchanged from the previously displayed generation.");
+ if(!Number.isFinite(Date.parse(next.generated_at)))
+   throw new Error("Runtime has no valid generation timestamp.");
+ if(Number(next.player_id)!==receipt.player||Number(next.gameday)!==receipt.gameday)
+   throw new Error("Runtime player or KoL game day differs from the refreshed source.");
+ if(!next.ml_lab||Number(next.ml_lab.events_total)!==receipt.events)
+   throw new Error("ML event count does not match the native refresh receipt.");
+ if(!next.run_control||String(next.run_control.status)!==receipt.runStatus)
+   throw new Error("Run status does not match the native refresh receipt.");
+ return true;
+}
+function parseRuntimeJs(text){
+ var prefix="window.DON_COMBO_MATRIX_RUNTIME=",body=String(text||"").trim();
+ if(body.indexOf(prefix)!==0)throw new Error("Relay runtime JavaScript was not returned.");
+ body=body.slice(prefix.length);
+ if(body.slice(-1)===";")body=body.slice(0,-1);
+ return JSON.parse(body);
+}
+function fetchMatrixRuntime(){
+ return fetch("don_combo_matrix_runtime.js?ts="+Date.now(),{cache:"no-store"}).then(function(response){
+   if(!response.ok)throw new Error("Unable to read newly generated relay runtime ("+response.status+").");
+   return response.text();
+ }).then(parseRuntimeJs);
+}
+function refreshAndVerify(){
+ if(refreshBusy)return Promise.reject(new Error("Another refresh is already running."));
+ refreshBusy=true;
+ var feedback=document.getElementById("refreshFeedback");
+ ["refreshMatrix","exportSnapshot","exportSnapshotPacket"].forEach(function(id){
+   document.getElementById(id).disabled=true;
+ });
+ feedback.textContent="Regenerating native evidence…";
+ feedback.className="status warn";
+ var previousGeneration=R&&R.generated_at||null;
+ // The refresh endpoint is read-only with respect to KoL actions. It refuses
+ // while Combo is running and calls the actual runtime through the listener.
+ return fetch("relay_DonComboRefresh.ash?ts="+Date.now(),{method:"POST",cache:"no-store"}).then(function(response){
+   if(!response.ok)throw new Error("Native refresh request failed ("+response.status+").");
+   return response.text();
+ }).then(function(markup){
+   var doc=new DOMParser().parseFromString(markup,"text/html");
+   var marker=doc.getElementById("don-combo-refresh-result");
+   if(!marker)throw new Error("Native refresh returned no verified receipt.");
+   if(marker.getAttribute("data-status")!=="refreshed")
+     throw new Error((marker.textContent||"Native refresh refused.").trim());
+   var receipt={
+     generation:marker.getAttribute("data-generation"),
+     previousGeneration:previousGeneration,
+     events:Number(marker.getAttribute("data-events")),
+     runStatus:marker.getAttribute("data-run-status"),
+     player:Number(marker.getAttribute("data-player")),
+     gameday:Number(marker.getAttribute("data-gameday"))
+   };
+   if(!Number.isInteger(receipt.events)||receipt.events<0)
+     throw new Error("Native refresh event count is invalid.");
+   return fetchMatrixRuntime().then(function(next){
+     validateRefreshedRuntime(next,receipt);
+     var page=params();
+     if(page.player!==receipt.player||page.gameday!==receipt.gameday)
+       throw new Error("Page player/day differs from KoLmafia. Reopen DonComboMatrix.");
+     R=next;verifiedGeneration=next.generated_at;render();
+     feedback.textContent="Verified "+next.generated_at+" · "+receipt.events+" ML events";
+     feedback.className="status ok";
+     return next;
+   });
+ }).catch(function(error){
+   verifiedGeneration=null;
+   feedback.textContent="Refresh failed: "+(error&&error.message||String(error));
+   feedback.className="status warn";
+   throw error;
+ }).finally(function(){
+   refreshBusy=false;
+   ["refreshMatrix","exportSnapshot","exportSnapshotPacket"].forEach(function(id){
+     document.getElementById(id).disabled=false;
+   });
+ });
+}
+function exportFreshSnapshot(){
+ refreshAndVerify().then(function(){exportHtmlSnapshotVerified()}).catch(function(){});
+}
 document.getElementById("interruptCombo").addEventListener("click",requestComboInterrupt);
-document.getElementById("exportSnapshot").addEventListener("click",exportHtmlSnapshot);
-document.getElementById("exportSnapshotPacket").addEventListener("click",exportHtmlSnapshot);
+document.getElementById("refreshMatrix").addEventListener("click",function(){refreshAndVerify().catch(function(){})});
+document.getElementById("exportSnapshot").addEventListener("click",exportFreshSnapshot);
+document.getElementById("exportSnapshotPacket").addEventListener("click",exportFreshSnapshot);
 
 function pollRuntime(){
- fetch("don_combo_matrix_runtime.js?ts="+Date.now(),{cache:"no-store"}).then(function(response){return response.text()}).then(function(text){
-   var prefix="window.DON_COMBO_MATRIX_RUNTIME=",body=text.trim();if(body.indexOf(prefix)!==0)return;body=body.slice(prefix.length);if(body.slice(-1)===";")body=body.slice(0,-1);
-   var next=JSON.parse(body);if(!R||next.generated_at!==R.generated_at){R=next;render()}
- }).catch(function(){})
+ if(refreshBusy)return;
+ fetchMatrixRuntime().then(function(next){
+   if(refreshBusy)return;
+   if(!R||next.generated_at!==R.generated_at){
+     R=next;
+     // Timed polls are informational, not verified native refreshes.
+     verifiedGeneration=null;
+     render();
+   }
+ }).catch(function(){});
 }
 render();setInterval(pollRuntime,10000);
 })();

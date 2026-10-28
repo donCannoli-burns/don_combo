@@ -6,7 +6,11 @@ import {
   recoveryFeatures,
   emptyTileRecovery,
 } from "../src/runtime/recovery.ts";
-import { compileShadowTop11 } from "../src/runtime/shadow-route.ts";
+import {
+  compileShadowTop11,
+  compileWaterSheepRoute,
+  MAX_WATERSHEEP_ROUTE_COMBS,
+} from "../src/runtime/shadow-route.ts";
 
 const layout = "4:rrrrrrrrrr,5:ccctrrrrrr,6:rrrrrrrrrr";
 assert.equal(stateAt(layout, 5, 0, false), "combed");
@@ -80,4 +84,37 @@ assert.throws(
     ),
   /accessible known rare/,
 );
-console.log("recovery and frozen free-only top-11 route: PASS");
+// CLI explicit-count routing is allowed after free combs are exhausted,
+// but only when the caller opted into paid mode. This compiler has no KoL I/O.
+assert.equal(MAX_WATERSHEEP_ROUTE_COMBS, 100);
+assert.throws(
+  () => compileWaterSheepRoute(snapshot, corpus, new Set(), 77, 8, 11, seconds, 1, true),
+  /available free/,
+);
+const twenty = makeSnapshot();
+twenty.candidates = Array.from({ length: 25 }, (_, i) => ({
+  minute: 500 + i,
+  utility: 1 - i / 100,
+  representative: { minute: 500 + i, row: 5, column: 1 },
+  watersheep: { score_mass: { rare: 0.7 } },
+}));
+const twentyCorpus = twenty.candidates.map((c) => c.representative);
+assert.equal(
+  compileWaterSheepRoute(twenty, twentyCorpus, new Set(), 77, 8, 11, seconds, 20, false).length,
+  20,
+);
+assert.equal(
+  compileWaterSheepRoute(twenty, twentyCorpus, new Set(), 77, 8, 7, seconds, 20, false).length,
+  20,
+);
+assert.throws(
+  () => compileWaterSheepRoute(twenty, twentyCorpus, new Set(), 77, 8, 7, seconds, 20, true),
+  /available free/,
+);
+for (const bad of [0, -1, 101, 2.5, NaN, Infinity]) {
+  assert.throws(
+    () => compileWaterSheepRoute(twenty, twentyCorpus, new Set(), 77, 8, 0, seconds, bad, false),
+    /integer from 1 to 100/,
+  );
+}
+console.log("recovery, frozen free-only and explicit-count paid routes: PASS");

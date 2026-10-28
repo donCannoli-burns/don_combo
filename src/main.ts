@@ -9,6 +9,7 @@ import {
   historicalPrice,
   isDarkMode,
   Item,
+  myAdventures,
   myId,
   print,
   runChoice,
@@ -16,13 +17,18 @@ import {
 } from "kolmafia";
 import { $items, get, property, Session, set, sinceKolmafiaRevision } from "libram";
 
-import { traceTargetPrediction } from "./don_combo_runtime";
+import { prepareWaterSheepRoute, traceTargetPrediction } from "./don_combo_runtime";
 import {
   loadMlTraceEvents,
   recordBeachObservation,
   type BeachOutcome,
 } from "./runtime/observations";
-import { compileShadowTop11, type ShadowRouteSnapshot } from "./runtime/shadow-route";
+import {
+  compileShadowTop11,
+  compileWaterSheepRoute,
+  MAX_WATERSHEEP_ROUTE_COMBS,
+  type ShadowRouteSnapshot,
+} from "./runtime/shadow-route";
 
 // Gotta print in a legible colour.
 const HIGHLIGHT = isDarkMode() ? "yellow" : "blue";
@@ -140,7 +146,8 @@ function _comb(tile: BeachTile): void {
   // It's going to be really tedious to write tile.minute and tile.row all the time
   // So this is nice looking
   const { minute, row, column } = tile;
-  cliExecute(`beach wander ${minute};`);
+  if (!cliExecute(`beach wander ${minute};`))
+    throw new Error(`Could not visit beach minute ${minute}; route stopped.`);
   const layoutString = property.getString("_beachLayout");
   print(`DON_COMBO_OBSERVATION minute=${minute} layout=${layoutString}`, "gray");
 
@@ -331,14 +338,14 @@ function comb(): boolean {
 
 // A relay confirmation selects a pre-scored local same-player/day snapshot.
 // No model inference runs during execution, and the model cannot supply coordinates.
-function loadShadowTop11Route(): BeachTile[] {
+function loadShadowTop11Route(requestedCombs?: number, freeOnly = true): BeachTile[] {
   const raw = String(fileToBuffer("don_combo_matrix_runtime.json") || "");
   if (!raw) abort("No frozen Shadow Route Lab snapshot; refresh first.");
   const snapshot = JSON.parse(raw) as ShadowRouteSnapshot;
   const invalid = new Set(
     getFalseRares().map((tile) => `${tile.minute},${tile.row},${tile.column}`),
   );
-  return compileShadowTop11(
+  const parameters = [
     snapshot,
     rareTiles,
     invalid,
@@ -346,7 +353,10 @@ function loadShadowTop11Route(): BeachTile[] {
     gamedayToInt(),
     get("_freeBeachWalksUsed", 0),
     Date.now() / 1000,
-  );
+  ] as const;
+  return requestedCombs === undefined
+    ? compileShadowTop11(...parameters)
+    : compileWaterSheepRoute(...parameters, requestedCombs, freeOnly);
 }
 
 function printSession(session: Session) {
@@ -378,12 +388,71 @@ export function main(args?: string | number): void {
     return;
   }
 
+  if (args === "watersheep-preview") {
+    // Read-only relay validation. It cannot wander, comb or request paid actions.
+    setProperty("don_combo_shadow11_preview_status", "blocked");
+    setProperty("don_combo_shadow11_preview_snapshot", "");
+    try {
+      if (get("don_combo_running", false)) throw new Error("Combo is already running.");
+      const route = loadShadowTop11Route();
+      const snapshot = JSON.parse(
+        String(fileToBuffer("don_combo_matrix_runtime.json")),
+      ) as ShadowRouteSnapshot;
+      setProperty("don_combo_shadow11_preview_status", "ready");
+      setProperty("don_combo_shadow11_preview_snapshot", snapshot.generated_at);
+      setProperty(
+        "don_combo_shadow11_preview_message",
+        `Ready: ${route.length} free-only WaterSheep targets from snapshot ${snapshot.generated_at}.`,
+      );
+      print(
+        `WaterSheep preview: ${route.length} ranked free combs available; no KoL actions taken.`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setProperty("don_combo_shadow11_preview_message", message);
+      print(`WaterSheep preview blocked: ${message}`, "red");
+    }
+    return;
+  }
+
   // Use a wrapper around session tracking to record our results
   // We do this by first tracking what the session results are right now
   // Later, we will subtract these items and meat from our final results
   if (get("don_combo_running", false)) abort("Another Combo run is already active.");
-  const shadow11 = args === "shadow11";
-  const frozenRoute = shadow11 ? loadShadowTop11Route() : null;
+  const rawArg = typeof args === "string" ? args.trim() : args;
+  const shadow11 = rawArg === "shadow11";
+  const wsFree = rawArg === "watersheep-free";
+  const wsPaidMatch = typeof rawArg === "string" ? /^watersheep-([1-9][0-9]*)$/.exec(rawArg) : null;
+  const wsPaid = wsPaidMatch !== null;
+  if (typeof rawArg === "string" && rawArg.startsWith("watersheep-") && !wsFree && !wsPaid)
+    abort("Expected 'watersheep-free' or 'watersheep-<positive count>'.");
+  const freeRemaining = Math.max(0, 11 - get("_freeBeachWalksUsed", 0));
+  const wsCount = wsFree ? freeRemaining : wsPaid ? Number(wsPaidMatch![1]) : 0;
+  if (
+    (wsFree || wsPaid) &&
+    (!Number.isInteger(wsCount) || wsCount < 1 || wsCount > MAX_WATERSHEEP_ROUTE_COMBS)
+  )
+    abort(wsFree ? "No free beach combs remain." : "WaterSheep route must request 1–100 combs.");
+  if (wsPaid && wsCount > freeRemaining + myAdventures())
+    abort("Insufficient remaining free combs and adventures for this explicit paid route.");
+  if (wsFree || wsPaid) {
+    print(
+      `WaterSheep: pre-scoring ${wsCount} rare-front targets (${wsFree ? "free-only" : "adventure-cost allowed"})...`,
+      HIGHLIGHT,
+    );
+    prepareWaterSheepRoute(wsCount);
+  }
+  const frozenRoute = shadow11
+    ? loadShadowTop11Route()
+    : wsFree || wsPaid
+      ? loadShadowTop11Route(wsCount, wsFree)
+      : null;
+  const routeMode = wsPaid
+    ? "watersheep-paid"
+    : wsFree || shadow11
+      ? "watersheep-free"
+      : "combo-default";
+  const freeOnly = wsFree || shadow11;
   const baseline = Session.current();
 
   // Here we collapse our two possibilities into one
@@ -401,6 +470,8 @@ export function main(args?: string | number): void {
   set("don_combo_running", true);
   set("don_combo_last_run_status", "running");
   set("don_combo_last_run_requested", combs);
+  set("don_combo_last_run_route_mode", routeMode);
+  set("don_combo_last_run_paid_combs", 0);
   set("don_combo_last_run_combs", 0);
   set("don_combo_last_run_end_reason", "running");
   set("don_combo_last_run_interrupt_consumed", false);
@@ -422,6 +493,8 @@ export function main(args?: string | number): void {
         "don_combo_running",
         "don_combo_last_run_status",
         "don_combo_last_run_requested",
+        "don_combo_last_run_route_mode",
+        "don_combo_last_run_paid_combs",
         "don_combo_last_run_combs",
         "don_combo_last_run_end_reason",
         "don_combo_last_run_interrupt_consumed",
@@ -453,15 +526,25 @@ export function main(args?: string | number): void {
         // Free-only guard at the exact action boundary. A changed counter
         // can never authorize paid turns or an unplanned tile.
         const before = get("_freeBeachWalksUsed", 0);
-        if (before < 0 || before >= 11)
+        const beforeAdventures = myAdventures();
+        if (freeOnly && (before < 0 || before >= 11))
           throw new Error("No free combs remain; paid comb prevented.");
+        if (!freeOnly && before >= 11 && beforeAdventures < 1)
+          throw new Error("No adventures remain for a paid beach comb.");
         const target = frozenRoute[completedCombs];
         if (!target || gamedayToInt() !== frozenGameday || Number(myId()) !== frozenPlayer)
           throw new Error("Shadow route day/player changed during execution.");
         _comb(target);
         const after = get("_freeBeachWalksUsed", 0);
-        if (after !== before + 1)
-          throw new Error("Free beach counter did not advance exactly once; stopping.");
+        const afterAdventures = myAdventures();
+        const freeSpent = after === before + 1;
+        const paidSpent = afterAdventures < beforeAdventures;
+        if (freeOnly && (!freeSpent || paidSpent))
+          throw new Error("Free-only action could not be verified; stopping.");
+        if (!freeOnly && !freeSpent && !paidSpent)
+          throw new Error("No verified beach comb or adventure spend; stopping.");
+        if (paidSpent)
+          set("don_combo_last_run_paid_combs", get("don_combo_last_run_paid_combs", 0) + 1);
         completedCombs++;
       } else {
         // Preserve normal Combo's deterministic shuffled rare route.

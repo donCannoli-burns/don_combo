@@ -16,15 +16,25 @@ void main() {
             status = "blocked";
             message = running ? "Combo is already running." : "All 11 free beach combs have been used today.";
         } else {
+            // This is a read-only validation against the exact saved snapshot.
+            // Never issue an executable token for stale, offline or invalid routes.
+            boolean checked = cli_execute("call combo/combo.js watersheep-preview");
+            if (!checked || get_property("don_combo_shadow11_preview_status") != "ready") {
+                status = "blocked";
+                message = "Cannot review this route: " + get_property("don_combo_shadow11_preview_message") +
+                    ". Refresh DonComboMatrix and retry.";
+            } else {
             token = now_to_string("yyyyMMddHHmmss") + "-" + random(1000000000);
             set_property("don_combo_shadow11_token", token);
             set_property("don_combo_shadow11_token_owner", to_string(my_id()));
             set_property("don_combo_shadow11_token_day", to_string(gameday_to_int()));
+            set_property("don_combo_shadow11_token_snapshot", get_property("don_combo_shadow11_preview_snapshot"));
             status = "preview";
             message = "This runs up to " + remaining +
               " of the highest-ranked, tide-accessible known rare coordinates from the saved shadow table. " +
               "The snapshot must be less than 20 minutes old and belong to this player and game day. " +
               "Only free beach combs may be used. No WaterSheep calls can change the route mid-run.";
+            }
         }
     } else if (action == "execute") {
         string expected = get_property("don_combo_shadow11_token");
@@ -33,9 +43,21 @@ void main() {
           get_property("don_combo_shadow11_token_day") == to_string(gameday_to_int());
         // Consume the token before any KoL action, even on a failed attempt.
         set_property("don_combo_shadow11_token", "");
-        if (!valid || running || remaining == 0) {
+        string locked_snapshot = get_property("don_combo_shadow11_token_snapshot");
+        set_property("don_combo_shadow11_token_snapshot", "");
+        // Recheck after confirmation, and reject if the snapshot was replaced.
+        boolean checked = false;
+        if (valid && !running && remaining > 0) {
+            checked = cli_execute("call combo/combo.js watersheep-preview");
+        }
+        if (!valid || running || remaining == 0 || !checked ||
+            get_property("don_combo_shadow11_preview_status") != "ready" ||
+            locked_snapshot == "" ||
+            locked_snapshot != get_property("don_combo_shadow11_preview_snapshot")) {
             status = "blocked";
-            message = "Confirmation expired, Combo is active, or no free combs remain. Refresh the matrix and review again.";
+            message = "Confirmation invalid or route changed: " +
+                get_property("don_combo_shadow11_preview_message") +
+                ". Review the current WaterSheep snapshot again.";
         } else {
             status = "completed";
             boolean ok = cli_execute("call don_combo/don_combo_listener.ash combo shadow11");
@@ -48,6 +70,9 @@ void main() {
                     ". End reason: " + get_property("don_combo_last_run_end_reason") + ".";
             }
         }
+    } else {
+        status = "blocked";
+        message = "No review action submitted. Open the Shadow Route Lab and choose Review top 11.";
     }
     string target = "don_combo_matrix.html?player=" + my_id() + "&gameday=" + gameday_to_int();
     writeln("<!doctype html><html><head><meta charset='utf-8'><title>don_combo · Shadow 11</title></head>");

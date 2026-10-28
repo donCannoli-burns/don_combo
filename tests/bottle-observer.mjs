@@ -126,7 +126,7 @@ assert.match(
 assert.match(main, /finishObservation\("exhausted_fallback", row, column, before, output\)/);
 assert.match(main, /action_output: actionOutput/);
 assert.match(main, /autoTraceWaterSheepRun = shadow11 \|\| wsFree \|\| wsPaid/);
-assert.match(obs, /special_events: parseBottleOutput\(detail\.action_output \|\| ""\)/);
+assert.match(obs, /\.\.\.parseBottleOutput\(detail\.action_output \|\| ""\)/);
 assert.match(obs, /action_output_capture:/);
 assert.match(obs, /appendBufferToFile\(/);
 assert.match(runtime, /bottle_unknown_pool: evidence\.bottle_unknown_pool/);

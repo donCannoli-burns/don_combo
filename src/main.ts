@@ -12,6 +12,7 @@ import {
   handlingChoice,
   historicalPrice,
   inMultiFight,
+  lastChoice,
   isDarkMode,
   Item,
   myAdventures,
@@ -266,7 +267,7 @@ function _comb(tile: BeachTile): void {
   const ensureBeachChoice = (): void => {
     const beachActive = get("_beachCombing", false);
     const beachMinute = get("_beachMinutes", 0);
-    if (!beachChoiceReady(handlingChoice(), beachActive, beachMinute, minute)) {
+    if (!beachChoiceReady(handlingChoice(), beachActive, beachMinute, minute, lastChoice())) {
       if (choiceRecoveryAttempted)
         throw new Error("Beach choice recovery already attempted; no comb sent.");
       if (!beachActive || beachMinute !== minute || handlingChoice())
@@ -278,7 +279,7 @@ function _comb(tile: BeachTile): void {
     }
     if (
       !beachChoiceReady(
-        handlingChoice(), get("_beachCombing", false), get("_beachMinutes", 0), minute,
+        handlingChoice(), get("_beachCombing", false), get("_beachMinutes", 0), minute, lastChoice(),
       ) ||
       property.getString("_beachLayout") !== layoutString
     )

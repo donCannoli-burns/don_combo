@@ -46,6 +46,18 @@ const request = comb.indexOf("cliExecuteOutput(`beach comb");
 const receipt = comb.indexOf("nativeBeachCombReceipt(output)");
 const cleared = comb.indexOf('setProperty("don_combo_last_run_unverified_action", "")');
 assert.ok(pending > 0 && pending < request && request < receipt && receipt < cleared);
+assert.ok(
+  comb.indexOf("if (activeSpendCheckpoint)") > receipt &&
+    comb.indexOf("if (activeSpendCheckpoint)") < cleared,
+);
+assert.match(source, /manual reconciliation required\. No new combs started/);
+assert.match(source, /activeSpendCheckpoint = \{/);
+assert.match(source, /activeSpendCheckpoint = null/);
+assert.equal(
+  (source.match(/setProperty\("don_combo_last_run_unverified_action", ""\)/g) || []).length,
+  1,
+  "Only confirmed action may clear its pending record",
+);
 assert.equal((comb.match(/performVerifiedComb\(/g) || []).length, 6);
 assert.ok(comb.indexOf("performVerifiedComb(") < comb.indexOf("finishObservation("));
 

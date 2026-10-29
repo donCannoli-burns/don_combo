@@ -55,6 +55,9 @@ jobs:
       - name: Offline recovery and top-11 route regressions
         run: node --experimental-strip-types tests/recovery-route.mjs
 
+      - name: Beach choice recovery, native receipt and no-retry guards
+        run: node --experimental-strip-types tests/beach-choice-guard.mjs
+
       - name: Offline daily shadow cohort invariants
         run: node --experimental-strip-types tests/shadow-learning.mjs
 

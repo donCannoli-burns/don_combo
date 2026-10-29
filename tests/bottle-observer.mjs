@@ -109,19 +109,19 @@ const runtime = readFileSync(new URL("../src/don_combo_runtime.ts", import.meta.
 const html = readFileSync(new URL("../mafia/relay/don_combo_matrix.html", import.meta.url), "utf8");
 assert.match(
   main,
-  /const actionOutput = cliExecuteOutput\(\`beach comb \$\{row\} \$\{column\}\`\)/,
+  /const actionOutput = performVerifiedComb\(row, column\)/,
 );
 assert.match(
   main,
-  /const output = cliExecuteOutput\(\`beach comb \$\{whaleRow\[0\]\} \$\{whaleColumn\}\`\)/,
+  /const output = performVerifiedComb\(whaleRow\[0\], whaleColumn\)/,
 );
 assert.match(
   main,
-  /const output = cliExecuteOutput\(\`beach comb \$\{firstTwinkleRow\[0\]\} \$\{twinkleColumn\}\`\)/,
+  /const output = performVerifiedComb\(firstTwinkleRow\[0\], twinkleColumn\)/,
 );
 assert.match(
   main,
-  /const output = cliExecuteOutput\(\`beach comb \$\{firstRoughRow\[0\]\} \$\{roughcolumn\}\`\)/,
+  /const output = performVerifiedComb\(firstRoughRow\[0\], roughcolumn\)/,
 );
 assert.match(main, /finishObservation\("exhausted_fallback", row, column, before, output\)/);
 assert.match(main, /action_output: actionOutput/);

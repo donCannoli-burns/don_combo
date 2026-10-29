@@ -243,13 +243,17 @@ function _comb(tile: BeachTile): void {
 
   // Reopen the choice at most once BEFORE a comb request. Never retry
   // after an attempted comb whose native result is uncertain.
+  let choiceRecoveryAttempted = false;
   const ensureBeachChoice = (): void => {
     const beachActive = get("_beachCombing", false);
     const beachMinute = get("_beachMinutes", 0);
     if (!beachChoiceReady(handlingChoice(), beachActive, beachMinute, minute)) {
+      if (choiceRecoveryAttempted)
+        throw new Error("Beach choice recovery already attempted; no comb sent.");
       if (!beachActive || beachMinute !== minute || handlingChoice())
         throw new Error("Beach choice state changed; no comb sent.");
       print("don_combo: Beach Comb choice inactive; reopening once before action.", "gray");
+      choiceRecoveryAttempted = true;
       if (!cliExecute("beach visit"))
         throw new Error("Beach Comb visit recovery failed; no comb sent.");
     }
@@ -267,6 +271,7 @@ function _comb(tile: BeachTile): void {
     const coords = `${minute},${actualRow},${actualColumn}`;
     // Persist pending before sending an irreversible action. No automatic retry.
     setProperty("don_combo_last_run_unverified_action", coords);
+    ensureBeachChoice(); // Preference listeners must not invalidate the choice.
     const output = cliExecuteOutput(`beach comb ${actualRow} ${actualColumn}`);
     if (!nativeBeachCombReceipt(output))
       throw new Error(`Beach comb ${coords} returned no native success receipt; no retry.`);

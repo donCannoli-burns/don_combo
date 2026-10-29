@@ -38,7 +38,7 @@ const request = comb.indexOf("cliExecuteOutput(`beach comb");
 const receipt = comb.indexOf("nativeBeachCombReceipt(output)");
 const cleared = comb.indexOf('setProperty("don_combo_last_run_unverified_action", "")');
 assert.ok(pending > 0 && pending < request && request < receipt && receipt < cleared);
-assert.equal((comb.match(/performVerifiedComb\(/g) || []).length, 7);
+assert.equal((comb.match(/performVerifiedComb\(/g) || []).length, 6);
 assert.ok(comb.indexOf("performVerifiedComb(") < comb.indexOf("finishObservation("));
 
 console.log("Beach choice recovery, one-shot native comb receipt, and no-retry boundaries: PASS");

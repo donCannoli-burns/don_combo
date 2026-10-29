@@ -109,6 +109,60 @@ scores, send Kmail, or execute the main Combo route. After a green `ACTIVE` stat
 self-checking guard, then the collision-proof Don Combo listener and binary. **Do not use `combo 1` as a diagnostic**:
 that command really consumes a beach comb.
 
+## Timed CLI run and observation/value summary
+
+Every real `combo N`, `doncombo N`, or `combo watersheep-N` execution
+starts an in-memory wall-clock timer **before** WaterSheep pre-scoring.
+The executable prints a four-digit `+ (spent/requested)` line at start and
+**after each completed comb**, not for skipped/hidden candidate coordinates.
+These are completed **beach-comb actions**, including free beach combs, not
+necessarily adventures spent.
+
+Every recorded action also prints `+ event_observed=T/F event_name=...`.
+A tracked event means **some evidence was observed** in the pre-action
+beach layout or the just-completed action: visible scratches, high/very-high
+scratch density, a sand castle/twinkle/whale sighting, a verified native
+message-in-a-bottle line, or positively acquired scarce loot. A sighting is
+not the same thing as a confirmed rare-item harvest.
+
+After the regular `=== RESULTS ===`, the CLI prints
+`=== OBSERVATION ===` and `=== VALUE ===`:
+
+- Event rows use `number of comb observations / completed combs (percent)`.
+  Categories can overlap; there are no probabilities or multi-item
+  double-counts. High-scratch means at least six pre-action `c/C`
+  symbols in the visible front; very-high means at least eleven.
+- `any_rare_tiles` counts positive driftwood, cursed gear, meteorite
+  fragments, rainbow pearls, and the native bottle/whale encounters.
+  `uncommon_rare_tiles` is cursed gear, bottles and whale encounters.
+  `ultra_rare_tiles` is meteorite fragments and rainbow pearls.
+  A rare *target*, twinkle, or incidental castle drop alone is never
+  counted as a confirmed rare find.
+- The WaterSheep-only `revisited_tiles` counter means the planned rare
+  coordinate was **already marked combed** on the observed beach front.
+  It does **not** prove that a reward respawned. `planned_target_actually_combed`
+  is separate from whether the model predicted a rare outcome.
+- `correctly_predicted_tiles` is **N/A**, because the experimental
+  WaterSheep score mass is explicitly uncalibrated; the run does not
+  contain a verified per-tile rare-prediction label or ground truth.
+- Elapsed time includes pre-scoring, consent waits, combs, optional
+  sharing and end-of-run processing. The average is elapsed wall time
+  divided by completed combs.
+- `VALUE` reads KoLmafia's local `data/mallprices.txt` cache:
+  version header `983253`, then `item_id, timestamp, price` columns.
+  It never calls `mall_price()`, `mall_prices()`, or makes a live
+  Mall request. The estimate is acquired-item quantities times their
+  **cached historical** prices, plus raw acquired Meat. Unknown prices
+  display `N/A` and are excluded from the **known-price subtotal**;
+  stale prices remain estimates, not live sale quotes.
+
+A machine-readable copy is appended to
+`data/don_combo_run_reports.jsonl` after successful or cooperatively
+interrupted finalization. The receipt includes run context, event labels,
+category counts, elapsed milliseconds and the known-price valuation
+summary. Read-only `doncombo info`/`help`/`lifetime` and
+`watersheep-preview` do not create a run report or spend combs.
+
 ## Optional live rare-tile sharing via Kmail
 
 **OFF by default.** DonCombo does not send beach observations to any player

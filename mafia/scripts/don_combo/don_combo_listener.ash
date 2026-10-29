@@ -45,6 +45,12 @@ void run_runtime(string request_file) {
 void main(string command) {
     command = strip_ws(command);
 
+    // Read-only identity probe for don_combo status; no runtime or KoL actions.
+    if (command == "identify") {
+        print("DON_COMBO_LISTENER_V2 stable=don_combo/doncombo.js");
+        return;
+    }
+
     if (command == "" || command == "refresh") {
         refresh_context("combo-matrix");
         run_runtime(queue_request("don-combo-matrix", "refresh", "combo-matrix", "", "", ""));
@@ -67,7 +73,9 @@ void main(string command) {
         string args = "";
         if (length(command) > 5) args = strip_ws(substring(command, 5));
 
-        string invoke = "call combo/combo.js";
+        // Never dispatch through shared combo/combo.js: git sync with upstream
+        // can replace that executable while leaving the CLI listener installed.
+        string invoke = "call don_combo/doncombo.js";
         if (args != "") invoke = invoke + " " + args;
         if (!cli_execute(invoke)) {
             print("don_combo listener: Combo invocation failed; shadow refresh skipped.", "red");

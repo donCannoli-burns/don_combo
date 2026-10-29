@@ -19,6 +19,14 @@ const combStart = source.indexOf("function _comb(tile: BeachTile): void");
 const combEnd = source.indexOf("function deterministicRandom", combStart);
 assert.ok(combStart > 0 && combEnd > combStart);
 const comb = source.slice(combStart, combEnd);
+const traceStart = source.indexOf("function captureTargetPrediction(");
+const traceEnd = source.indexOf("function sessionDelta(", traceStart);
+const trace = source.slice(traceStart, traceEnd);
+assert.ok(trace.includes("activeRouteSnapshot?.candidates.find("));
+assert.ok(trace.includes('score_provenance: "frozen-route-pre-score-not-a-fresh-prediction"'));
+assert.ok(trace.indexOf("if (autoTraceWaterSheepRun)") < trace.indexOf("return traceTargetPrediction("));
+assert.ok(comb.includes("if (autoTraceWaterSheepRun && preActionPrediction?.error)"));
+assert.ok(source.includes("activeRouteSnapshot = null;"));
 
 // Model I/O must happen before live beach choice opens, not while the
 // choice/coords are being used. Only one native comb command is allowed.

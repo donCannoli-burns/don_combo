@@ -41,6 +41,7 @@ import {
   prescoreProgressNotice,
 } from "./runtime/prescore-progress";
 import { firstVisibleSandCastle } from "./runtime/sandcastle-observer";
+import { beachChoiceReady, nativeBeachCombReceipt } from "./runtime/beach-action-guard";
 import {
   observeRunAction, startRunInterface, runProgress,
   renderRunObservation, renderRunValue,
@@ -158,7 +159,7 @@ function captureTargetPrediction(
     return traceTargetPrediction(minute, row, column);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    print(`don_combo ML trace unavailable: ${message} · Combo continues normally.`, "gray");
+    print(`don_combo ML trace unavailable: ${message} · No action authorized; native state still required.`, "gray");
     return {
       schema: "don-combo-target-prediction/v0.1",
       generated_at: new Date().toISOString(),
@@ -190,6 +191,9 @@ function _comb(tile: BeachTile): void {
   // It's going to be really tedious to write tile.minute and tile.row all the time
   // So this is nice looking
   const { minute, row, column } = tile;
+  // The optional localhost model request must finish BEFORE opening the
+  // live Beach Comb choice; never interleave it with a native comb action.
+  const preActionPrediction = captureTargetPrediction(minute, row, column);
   if (!cliExecute(`beach wander ${minute};`))
     throw new Error(`Could not visit beach minute ${minute}; route stopped.`);
   const layoutString = property.getString("_beachLayout");
@@ -210,7 +214,39 @@ function _comb(tile: BeachTile): void {
       .map((rowLayout) => [parseInt(rowLayout[0]), rowLayout[1].split("")] as [number, string[]]),
   );
 
-  const preActionPrediction = captureTargetPrediction(minute, row, column);
+  // Reopen the choice at most once BEFORE a comb request. Never retry
+  // after an attempted comb whose native result is uncertain.
+  const ensureBeachChoice = (): void => {
+    const beachActive = get("_beachCombing", false);
+    const beachMinute = get("_beachMinutes", 0);
+    if (!beachChoiceReady(handlingChoice(), beachActive, beachMinute, minute)) {
+      if (!beachActive || beachMinute !== minute || handlingChoice())
+        throw new Error("Beach choice state changed; no comb sent.");
+      print("don_combo: Beach Comb choice inactive; reopening once before action.", "gray");
+      if (!cliExecute("beach visit"))
+        throw new Error("Beach Comb visit recovery failed; no comb sent.");
+    }
+    if (
+      !beachChoiceReady(
+        handlingChoice(), get("_beachCombing", false), get("_beachMinutes", 0), minute,
+      ) ||
+      property.getString("_beachLayout") !== layoutString
+    )
+      throw new Error("Beach choice/layout mismatch after visit; no comb sent.");
+  };
+
+  const performVerifiedComb = (actualRow: number, actualColumn: number): string => {
+    ensureBeachChoice();
+    const coords = `${minute},${actualRow},${actualColumn}`;
+    // Persist pending before sending an irreversible action. No automatic retry.
+    setProperty("don_combo_last_run_unverified_action", coords);
+    const output = cliExecuteOutput(`beach comb ${actualRow} ${actualColumn}`);
+    if (!nativeBeachCombReceipt(output))
+      throw new Error(`Beach comb ${coords} returned no native success receipt; no retry.`);
+    setProperty("don_combo_last_run_unverified_action", "");
+    return output;
+  };
+  ensureBeachChoice();
   const finishObservation = (
     outcome: BeachOutcome,
     actualRow: number,
@@ -269,7 +305,7 @@ function _comb(tile: BeachTile): void {
     const whaleColumn = whaleRow[1].findIndex((x) => x === "W");
     print("We found a whale. To hey deze's heart, we'll stab at it.", "red");
     const before = Session.current();
-    const output = cliExecuteOutput(`beach comb ${whaleRow[0]} ${whaleColumn}`);
+    const output = performVerifiedComb(whaleRow[0], whaleColumn);
     finishObservation("whale", whaleRow[0], whaleColumn, before, output);
     // By returning partway through, we avoid needing to use "else"
     // With the exception of try...finally shenanigans, using the return keyword will just immediately terminate the function
@@ -296,7 +332,7 @@ function _comb(tile: BeachTile): void {
       print("Our rare tile is uncombed, so let's go ahead and change that.", "red");
       // Grab the output of our comb and lowercase the resulting text
       const before = Session.current();
-      const actionOutput = cliExecuteOutput(`beach comb ${row} ${column}`);
+      const actionOutput = performVerifiedComb(row, column);
       const output = actionOutput.toLowerCase();
 
       // We exclude grain of sand as it means we didn't comb a twinkle as expected
@@ -335,7 +371,7 @@ function _comb(tile: BeachTile): void {
   if (castle) {
     print("Our rare tile is combed, but a sand castle is visible. Demolishing it.", HIGHLIGHT);
     const before = Session.current();
-    const output = cliExecuteOutput(`beach comb ${castle.row} ${castle.column}`);
+    const output = performVerifiedComb(castle.row, castle.column);
     finishObservation("sand_castle_fallback", castle.row, castle.column, before, output);
     return;
   }
@@ -347,7 +383,7 @@ function _comb(tile: BeachTile): void {
     print("Our rare tile is combed, but we found a twinkle!", HIGHLIGHT);
     const twinkleColumn = firstTwinkleRow[1].findIndex((x) => x === "t");
     const before = Session.current();
-    const output = cliExecuteOutput(`beach comb ${firstTwinkleRow[0]} ${twinkleColumn}`);
+    const output = performVerifiedComb(firstTwinkleRow[0], twinkleColumn);
     finishObservation("twinkle_fallback", firstTwinkleRow[0], twinkleColumn, before, output);
     return;
   }
@@ -362,14 +398,14 @@ function _comb(tile: BeachTile): void {
     );
     const roughcolumn = firstRoughRow[1].findIndex((x) => x === "r");
     const before = Session.current();
-    const output = cliExecuteOutput(`beach comb ${firstRoughRow[0]} ${roughcolumn}`);
+    const output = performVerifiedComb(firstRoughRow[0], roughcolumn);
     finishObservation("rough_fallback", firstRoughRow[0], roughcolumn, before, output);
     return;
   }
 
   print("We've exhausted all other options, so we're combing an already-combed tile.", HIGHLIGHT);
   const before = Session.current();
-  const output = cliExecuteOutput(`beach comb ${row} ${column}`);
+  const output = performVerifiedComb(row, column);
   finishObservation("exhausted_fallback", row, column, before, output);
 }
 
@@ -618,6 +654,7 @@ export function main(args?: string | number): void {
   set("don_combo_last_run_route_mode", routeMode);
   set("don_combo_last_run_paid_combs", 0);
   set("don_combo_last_run_combs", 0);
+  setProperty("don_combo_last_run_unverified_action", "");
   set("don_combo_last_run_end_reason", "running");
   set("don_combo_last_run_interrupt_consumed", false);
   set("don_combo_last_run_started_at", new Date(invocationStartMs).toISOString());

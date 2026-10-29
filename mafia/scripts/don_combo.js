@@ -145,7 +145,11 @@ function runCombo(args) {
 function main() {
   var args = joinArgs(arguments);
   if (args === "run" || args.indexOf("run ") === 0) {
-    runCombo(args === "run" ? "" : args.substring(4));
+    if (!runCombo(args === "run" ? "" : args.substring(4))) {
+      // The ASH/JS caller must observe a real execution failure, not merely
+      // a red log line followed by an apparently successful void return.
+      km.abort("Don Combo run did not complete successfully; post-run stage must not advance.");
+    }
   } else if (args === "status") {
     report(inspect());
   } else if (args === "-restore") {

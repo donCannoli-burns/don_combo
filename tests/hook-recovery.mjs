@@ -53,6 +53,8 @@ function scenario({ alias, listenerReady = true, binaryReady = true, command, ex
 }
 
 scenario({ alias: "combo => " + EXPECTED, command: "status", expectedWrites: 0, expectedActive: true });
+scenario({ alias: "<b> combo </b> => " + EXPECTED, command: "status", expectedWrites: 0, expectedActive: true });
+scenario({ alias: "<b> agentcall.combo </b> => something\n<b> combo </b> => " + EXPECTED, command: "status --r", expectedWrites: 0, expectedActive: true });
 scenario({ alias: "combo => call combo/combo.js %%", command: "status", expectedWrites: 0, expectedActive: false });
 scenario({ alias: "", command: "status --r", expectedWrites: 1, expectedActive: true });
 scenario({ alias: "combo => call other.ash %%", command: "-restore", expectedWrites: 1, expectedActive: true, savedBackup: "call other.ash %%" });
@@ -60,4 +62,4 @@ scenario({ alias: "combo => " + EXPECTED, command: "status --r", expectedWrites:
 scenario({ alias: "combo => call other.ash %%", listenerReady: false, command: "status --r", expectedWrites: 0, expectedActive: false });
 scenario({ alias: "combo => call other.ash %%", binaryReady: false, command: "-restore", expectedWrites: 0, expectedActive: false });
 
-console.log("DonCombo hook status and restore: 7 mock cases + stable-listener audit PASS");
+console.log("DonCombo hook status and restore: 9 mock cases + stable-listener audit PASS");

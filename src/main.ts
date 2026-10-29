@@ -126,6 +126,13 @@ let activeShadowRun: ShadowRunContext | null = null;
 let activeRunInterface: ReturnType<typeof startRunInterface> | null = null;
 let autoTraceWaterSheepRun = false;
 let activeRouteSnapshot: ShadowRouteSnapshot | null = null;
+// Set for one routed action at a time. Required before treating a native
+// "You comb" message as a verified completed comb.
+let activeSpendCheckpoint: {
+  freeBefore: number;
+  adventuresBefore: number;
+  freeOnly: boolean;
+} | null = null;
 // Per-run memory only. Never populated from saved ML events or session history.
 let activeLiveRareShare: LiveRareShareRow[] | null = null;
 
@@ -275,6 +282,18 @@ function _comb(tile: BeachTile): void {
     const output = cliExecuteOutput(`beach comb ${actualRow} ${actualColumn}`);
     if (!nativeBeachCombReceipt(output))
       throw new Error(`Beach comb ${coords} returned no native success receipt; no retry.`);
+    // The original paid/free counters were captured before beach wander.
+    // They cover the complete single attempt rather than only the final
+    // square click. Keep the pending record if spend cannot be verified.
+    if (activeSpendCheckpoint) {
+      const { freeBefore, adventuresBefore, freeOnly } = activeSpendCheckpoint;
+      const freeSpent = get("_freeBeachWalksUsed", 0) === freeBefore + 1;
+      const paidSpent = myAdventures() < adventuresBefore;
+      if (freeOnly && (!freeSpent || paidSpent))
+        throw new Error(`Free-only comb ${coords} lacked verified free spend; no retry.`);
+      if (!freeOnly && !freeSpent && !paidSpent)
+        throw new Error(`Paid-route comb ${coords} lacked verified spend; no retry.`);
+    }
     setProperty("don_combo_last_run_unverified_action", "");
     return output;
   };
@@ -600,6 +619,12 @@ export function main(args?: string | number): void {
   // We do this by first tracking what the session results are right now
   // Later, we will subtract these items and meat from our final results
   if (get("don_combo_running", false)) abort("Another Combo run is already active.");
+  // A previous native action with indeterminate outcome cannot be replayed.
+  // Clearing this preference requires human reconciliation of game/session
+  // receipts; never silently wipe it while starting a new run.
+  const unresolvedAction = getProperty("don_combo_last_run_unverified_action");
+  if (unresolvedAction)
+    abort(`Unresolved prior Beach Comb action (${unresolvedAction}); manual reconciliation required. No new combs started.`);
   print("+ Runtime timer started: " + new Date(invocationStartMs).toISOString(), "gray");
   const rawArg = typeof args === "string" ? args.trim() : args;
   const shadow11 = rawArg === "shadow11";
@@ -690,7 +715,6 @@ export function main(args?: string | number): void {
   set("don_combo_last_run_route_mode", routeMode);
   set("don_combo_last_run_paid_combs", 0);
   set("don_combo_last_run_combs", 0);
-  setProperty("don_combo_last_run_unverified_action", "");
   set("don_combo_last_run_end_reason", "running");
   set("don_combo_last_run_interrupt_consumed", false);
   set("don_combo_last_run_started_at", new Date(invocationStartMs).toISOString());
@@ -771,7 +795,16 @@ export function main(args?: string | number): void {
         const target = frozenRoute[completedCombs];
         if (!target || gamedayToInt() !== frozenGameday || Number(myId()) !== frozenPlayer)
           throw new Error("Shadow route day/player changed during execution.");
-        _comb(target);
+        activeSpendCheckpoint = {
+          freeBefore: before,
+          adventuresBefore: beforeAdventures,
+          freeOnly,
+        };
+        try {
+          _comb(target);
+        } finally {
+          activeSpendCheckpoint = null;
+        }
         const after = get("_freeBeachWalksUsed", 0);
         const afterAdventures = myAdventures();
         const freeSpent = after === before + 1;
@@ -840,6 +873,7 @@ export function main(args?: string | number): void {
     }
   } finally {
     activeLiveRareShare = null; // discard, never persist for replay
+    activeSpendCheckpoint = null;
     activeRunInterface = null; // no global report state between invocations
     set("logPreferenceChangeFilter", oldFilter);
     set("don_combo_running", false);

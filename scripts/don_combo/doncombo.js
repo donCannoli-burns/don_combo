@@ -8077,6 +8077,7 @@ function addFalseRare(tile) {
 // In this script, really only main is, but we may port this code into libram at some point
 // We'd want to export the comb function, but not _comb
 var activeShadowRun = null;
+var activeRunInterface = null;
 var autoTraceWaterSheepRun = false;
 // Per-run memory only. Never populated from saved ML events or session history.
 var activeLiveRareShare = null;
@@ -8176,6 +8177,16 @@ function _comb(tile) {
       pre_action_observed_at: preActionObservedAt,
       run_context: activeShadowRun
     });
+    if (activeRunInterface) {
+      var seen = observeRunAction(activeRunInterface, {
+        minute: minute, layout: layoutString, outcome: outcome,
+        planned_row: row, planned_col: column,
+        actual_row: actualRow, actual_col: actualColumn,
+        items: delta.items, output: actionOutput
+      });
+      kolmafia.print("+ event_observed=" + (seen.observed ? "T" : "F") +
+        " event_name=" + (seen.names.join(",") || "none"), "gray");
+    }
     // Only this just-completed native comb's delta can enter a sharing run.
     if (activeLiveRareShare !== null && shareDataEnabled()) {
       var sighting = liveRareFromAction({
@@ -8378,10 +8389,192 @@ function printSession(session) {
 // When called from the CLI, this will only ever have string inputs
 // We use string | number so that people can call this directly from other scripts, should they so desire
 // Realistically, everyone will do the CLI option. But it costs us nothing!
+// Passive Don Combo CLI observation report. No KoL actions and no network calls.
+// Kept in ES2018 syntax so the release bundle can embed the same pure helpers.
+function startRunInterface(requested, startedAt, routeMode) {
+  return {
+    schema: "don-combo-cli-run/v0.1",
+    started_at: new Date(startedAt).toISOString(),
+    requested_combs: requested,
+    route_mode: routeMode,
+    observations: [],
+    counts: { event_tiles: 0, any_rare_tiles: 0, uncommon_rare_tiles: 0,
+      ultra_rare_tiles: 0, revisited_tiles: 0, high_scratch: 0,
+      very_high_scratch: 0, sand_castles: 0, twinkles: 0, whales: 0,
+      message_bottles: 0, driftwood: 0, cursed_gear: 0,
+      meteorite: 0, rainbow_pearl: 0, route_target_matches: 0 },
+  };
+}
+function layoutHas(layout, symbol) {
+  return String(layout || "").split(",").some(function (row) {
+    var p = row.split(":");
+    return p.length === 2 && p[1].indexOf(symbol) >= 0;
+  });
+}
+function plannedCombed(layout, row, col) {
+  return String(layout || "").split(",").some(function (part) {
+    var p = part.split(":");
+    return p.length === 2 && Number(p[0]) === row && p[1].charAt(col) === "c";
+  });
+}
+function scratchSize(layout) {
+  var total = 0;
+  var seen = {};
+  var parts = String(layout || "").split(",");
+  for (var i = 0; i < parts.length; i++) {
+    var match = /^(\d+):([A-Za-z?]{10})$/.exec(parts[i]);
+    if (!match || seen[match[1]]) continue;
+    seen[match[1]] = true;
+    total += (match[2].match(/[cC]/g) || []).length;
+  }
+  return total;
+}
+function observeRunAction(report, action) {
+  if (!report) return { observed: false, names: [] };
+  var labels = [];
+  var add = function (name) { if (labels.indexOf(name) < 0) labels.push(name); };
+  var count = report.counts;
+  var size = scratchSize(action.layout);
+  if (size >= 6) { count.high_scratch++; add("high_scratch"); }
+  if (size >= 11) { count.very_high_scratch++; add("very_high_scratch"); }
+  if (layoutHas(action.layout, "C") || String(action.outcome).indexOf("sand_castle") === 0) {
+    count.sand_castles++; add("sand_castle");
+  }
+  if (layoutHas(action.layout, "t") || action.outcome === "twinkle_fallback") {
+    count.twinkles++; add("twinkle");
+  }
+  if (layoutHas(action.layout, "W") || action.outcome === "whale") {
+    count.whales++; add("beached_whale");
+  }
+  var bottle = String(action.output || "").split(/\r?\n/).some(function (line) {
+    return /^\s*(?:>\s*)?You found a message in a bottle!\s*$/i.test(line.trim());
+  });
+  if (bottle) { count.message_bottles++; add("message_in_a_bottle"); }
+  var rare = false, uncommon = bottle || action.outcome === "whale", ultra = false;
+  var items = action.items || {};
+  Object.keys(items).forEach(function (name) {
+    if (!(items[name] > 0)) return;
+    var n = name.toLowerCase().replace(/\s+/g, " ").trim();
+    if (n === "piece of driftwood") {
+      count.driftwood++; rare = true; add("piece_of_driftwood");
+    } else if (/^cursed(?: pirate)? (?:tricorn hat|tricorn|swash buckle|swashbuckle|cutlass)$/.test(n)) {
+      count.cursed_gear++; rare = true; uncommon = true; add("cursed_pirate_gear");
+    } else if (n === "meteorite fragment") {
+      count.meteorite++; rare = true; ultra = true; add("meteorite_fragment");
+    } else if (n === "rainbow pearl") {
+      count.rainbow_pearl++; rare = true; ultra = true; add("rainbow_pearl");
+    }
+  });
+  // Encounter-only bottle/whale are admitted to the inclusive scarce ladder.
+  if (uncommon) rare = true;
+  if (rare) count.any_rare_tiles++;
+  if (uncommon) count.uncommon_rare_tiles++;
+  if (ultra) count.ultra_rare_tiles++;
+  var watersheep = report.route_mode.indexOf("watersheep-") === 0;
+  var revisit = watersheep && plannedCombed(action.layout, action.planned_row, action.planned_col);
+  if (revisit) { count.revisited_tiles++; add("planned_rare_revisit"); }
+  if (watersheep && action.planned_row === action.actual_row &&
+      action.planned_col === action.actual_col) count.route_target_matches++;
+  if (labels.length > 0) count.event_tiles++;
+  report.observations.push({ minute: action.minute, row: action.actual_row,
+    column: action.actual_col, outcome: action.outcome, labels: labels,
+    planned_revisit: revisit, scratch_count: size });
+  return { observed: labels.length > 0, names: labels };
+}
+function runProgress(spent, requested) {
+  return "+ (" + String(spent).padStart(4, "0") + "/" +
+    String(requested).padStart(4, "0") + ") -- turns(spent/requested; completed beach combs)";
+}
+function runRate(value, total) {
+  return value + "/" + total + " (" + (total ? (100 * value / total).toFixed(2) : "0.00") + "%)";
+}
+function renderRunObservation(report, completed, finishedAt) {
+  var c = report.counts;
+  var elapsed = Math.max(0, finishedAt - Date.parse(report.started_at));
+  var mins = Math.floor(elapsed / 60000);
+  var secs = Math.floor(elapsed / 1000) % 60;
+  var millis = Math.floor(elapsed % 1000);
+  var duration = mins + "m " + String(secs).padStart(2, "0") + "s " +
+    String(millis).padStart(3, "0") + "ms";
+  var rows = ["+ === OBSERVATION ===",
+    "+ timestamp: " + new Date(finishedAt).toISOString(),
+    "+ event_tiles: " + runRate(c.event_tiles, completed),
+    "+ high_scratch: " + runRate(c.high_scratch, completed),
+    "+ very_high_scratch: " + runRate(c.very_high_scratch, completed),
+    "+ sand_castles: " + runRate(c.sand_castles, completed),
+    "+ twinkles: " + runRate(c.twinkles, completed),
+    "+ beached_whale: " + runRate(c.whales, completed),
+    "+ message_in_a_bottle: " + runRate(c.message_bottles, completed),
+    "+ any_rare_tiles: " + runRate(c.any_rare_tiles, completed),
+    "+ uncommon_rare_tiles: " + runRate(c.uncommon_rare_tiles, completed),
+    "+ ultra_rare_tiles: " + runRate(c.ultra_rare_tiles, completed),
+    "+ piece_of_driftwood: " + runRate(c.driftwood, completed),
+    "+ cursed_pirate_gear: " + runRate(c.cursed_gear, completed),
+    "+ meteorite_fragment: " + runRate(c.meteorite, completed),
+    "+ rainbow_pearl: " + runRate(c.rainbow_pearl, completed)];
+  if (report.route_mode.indexOf("watersheep-") === 0) {
+    rows.push("+ revisited_tiles (planned already-combed): " + runRate(c.revisited_tiles, completed));
+    rows.push("+ correctly_predicted_tiles: N/A (WaterSheep scores uncalibrated; no verified prediction label)");
+    rows.push("+ planned_target_actually_combed: " + runRate(c.route_target_matches, completed));
+  } else {
+    rows.push("+ revisited_tiles: N/A (only classified for WaterSheep routes)");
+    rows.push("+ correctly_predicted_tiles: N/A (no WaterSheep prediction)");
+  }
+  rows.push("+ total IRL time: " + duration);
+  rows.push("+ average time per completed comb: " +
+    (completed ? (elapsed / completed / 1000).toFixed(3) + "s" : "N/A (0 combs)"));
+  rows.push("+ note: event categories overlap; only item deltas/native bottle/whale actions count as rare finds.");
+  return rows;
+}
+function priceCacheFromText(text) {
+  var cache = {};
+  var lines = String(text || "").split(/\r?\n/);
+  // KoLmafia mallprices.txt version 0xF00D5, rows: item_id TAB timestamp TAB price.
+  if (!lines.length || Number(lines[0].trim()) !== 983253) return { prices: cache, valid: false };
+  for (var i = 1; i < lines.length; i++) {
+    var fields = lines[i].trim().split(/\s+/);
+    if (fields.length < 3) continue;
+    var id = Number(fields[0]), ts = Number(fields[1]), price = Number(fields[2]);
+    if (!Number.isInteger(id) || id < 1 || !Number.isFinite(ts) || ts <= 0 ||
+      !Number.isInteger(price) || price <= 0 || price > 999999999) continue;
+    if (!cache[id] || cache[id].timestamp < ts) cache[id] = { timestamp: ts, price: price };
+  }
+  return { prices: cache, valid: true };
+}
+function renderRunValue(items, rawMeat, cachedText) {
+  var cache = priceCacheFromText(cachedText);
+  var rows = ["+ === VALUE ===",
+    "+ source: local KoLmafia data/mallprices.txt (historical cache only; no Mall requests)"];
+  var priced = 0, unknown = 0, total = rawMeat;
+  var details = items.map(function (e) {
+    var id = Number(e.id), quantity = Number(e.quantity);
+    var hit = cache.prices[id];
+    var price = hit ? hit.price : null;
+    if (price === null) unknown++;
+    else { priced++; total += quantity * price; }
+    return { name: e.name, quantity: quantity, price: price,
+      subtotal: price === null ? null : quantity * price, price_timestamp: hit ? hit.timestamp : null };
+  });
+  details.sort(function (a,b) { return (b.subtotal || 0) - (a.subtotal || 0); });
+  details.forEach(function (d) {
+    rows.push("+ " + d.name + " | " + d.quantity + " x " +
+      (d.price === null ? "N/A" : d.price.toLocaleString("en-US")) + " = " +
+      (d.subtotal === null ? "unknown" : d.subtotal.toLocaleString("en-US")) + " meat");
+  });
+  rows.push("+ raw meat: " + rawMeat.toLocaleString("en-US"));
+  rows.push("+ est final total: " + total.toLocaleString("en-US") +
+    " meat" + (unknown ? " (known-price subtotal; " + unknown + " unpriced item types)" : ""));
+  if (!cache.valid) rows.push("+ cached price file missing or incompatible; unknown items not valued.");
+  return { lines: rows, priced: priced, unpriced: unknown,
+    estimated_total_known_meat: total, file_valid: cache.valid, items: details };
+}
+
+
 function main(args) {
   // Sometimes people try to run things with insanely old mafia versions and run into problems
   // Think of this as babyproofing
   sinceKolmafiaRevision(26118);
+  var invocationStartMs = Date.now(); // Includes optional pre-scoring and consent wait.
 
   // Read-only installation diagnostic. This string is deliberately absent
   // from upstream Combo, making executable resolution easy to verify.
@@ -8503,6 +8696,8 @@ function main(args) {
   };
   var freeBefore = get("_freeBeachWalksUsed", 0);
   activeShadowRun = runContext;
+  var runInterface = startRunInterface(combs, invocationStartMs, routeMode);
+  activeRunInterface = runInterface;
   activeLiveRareShare = shareThisRun ? [] : null;
   // Routed WaterSheep gets a pre-action prediction per target automatically;
   // vanilla Combo keeps the existing opt-in don_combo_ml_trace property.
@@ -8510,6 +8705,8 @@ function main(args) {
   var completedCombs = 0;
   var interrupted = false;
   var cleanFinish = false;
+  kolmafia.print("+ Runtime timer started: " + runInterface.started_at, "gray");
+  kolmafia.print(runProgress(0, combs), "gray");
   try {
     var _activeLiveRareShare;
     while (completedCombs < combs) {
@@ -8542,6 +8739,7 @@ function main(args) {
         if (comb()) completedCombs++;
       }
 
+      kolmafia.print(runProgress(completedCombs, combs), "gray");
       // If the request arrived during the comb, the observation/loot trace has
       // already been finalized. Stop here before beginning the next target.
       if (consumeInterruptRequest()) {
@@ -8593,6 +8791,7 @@ function main(args) {
     }
   } finally {
     activeLiveRareShare = null; // discard, never persist for replay
+    activeRunInterface = null; // clear transient report between runs
     _set("logPreferenceChangeFilter", oldFilter);
     _set("don_combo_running", false);
     _set("don_combo_interrupt", false);
@@ -8626,6 +8825,29 @@ function main(args) {
   printSession(final);
   var lifetime = Session.add(final, Session.fromFile("combo_results.json"));
   lifetime.toFile("combo_results.json");
+  var reportEndedAtMs = Date.now();
+  var observationLines = renderRunObservation(runInterface, completedCombs, reportEndedAtMs);
+  observationLines.forEach(function (line) { kolmafia.print(line, "gray"); });
+  var priceText = "";
+  try { priceText = String(kolmafia.fileToBuffer("mallprices.txt") || ""); }
+  catch (_priceError) { /* absent local cache */ }
+  var value = renderRunValue(Array.from(final.items).map(function (entry) {
+    return { id: entry[0].id, name: entry[0].name, quantity: entry[1] };
+  }), final.meat, priceText);
+  value.lines.forEach(function (line) { kolmafia.print(line, "gray"); });
+  kolmafia.print("");
+  try {
+    kolmafia.appendBufferToFile(JSON.stringify(Object.assign({}, runInterface, {
+      completed_combs: completedCombs,
+      status: interrupted ? "interrupted" : "completed",
+      ended_at: new Date(reportEndedAtMs).toISOString(),
+      elapsed_ms: reportEndedAtMs - invocationStartMs,
+      value: { estimated_total_known_meat: value.estimated_total_known_meat,
+        unpriced_item_types: value.unpriced, local_cache_valid: value.file_valid }
+    })) + "\n", "don_combo_run_reports.jsonl");
+  } catch (error) {
+    kolmafia.print("don_combo: CLI report archive unavailable: " + String(error), "gray");
+  }
   kolmafia.print("don_combo: results saved; script finished.", "gray");
 }
 

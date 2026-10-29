@@ -29,7 +29,9 @@ function aliasDefinition() {
   }
   var lines = output.split(/\r?\n/);
   for (var i = 0; i < lines.length; i++) {
-    var match = lines[i].match(/^\s*(?:>\s*)?combo(?:\s+%%)?\s*=>\s*(.*?)\s*$/i);
+    // KoLmafia alias listings may arrive as HTML: <b> combo </b> => ...
+    var listing = lines[i].replace(/<\/?b>/gi, "").replace(/&gt;/gi, ">").replace(/&amp;/gi, "&");
+    var match = listing.match(/^\s*(?:>\s*)?combo(?:\s+%%)?\s*=>\s*(.*?)\s*$/i);
     if (match) return { value: trim(match[1]), error: null };
   }
   return { value: null, error: null };

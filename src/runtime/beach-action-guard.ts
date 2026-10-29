@@ -5,9 +5,11 @@ export function beachChoiceReady(
   beachCombing: boolean,
   currentMinute: number,
   expectedMinute: number,
+  activeChoice: number,
 ): boolean {
   return (
     handlingChoice &&
+    activeChoice === 1388 &&
     beachCombing &&
     Number.isInteger(expectedMinute) &&
     expectedMinute >= 1 &&

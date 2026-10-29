@@ -8682,7 +8682,7 @@ function main(args) {
   _set("don_combo_last_run_combs", 0);
   _set("don_combo_last_run_end_reason", "running");
   _set("don_combo_last_run_interrupt_consumed", false);
-  _set("don_combo_last_run_started_at", new Date().toISOString());
+  _set("don_combo_last_run_started_at", new Date(invocationStartMs).toISOString());
   _set("don_combo_last_run_ended_at", "");
   var mlEventsBefore = loadMlTraceEvents(0).total;
   _set("don_combo_last_run_ml_events_before", mlEventsBefore);

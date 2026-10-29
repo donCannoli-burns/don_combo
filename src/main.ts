@@ -23,6 +23,7 @@ import {
 import { $items, get, Kmail, property, Session, set, sinceKolmafiaRevision } from "libram";
 
 import { prepareWaterSheepRoute, traceTargetPrediction } from "./don_combo_runtime";
+import { beachChoiceReady, nativeBeachCombReceipt } from "./runtime/beach-action-guard";
 import {
   LIVE_RARE_SHARE_PREF,
   LIVE_RARE_SHARE_RECIPIENT,
@@ -41,7 +42,6 @@ import {
   prescoreProgressNotice,
 } from "./runtime/prescore-progress";
 import { firstVisibleSandCastle } from "./runtime/sandcastle-observer";
-import { beachChoiceReady, nativeBeachCombReceipt } from "./runtime/beach-action-guard";
 import {
   observeRunAction, startRunInterface, runProgress,
   renderRunObservation, renderRunValue,

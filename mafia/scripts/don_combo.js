@@ -1,11 +1,13 @@
 /*
  * Don Combo CLI hook control.
- * Usage: don_combo status | don_combo -restore | don_combo status --r
+ * Usage: don_combo status | don_combo -restore | don_combo status --r | combo <args>
  * Status and probes are read-only; restore changes only the local combo alias.
+ * The guarded combo entrypoint never dispatches through the combo alias itself.
  */
 var km = require("kolmafia");
 
-var HOOK = "call don_combo/don_combo_listener.ash combo %%";
+var HOOK = "call don_combo.js run %%";
+var LISTENER_ROUTE = "call don_combo/don_combo_listener.ash combo";
 var HOOK_COMMAND = "alias combo => " + HOOK;
 var SAVED_ALIAS_PREF = "don_combo_previous_combo_alias";
 var LISTENER_ID = "DON_COMBO_LISTENER_V2";
@@ -97,9 +99,40 @@ function restore() {
   km.print("Don Combo: combo hook restored and verified. No beach combs executed.", "green");
   return true;
 }
+function runCombo(args) {
+  // The script invocation itself is the guard: no recursive combo alias call.
+  // Accept one known CLI argument, not multi-command gCLI syntax.
+  var payload = trim(args);
+  if (payload && !/^(?:[0-9]+|watersheep-free|watersheep-[1-9][0-9]*|shadow11|info|help|lifetime|watersheep-preview)$/.test(payload)) {
+    km.print("Don Combo: invalid combo argument; refusing to dispatch: " + payload, "red");
+    return false;
+  }
+  var state = inspect();
+  if (!state.active) {
+    km.print("Don Combo: hook inactive; attempting restore before invoking listener.", "gray");
+    if (!restore()) {
+      km.print("Don Combo: still INACTIVE; listener was NOT called.", "red");
+      return false;
+    }
+    state = inspect();
+  }
+  if (!state.active) {
+    km.print("Don Combo: hook is INACTIVE after verification; listener was NOT called.", "red");
+    return false;
+  }
+  // Execute the collision-proof listener directly. Never cliExecute("combo ...").
+  var invoke = LISTENER_ROUTE + (payload ? " " + payload : "");
+  if (!km.cliExecute(invoke)) {
+    km.print("Don Combo: listener invocation failed.", "red");
+    return false;
+  }
+  return true;
+}
 function main() {
   var args = joinArgs(arguments);
-  if (args === "status") {
+  if (args === "run" || args.indexOf("run ") === 0) {
+    runCombo(args === "run" ? "" : args.substring(4));
+  } else if (args === "status") {
     report(inspect());
   } else if (args === "-restore") {
     restore();
@@ -117,6 +150,7 @@ function main() {
     km.print("  don_combo status       - read-only hook/executable check");
     km.print("  don_combo -restore     - manually restore combo alias");
     km.print("  don_combo status --r   - check and restore only if inactive");
+    km.print("  combo <args>           - verify, repair if needed, and call listener");
   }
 }
 module.exports.main = main;

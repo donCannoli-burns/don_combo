@@ -41,6 +41,10 @@ import {
   prescoreProgressNotice,
 } from "./runtime/prescore-progress";
 import { firstVisibleSandCastle } from "./runtime/sandcastle-observer";
+import {
+  observeRunAction, startRunInterface, runProgress,
+  renderRunObservation, renderRunValue,
+} from "./runtime/run-interface";
 import { summarizeShadowRun, type ShadowRunContext } from "./runtime/shadow-learning";
 import {
   compileShadowTop11,
@@ -118,6 +122,7 @@ function addFalseRare(tile: BeachTile) {
 // In this script, really only main is, but we may port this code into libram at some point
 // We'd want to export the comb function, but not _comb
 let activeShadowRun: ShadowRunContext | null = null;
+let activeRunInterface: ReturnType<typeof startRunInterface> | null = null;
 let autoTraceWaterSheepRun = false;
 // Per-run memory only. Never populated from saved ML events or session history.
 let activeLiveRareShare: LiveRareShareRow[] | null = null;
@@ -224,6 +229,20 @@ function _comb(tile: BeachTile): void {
       pre_action_observed_at: preActionObservedAt,
       run_context: activeShadowRun,
     });
+    // Passive per-comb report: one observation, never a game action.
+    if (activeRunInterface) {
+      const seen = observeRunAction(activeRunInterface, {
+        minute, layout: layoutString, outcome,
+        planned_row: row, planned_col: column,
+        actual_row: actualRow, actual_col: actualColumn,
+        items: delta.items, output: actionOutput,
+      });
+      print(
+        "+ event_observed=" + (seen.observed ? "T" : "F") +
+          " event_name=" + (seen.names.join(",") || "none"),
+        "gray",
+      );
+    }
     // Only this just-completed native comb's delta can enter a sharing run.
     if (activeLiveRareShare !== null && shareDataEnabled()) {
       const sighting = liveRareFromAction({
@@ -458,6 +477,7 @@ export function main(args?: string | number): void {
   // Sometimes people try to run things with insanely old mafia versions and run into problems
   // Think of this as babyproofing
   sinceKolmafiaRevision(26118);
+  const invocationStartMs = Date.now(); // Includes optional pre-scoring and consent wait.
 
   // Read-only installation diagnostic. This string is deliberately absent
   // from upstream Combo, making executable resolution easy to verify.
@@ -644,6 +664,8 @@ export function main(args?: string | number): void {
   };
   const freeBefore = get("_freeBeachWalksUsed", 0);
   activeShadowRun = runContext;
+  const runInterface = startRunInterface(combs, invocationStartMs, routeMode);
+  activeRunInterface = runInterface;
   activeLiveRareShare = shareThisRun ? [] : null;
   // Routed WaterSheep gets a pre-action prediction per target automatically;
   // vanilla Combo keeps the existing opt-in don_combo_ml_trace property.
@@ -651,6 +673,8 @@ export function main(args?: string | number): void {
   let completedCombs = 0;
   let interrupted = false;
   let cleanFinish = false;
+  print("+ Runtime timer started: " + runInterface.started_at, "gray");
+  print(runProgress(0, combs), "gray");
   try {
     while (completedCombs < combs) {
       // A relay interrupt is cooperative: never cut through an in-flight comb.
@@ -689,6 +713,7 @@ export function main(args?: string | number): void {
         if (comb()) completedCombs++;
       }
 
+      print(runProgress(completedCombs, combs), "gray");
       // If the request arrived during the comb, the observation/loot trace has
       // already been finalized. Stop here before beginning the next target.
       if (consumeInterruptRequest()) {
@@ -740,6 +765,7 @@ export function main(args?: string | number): void {
     }
   } finally {
     activeLiveRareShare = null; // discard, never persist for replay
+    activeRunInterface = null; // no global report state between invocations
     set("logPreferenceChangeFilter", oldFilter);
     set("don_combo_running", false);
     set("don_combo_interrupt", false);
@@ -799,5 +825,36 @@ export function main(args?: string | number): void {
 
   const lifetime = Session.add(final, Session.fromFile("combo_results.json"));
   lifetime.toFile("combo_results.json");
+
+  // Final human-readable report and passive machine-readable receipt.
+  // Read only the local mallprices.txt cache; never invoke mallPrice().
+  const reportEndedAtMs = Date.now();
+  const observationLines = renderRunObservation(runInterface, completedCombs, reportEndedAtMs);
+  for (const line of observationLines) print(line, "gray");
+  let priceText = "";
+  try { priceText = String(fileToBuffer("mallprices.txt") || ""); } catch { /* absent cache */ }
+  const value = renderRunValue(
+    [...final.items].map(([item, quantity]) => ({ id: item.id, name: item.name, quantity })),
+    final.meat,
+    priceText,
+  );
+  for (const line of value.lines) print(line, "gray");
+  print("");
+  try {
+    appendBufferToFile(
+      JSON.stringify({
+        ...runInterface,
+        completed_combs: completedCombs,
+        status: interrupted ? "interrupted" : "completed",
+        ended_at: new Date(reportEndedAtMs).toISOString(),
+        elapsed_ms: reportEndedAtMs - invocationStartMs,
+        value: { estimated_total_known_meat: value.estimated_total_known_meat,
+          unpriced_item_types: value.unpriced, local_cache_valid: value.file_valid },
+      }) + "\n",
+      "don_combo_run_reports.jsonl",
+    );
+  } catch (error) {
+    print("don_combo: CLI report archive unavailable: " + String(error), "gray");
+  }
   print("don_combo: results saved; script finished.", "gray");
 }

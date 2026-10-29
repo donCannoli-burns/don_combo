@@ -8398,7 +8398,7 @@ function startRunInterface(requested, startedAt, routeMode) {
     requested_combs: requested,
     route_mode: routeMode,
     observations: [],
-    counts: { event_tiles: 0, any_rare_tiles: 0, uncommon_rare_tiles: 0,
+    counts: { event_tiles: 0, scratched_fronts: 0, any_rare_tiles: 0, uncommon_rare_tiles: 0,
       ultra_rare_tiles: 0, revisited_tiles: 0, high_scratch: 0,
       very_high_scratch: 0, sand_castles: 0, twinkles: 0, whales: 0,
       message_bottles: 0, driftwood: 0, cursed_gear: 0,
@@ -8435,6 +8435,7 @@ function observeRunAction(report, action) {
   var add = function (name) { if (labels.indexOf(name) < 0) labels.push(name); };
   var count = report.counts;
   var size = scratchSize(action.layout);
+  if (size > 0) { count.scratched_fronts++; add("scratch_observed"); }
   if (size >= 6) { count.high_scratch++; add("high_scratch"); }
   if (size >= 11) { count.very_high_scratch++; add("very_high_scratch"); }
   if (layoutHas(action.layout, "C") || String(action.outcome).indexOf("sand_castle") === 0) {
@@ -8499,6 +8500,7 @@ function renderRunObservation(report, completed, finishedAt) {
   var rows = ["+ === OBSERVATION ===",
     "+ timestamp: " + new Date(finishedAt).toISOString(),
     "+ event_tiles: " + runRate(c.event_tiles, completed),
+    "+ scratches_any: " + runRate(c.scratched_fronts, completed),
     "+ high_scratch: " + runRate(c.high_scratch, completed),
     "+ very_high_scratch: " + runRate(c.very_high_scratch, completed),
     "+ sand_castles: " + runRate(c.sand_castles, completed),

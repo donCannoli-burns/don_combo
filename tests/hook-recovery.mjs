@@ -9,7 +9,7 @@ assert.match(listener, /DON_COMBO_LISTENER_V2 stable=don_combo\/doncombo\.js/);
 assert.match(listener, /string invoke = "call don_combo\/doncombo\.js"/);
 assert.doesNotMatch(listener, /string invoke = "call combo\/combo\.js"/);
 
-const EXPECTED = "call don_combo/don_combo_listener.ash combo %%";
+const EXPECTED = "call don_combo.js run %%";
 const commands = ["status", "-restore", "status --r"];
 
 function scenario({ alias, listenerReady = true, binaryReady = true, command, expectedWrites, expectedActive, savedBackup }) {
@@ -62,4 +62,67 @@ scenario({ alias: "combo => " + EXPECTED, command: "status --r", expectedWrites:
 scenario({ alias: "combo => call other.ash %%", listenerReady: false, command: "status --r", expectedWrites: 0, expectedActive: false });
 scenario({ alias: "combo => call other.ash %%", binaryReady: false, command: "-restore", expectedWrites: 0, expectedActive: false });
 
-console.log("DonCombo hook status and restore: 9 mock cases + stable-listener audit PASS");
+
+// The guarded combo alias must dispatch only after the internal Boolean
+// verification succeeds. Never rely on comparing printed status text.
+function runScenario({
+  alias,
+  listenerReady = true,
+  binaryReady = true,
+  command = "run watersheep-30",
+  expectedRestores = 0,
+  expectedDispatches = 1,
+  listenerSucceeds = true,
+}) {
+  let current = alias;
+  const calls = [];
+  const output = [];
+  const prefs = {};
+  const mafia = {
+    cliExecuteOutput(cmd) {
+      calls.push(["read", cmd]);
+      if (cmd === "alias combo") return current;
+      if (cmd === "call don_combo/don_combo_listener.ash identify")
+        return listenerReady ? "DON_COMBO_LISTENER_V2 stable=don_combo/doncombo.js" : "missing";
+      if (cmd === "call don_combo/doncombo.js info")
+        return binaryReady ? "DonCombo extended CLI active" : "missing";
+      throw Error("unexpected probe: " + cmd);
+    },
+    cliExecute(cmd) {
+      calls.push(["write", cmd]);
+      if (cmd === "alias combo => " + EXPECTED) {
+        current = "combo => " + EXPECTED;
+        return true;
+      }
+      if (cmd.startsWith("call don_combo/don_combo_listener.ash combo"))
+        return listenerSucceeds;
+      throw Error("unexpected CLI call " + cmd);
+    },
+    getProperty(name) { return prefs[name] ?? ""; },
+    setProperty(name, value) { prefs[name] = value; },
+    print(value) { output.push(value); },
+  };
+  const module = { exports: {} };
+  runInNewContext(control, { require: () => mafia, module, exports: module.exports });
+  module.exports.main(command);
+  const writes = calls.filter(([kind]) => kind === "write").map(([, value]) => value);
+  const restores = writes.filter(value => value === "alias combo => " + EXPECTED);
+  const dispatches = writes.filter(value => value.startsWith("call don_combo/don_combo_listener.ash combo"));
+  assert.equal(restores.length, expectedRestores);
+  assert.equal(dispatches.length, expectedDispatches);
+  assert.ok(!writes.some(value => /^combo(?:\s|$)/.test(value)), "Recursive combo dispatch forbidden");
+  assert.ok(!writes.some(value => /beach wander|beach comb/i.test(value)), "Controller never combs directly");
+  if (expectedDispatches === 0 && command.startsWith("run"))
+    assert.ok(output.some(value => /INACTIVE|invalid combo argument/.test(value)));
+}
+
+runScenario({ alias: "combo => " + EXPECTED });
+runScenario({ alias: "<b> combo </b> => " + EXPECTED, command: "run watersheep-free" });
+runScenario({ alias: "combo => call combo/combo.js %%", command: "run 1", expectedRestores: 1 });
+runScenario({ alias: "combo => " + EXPECTED, command: "run", expectedDispatches: 1 });
+runScenario({ alias: "combo => other", listenerReady: false, expectedDispatches: 0 });
+runScenario({ alias: "combo => other", binaryReady: false, expectedDispatches: 0 });
+runScenario({ alias: "combo => " + EXPECTED, command: "run watersheep-30; wait 1", expectedDispatches: 0 });
+runScenario({ alias: "combo => " + EXPECTED, command: "run 10 11", expectedDispatches: 0 });
+
+console.log("DonCombo guarded run and recovery: 9 status/restore + 8 dispatch scenarios PASS");

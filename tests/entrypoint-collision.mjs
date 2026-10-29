@@ -5,6 +5,10 @@ const source = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
 const buildConfig = readFileSync(new URL("../rollup.config.ts", import.meta.url), "utf8");
 const legacy = new URL("../dist/scripts/combo/combo.js", import.meta.url);
 const unique = new URL("../dist/scripts/don_combo/doncombo.js", import.meta.url);
+const wrapper = readFileSync(new URL("../mafia/scripts/don_combo.js", import.meta.url), "utf8");
+assert.match(wrapper, /don_combo_last_run_status/);
+assert.match(wrapper, /don_combo_last_run_started_at/);
+assert.match(wrapper, /km\.abort\("Don Combo run did not complete successfully/);
 
 assert.match(buildConfig, /"scripts\/combo\/combo": "src\/main\.ts"/);
 assert.match(buildConfig, /"scripts\/don_combo\/doncombo": "src\/main\.ts"/);

@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { beachChoiceReady, nativeBeachCombReceipt } from "../src/runtime/beach-action-guard.ts";
 
-assert.equal(beachChoiceReady(true, true, 504, 504), true);
-assert.equal(beachChoiceReady(false, true, 504, 504), false); // observed failure
-assert.equal(beachChoiceReady(true, false, 504, 504), false);
-assert.equal(beachChoiceReady(true, true, 503, 504), false);
-assert.equal(beachChoiceReady(true, true, 0, 0), false);
-assert.equal(beachChoiceReady(true, true, 10001, 10001), false);
+assert.equal(beachChoiceReady(true, true, 504, 504, 1388), true);
+assert.equal(beachChoiceReady(false, true, 504, 504, 1388), false); // observed failure
+assert.equal(beachChoiceReady(true, true, 504, 504, 1234), false); // unrelated choice
+assert.equal(beachChoiceReady(true, false, 504, 504, 1388), false);
+assert.equal(beachChoiceReady(true, true, 503, 504, 1388), false);
+assert.equal(beachChoiceReady(true, true, 0, 0, 1388), false);
+assert.equal(beachChoiceReady(true, true, 10001, 10001, 1388), false);
 assert.equal(nativeBeachCombReceipt("You comb the area and find sand."), true);
 assert.equal(nativeBeachCombReceipt("You comb all of the meat off the whale."), true);
 assert.equal(nativeBeachCombReceipt("You have not VISITed the Beach Comb yet."), false);

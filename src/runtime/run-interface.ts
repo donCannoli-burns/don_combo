@@ -153,6 +153,13 @@ export function priceCacheFromText(text) {
   }
   return { prices: cache, valid: true };
 }
+// KoLmafia's Rhino Number.toLocaleString does not accept "en-US"; in some
+// revisions it treats that argument as a radix, causing "illegal radix 0".
+export function formatMeatNumber(value) {
+  var pieces = String(value).split(".");
+  pieces[0] = pieces[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return pieces.join(".");
+}
 export function renderRunValue(items, rawMeat, cachedText) {
   var cache = priceCacheFromText(cachedText);
   var rows = ["+ === VALUE ===",
@@ -170,11 +177,11 @@ export function renderRunValue(items, rawMeat, cachedText) {
   details.sort(function (a,b) { return (b.subtotal || 0) - (a.subtotal || 0); });
   details.forEach(function (d) {
     rows.push("+ " + d.name + " | " + d.quantity + " x " +
-      (d.price === null ? "N/A" : d.price.toLocaleString("en-US")) + " = " +
-      (d.subtotal === null ? "unknown" : d.subtotal.toLocaleString("en-US")) + " meat");
+      (d.price === null ? "N/A" : formatMeatNumber(d.price)) + " = " +
+      (d.subtotal === null ? "unknown" : formatMeatNumber(d.subtotal)) + " meat");
   });
-  rows.push("+ raw meat: " + rawMeat.toLocaleString("en-US"));
-  rows.push("+ est final total: " + total.toLocaleString("en-US") +
+  rows.push("+ raw meat: " + formatMeatNumber(rawMeat));
+  rows.push("+ est final total: " + formatMeatNumber(total) +
     " meat" + (unknown ? " (known-price subtotal; " + unknown + " unpriced item types)" : ""));
   if (!cache.valid) rows.push("+ cached price file missing or incompatible; unknown items not valued.");
   return { lines: rows, priced: priced, unpriced: unknown,

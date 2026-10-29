@@ -16,7 +16,7 @@ assert.equal(nativeBeachCombReceipt(""), false);
 
 const source = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
 const combStart = source.indexOf("function _comb(tile: BeachTile): void");
-const combEnd = source.indexOf("function deterministicRandom()", combStart);
+const combEnd = source.indexOf("function deterministicRandom", combStart);
 assert.ok(combStart > 0 && combEnd > combStart);
 const comb = source.slice(combStart, combEnd);
 

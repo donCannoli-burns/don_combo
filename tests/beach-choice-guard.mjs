@@ -27,6 +27,14 @@ assert.ok(trace.includes('score_provenance: "frozen-route-pre-score-not-a-fresh-
 assert.ok(trace.indexOf("if (autoTraceWaterSheepRun)") < trace.indexOf("return traceTargetPrediction("));
 assert.ok(comb.includes("if (autoTraceWaterSheepRun && preActionPrediction?.error)"));
 assert.ok(source.includes("activeRouteSnapshot = null;"));
+assert.ok(source.includes("preparedRouteSnapshot = snapshot;"));
+assert.ok(source.includes("const frozenScoredSnapshot = frozenRoute ? preparedRouteSnapshot : null;"));
+assert.equal(
+  (source.match(/fileToBuffer\("don_combo_matrix_runtime.json"\)/g) || []).length >= 2,
+  true,
+  "Snapshot remains available for read-only preview and initial route load",
+);
+assert.ok(trace.includes("if (!autoTraceWaterSheepRun && handlingChoice())"));
 
 // Model I/O must happen before live beach choice opens, not while the
 // choice/coords are being used. Only one native comb command is allowed.

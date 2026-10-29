@@ -656,6 +656,10 @@ export function main(args?: string | number): void {
     : wsFree || wsPaid
       ? loadShadowTop11Route(wsCount, wsFree)
       : null;
+  // Load the validated route's pre-scored evidence BEFORE marking a run active.
+  const frozenScoredSnapshot = frozenRoute
+    ? (JSON.parse(String(fileToBuffer("don_combo_matrix_runtime.json") || "")) as ShadowRouteSnapshot)
+    : null;
   const routeMode = wsPaid
     ? "watersheep-paid"
     : wsFree || shadow11
@@ -735,9 +739,7 @@ export function main(args?: string | number): void {
   // Routed WaterSheep gets a pre-action prediction per target automatically;
   // vanilla Combo keeps the existing opt-in don_combo_ml_trace property.
   autoTraceWaterSheepRun = shadow11 || wsFree || wsPaid;
-  activeRouteSnapshot = frozenRoute
-    ? (JSON.parse(String(fileToBuffer("don_combo_matrix_runtime.json") || "")) as ShadowRouteSnapshot)
-    : null;
+  activeRouteSnapshot = frozenScoredSnapshot;
   let completedCombs = 0;
   let interrupted = false;
   let cleanFinish = false;

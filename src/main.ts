@@ -126,6 +126,7 @@ let activeShadowRun: ShadowRunContext | null = null;
 let activeRunInterface: ReturnType<typeof startRunInterface> | null = null;
 let autoTraceWaterSheepRun = false;
 let activeRouteSnapshot: ShadowRouteSnapshot | null = null;
+let preparedRouteSnapshot: ShadowRouteSnapshot | null = null;
 // Set for one routed action at a time. Required before treating a native
 // "You comb" message as a verified completed comb.
 let activeSpendCheckpoint: {
@@ -163,6 +164,17 @@ function captureTargetPrediction(
   column: number,
 ): Record<string, unknown> | null {
   if (!mlTraceEnabled() && !autoTraceWaterSheepRun) return null;
+  // Optional vanilla tracing must not make a localhost HTTP request while
+  // KoLmafia is handling an active game choice from a previous action.
+  if (!autoTraceWaterSheepRun && handlingChoice()) {
+    return {
+      schema: "don-combo-target-prediction/v0.1",
+      generated_at: new Date().toISOString(),
+      minute,
+      error: "Optional model trace skipped while a game choice is active.",
+      authority: "none",
+    };
+  }
   try {
     if (autoTraceWaterSheepRun) {
       // Paid/free routed execution already has a frozen scored snapshot.
@@ -523,6 +535,7 @@ function comb(): boolean {
 // A relay confirmation selects a pre-scored local same-player/day snapshot.
 // No model inference runs during execution, and the model cannot supply coordinates.
 function loadShadowTop11Route(requestedCombs?: number, freeOnly = true): BeachTile[] {
+  preparedRouteSnapshot = null;
   const raw = String(fileToBuffer("don_combo_matrix_runtime.json") || "");
   if (!raw) abort("No frozen Shadow Route Lab snapshot; refresh first.");
   const snapshot = JSON.parse(raw) as ShadowRouteSnapshot;
@@ -538,9 +551,13 @@ function loadShadowTop11Route(requestedCombs?: number, freeOnly = true): BeachTi
     get("_freeBeachWalksUsed", 0),
     Date.now() / 1000,
   ] as const;
-  return requestedCombs === undefined
+  const route = requestedCombs === undefined
     ? compileShadowTop11(...parameters)
     : compileWaterSheepRoute(...parameters, requestedCombs, freeOnly);
+  // Bind the verified route and the scores to the SAME parsed snapshot.
+  // Never re-read a possibly replaced runtime file after compilation.
+  preparedRouteSnapshot = snapshot;
+  return route;
 }
 
 function printSession(session: Session) {
@@ -687,9 +704,9 @@ export function main(args?: string | number): void {
       ? loadShadowTop11Route(wsCount, wsFree)
       : null;
   // Load the validated route's pre-scored evidence BEFORE marking a run active.
-  const frozenScoredSnapshot = frozenRoute
-    ? (JSON.parse(String(fileToBuffer("don_combo_matrix_runtime.json") || "")) as ShadowRouteSnapshot)
-    : null;
+  const frozenScoredSnapshot = frozenRoute ? preparedRouteSnapshot : null;
+  if (frozenRoute && !frozenScoredSnapshot)
+    abort("Frozen WaterSheep route lacks its validated source snapshot.");
   const routeMode = wsPaid
     ? "watersheep-paid"
     : wsFree || shadow11
@@ -922,6 +939,7 @@ export function main(args?: string | number): void {
     } finally {
       autoTraceWaterSheepRun = false;
       activeRouteSnapshot = null;
+      preparedRouteSnapshot = null;
       activeShadowRun = null;
     }
   }

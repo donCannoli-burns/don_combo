@@ -620,7 +620,7 @@ export function main(args?: string | number): void {
   set("don_combo_last_run_combs", 0);
   set("don_combo_last_run_end_reason", "running");
   set("don_combo_last_run_interrupt_consumed", false);
-  set("don_combo_last_run_started_at", new Date().toISOString());
+  set("don_combo_last_run_started_at", new Date(invocationStartMs).toISOString());
   set("don_combo_last_run_ended_at", "");
   const mlEventsBefore = loadMlTraceEvents(0).total;
   set("don_combo_last_run_ml_events_before", mlEventsBefore);

@@ -8484,7 +8484,7 @@ function observeRunAction(report, action) {
 }
 function runProgress(spent, requested) {
   return "+ (" + String(spent).padStart(4, "0") + "/" +
-    String(requested).padStart(4, "0") + ") -- turns(spent/requested; completed beach combs)";
+    String(requested).padStart(4, "0") + ") -- turns(spent/requested)";
 }
 function runRate(value, total) {
   return value + "/" + total + " (" + (total ? (100 * value / total).toFixed(2) : "0.00") + "%)";

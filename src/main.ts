@@ -532,6 +532,7 @@ export function main(args?: string | number): void {
   // We do this by first tracking what the session results are right now
   // Later, we will subtract these items and meat from our final results
   if (get("don_combo_running", false)) abort("Another Combo run is already active.");
+  print("+ Runtime timer started: " + new Date(invocationStartMs).toISOString(), "gray");
   const rawArg = typeof args === "string" ? args.trim() : args;
   const shadow11 = rawArg === "shadow11";
   const wsFree = rawArg === "watersheep-free";
@@ -673,10 +674,10 @@ export function main(args?: string | number): void {
   let completedCombs = 0;
   let interrupted = false;
   let cleanFinish = false;
-  print("+ Runtime timer started: " + runInterface.started_at, "gray");
   print(runProgress(0, combs), "gray");
   try {
     while (completedCombs < combs) {
+      const progressBefore = completedCombs;
       // A relay interrupt is cooperative: never cut through an in-flight comb.
       // If the request arrives between combs, stop before starting another one.
       if (consumeInterruptRequest()) {
@@ -713,7 +714,7 @@ export function main(args?: string | number): void {
         if (comb()) completedCombs++;
       }
 
-      print(runProgress(completedCombs, combs), "gray");
+      if (completedCombs > progressBefore) print(runProgress(completedCombs, combs), "gray");
       // If the request arrived during the comb, the observation/loot trace has
       // already been finalized. Stop here before beginning the next target.
       if (consumeInterruptRequest()) {

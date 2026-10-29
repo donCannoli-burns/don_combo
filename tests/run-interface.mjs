@@ -5,10 +5,10 @@ import { runInNewContext } from "node:vm";
 // Import pure runtime functions without relying on the KoLmafia module.
 const source = readFileSync(new URL("../src/runtime/run-interface.ts", import.meta.url), "utf8");
 const compiled = source.replace(/^\/\/ @ts-nocheck.*$/m, "").replace(/export function /g, "function ") +
-  "\nmodule.exports = {startRunInterface,observeRunAction,runProgress,renderRunObservation,priceCacheFromText,renderRunValue};";
+  "\nmodule.exports = {startRunInterface,observeRunAction,runProgress,renderRunObservation,priceCacheFromText,renderRunValue,formatMeatNumber};";
 const module = { exports: {} };
 runInNewContext(compiled, {module, exports: module.exports});
-const {startRunInterface,observeRunAction,runProgress,renderRunObservation,priceCacheFromText,renderRunValue} = module.exports;
+const {startRunInterface,observeRunAction,runProgress,renderRunObservation,priceCacheFromText,renderRunValue,formatMeatNumber} = module.exports;
 
 const t0 = Date.parse("2026-10-28T20:00:00.000Z");
 const run = startRunInterface(30, t0, "watersheep-paid");
@@ -59,6 +59,16 @@ assert.equal(priceCacheFromText("bad header\n42\t1700000000\t999").valid,false);
 const value=renderRunValue([{id:42,name:"seashell",quantity:2},{id:99,name:"unknown",quantity:1}],
   7,"983253\n42\t1700000000\t1234");
 assert.equal(value.estimated_total_known_meat,2475);
+// KoLmafia/Rhino regression: never call Number.toLocaleString("en-US").
+assert.equal(formatMeatNumber(1234567), "1,234,567");
+assert.equal(formatMeatNumber(-1234567), "-1,234,567");
+assert.equal(formatMeatNumber(1234.5), "1,234.5");
+assert.equal(formatMeatNumber(0), "0");
+assert.match(value.lines.join("\n"), /seashell \| 2 x 1,234 = 2,468 meat/);
+assert.match(value.lines.join("\n"), /raw meat: 7/);
+assert.match(value.lines.join("\n"), /est final total: 2,475 meat/);
+assert.doesNotMatch(source, /\.toLocaleString\s*\(/);
+
 assert.equal(value.unpriced,1);
 assert.match(value.lines.join("\n"),/known-price subtotal/);
 assert.equal(renderRunValue([],0,"").estimated_total_known_meat,0);

@@ -827,35 +827,40 @@ export function main(args?: string | number): void {
   const lifetime = Session.add(final, Session.fromFile("combo_results.json"));
   lifetime.toFile("combo_results.json");
 
-  // Final human-readable report and passive machine-readable receipt.
-  // Read only the local mallprices.txt cache; never invoke mallPrice().
-  const reportEndedAtMs = Date.now();
-  const observationLines = renderRunObservation(runInterface, completedCombs, reportEndedAtMs);
-  for (const line of observationLines) print(line, "gray");
-  let priceText = "";
-  try { priceText = String(fileToBuffer("mallprices.txt") || ""); } catch { /* absent cache */ }
-  const value = renderRunValue(
-    [...final.items].map(([item, quantity]) => ({ id: item.id, name: item.name, quantity })),
-    final.meat,
-    priceText,
-  );
-  for (const line of value.lines) print(line, "gray");
-  print("");
+  // Reporting is best-effort: completed gameplay and lifetime results are already saved.
   try {
-    appendBufferToFile(
-      JSON.stringify({
-        ...runInterface,
-        completed_combs: completedCombs,
-        status: interrupted ? "interrupted" : "completed",
-        ended_at: new Date(reportEndedAtMs).toISOString(),
-        elapsed_ms: reportEndedAtMs - invocationStartMs,
-        value: { estimated_total_known_meat: value.estimated_total_known_meat,
-          unpriced_item_types: value.unpriced, local_cache_valid: value.file_valid },
-      }) + "\n",
-      "don_combo_run_reports.jsonl",
+    // Final human-readable report and passive machine-readable receipt.
+    // Read only the local mallprices.txt cache; never invoke mallPrice().
+    const reportEndedAtMs = Date.now();
+    const observationLines = renderRunObservation(runInterface, completedCombs, reportEndedAtMs);
+    for (const line of observationLines) print(line, "gray");
+    let priceText = "";
+    try { priceText = String(fileToBuffer("mallprices.txt") || ""); } catch { /* absent cache */ }
+    const value = renderRunValue(
+      [...final.items].map(([item, quantity]) => ({ id: item.id, name: item.name, quantity })),
+      final.meat,
+      priceText,
     );
+    for (const line of value.lines) print(line, "gray");
+    print("");
+    try {
+      appendBufferToFile(
+        JSON.stringify({
+          ...runInterface,
+          completed_combs: completedCombs,
+          status: interrupted ? "interrupted" : "completed",
+          ended_at: new Date(reportEndedAtMs).toISOString(),
+          elapsed_ms: reportEndedAtMs - invocationStartMs,
+          value: { estimated_total_known_meat: value.estimated_total_known_meat,
+            unpriced_item_types: value.unpriced, local_cache_valid: value.file_valid },
+        }) + "\n",
+        "don_combo_run_reports.jsonl",
+      );
+    } catch (error) {
+      print("don_combo: CLI report archive unavailable: " + String(error), "gray");
+    }
   } catch (error) {
-    print("don_combo: CLI report archive unavailable: " + String(error), "gray");
+    print("don_combo: optional report unavailable after results saved: " + String(error), "gray");
   }
   print("don_combo: results saved; script finished.", "gray");
 }

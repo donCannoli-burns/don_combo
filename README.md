@@ -60,6 +60,44 @@ to remove that project_. Removing a Git project is not required if you
 use `doncombo`. Do not delete the shared `raretiles.json`, session
 logs, or personal Combo preferences as a collision workaround.
 
+## Recovering the `combo` hook after `git sync`
+
+The regular `combo` alias is installed by the optional `kolmafia-skills`
+bootstrap, but it can become stale or be replaced during a sync. More subtly,
+the *alias can remain active* while the shared upstream executable
+`scripts/combo/combo.js` is overwritten. The Don Combo listener now executes
+the unique `don_combo/doncombo.js` entrypoint instead, avoiding that collision.
+
+From KoLmafia gCLI:
+
+```text
+git update donCannoli-burns-don_combo-release
+don_combo status
+don_combo status --r
+don_combo -restore
+```
+
+- `don_combo status` **only reads** the exact `combo` alias and calls two
+  read-only identity probes (listener v2 and unique Don Combo `info`).
+- `don_combo status --r` displays status, and if inactive, **automatically
+  restores the `combo` alias**; it then rechecks status. It never combs.
+- `don_combo -restore` manually checks dependencies and reinstalls the alias
+  if it is absent or different (idempotent when already correct).
+- Restore is **blocked** if the release listener or unique executable is
+  missing/old. Update the release first; a remapped alias cannot repair an old
+  script file.
+- If a different `combo` alias was in place, its original expansion is saved
+  once as `don_combo_previous_combo_alias` before replacement. Restoration
+  changes only the `combo` alias, not unrelated personal aliases.
+- If the CLI cannot resolve the new control basename, run
+  `call don_combo.js status` or `call don_combo.js status --r`.
+
+Status/restore do not initiate beach walks, spend adventures, refresh model
+scores, send Kmail, or execute the main Combo route. After a green `ACTIVE`
+status, the usual `combo watersheep-30` command is routed through the
+collision-proof Don Combo binary. **Do not use `combo 1` as a diagnostic**:
+that command really consumes a beach comb.
+
 ## Optional live rare-tile sharing via Kmail
 
 **OFF by default.** DonCombo does not send beach observations to any player

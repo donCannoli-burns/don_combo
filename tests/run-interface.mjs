@@ -12,8 +12,8 @@ const {startRunInterface,observeRunAction,runProgress,renderRunObservation,price
 
 const t0 = Date.parse("2026-10-28T20:00:00.000Z");
 const run = startRunInterface(30, t0, "watersheep-paid");
-assert.equal(runProgress(0,30), "+ (0000/0030) -- turns(spent/requested; completed beach combs)");
-assert.equal(runProgress(30,30), "+ (0030/0030) -- turns(spent/requested; completed beach combs)");
+assert.equal(runProgress(0,30), "+ (0000/0030) -- turns(spent/requested)");
+assert.equal(runProgress(30,30), "+ (0030/0030) -- turns(spent/requested)");
 const castle=observeRunAction(run,{minute:3200,
   layout:"2:ccrrrrrrrr,3:rrrcrrrrrr,4:rrrrrrrrrr,5:rrrrrrrcrr,10:rrrrrcrrrr",
   planned_row:2,planned_col:0,actual_row:4,actual_col:8,

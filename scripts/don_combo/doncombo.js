@@ -8543,6 +8543,13 @@ function priceCacheFromText(text) {
   }
   return { prices: cache, valid: true };
 }
+// KoLmafia's Rhino Number.toLocaleString does not accept "en-US"; in some
+// revisions it treats that argument as a radix, causing "illegal radix 0".
+function formatMeatNumber(value) {
+  var pieces = String(value).split(".");
+  pieces[0] = pieces[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return pieces.join(".");
+}
 function renderRunValue(items, rawMeat, cachedText) {
   var cache = priceCacheFromText(cachedText);
   var rows = ["+ === VALUE ===",
@@ -8560,11 +8567,11 @@ function renderRunValue(items, rawMeat, cachedText) {
   details.sort(function (a,b) { return (b.subtotal || 0) - (a.subtotal || 0); });
   details.forEach(function (d) {
     rows.push("+ " + d.name + " | " + d.quantity + " x " +
-      (d.price === null ? "N/A" : d.price.toLocaleString("en-US")) + " = " +
-      (d.subtotal === null ? "unknown" : d.subtotal.toLocaleString("en-US")) + " meat");
+      (d.price === null ? "N/A" : formatMeatNumber(d.price)) + " = " +
+      (d.subtotal === null ? "unknown" : formatMeatNumber(d.subtotal)) + " meat");
   });
-  rows.push("+ raw meat: " + rawMeat.toLocaleString("en-US"));
-  rows.push("+ est final total: " + total.toLocaleString("en-US") +
+  rows.push("+ raw meat: " + formatMeatNumber(rawMeat));
+  rows.push("+ est final total: " + formatMeatNumber(total) +
     " meat" + (unknown ? " (known-price subtotal; " + unknown + " unpriced item types)" : ""));
   if (!cache.valid) rows.push("+ cached price file missing or incompatible; unknown items not valued.");
   return { lines: rows, priced: priced, unpriced: unknown,
@@ -8828,28 +8835,33 @@ function main(args) {
   printSession(final);
   var lifetime = Session.add(final, Session.fromFile("combo_results.json"));
   lifetime.toFile("combo_results.json");
-  var reportEndedAtMs = Date.now();
-  var observationLines = renderRunObservation(runInterface, completedCombs, reportEndedAtMs);
-  observationLines.forEach(function (line) { kolmafia.print(line, "gray"); });
-  var priceText = "";
-  try { priceText = String(kolmafia.fileToBuffer("mallprices.txt") || ""); }
-  catch (_priceError) { /* absent local cache */ }
-  var value = renderRunValue(Array.from(final.items).map(function (entry) {
-    return { id: entry[0].id, name: entry[0].name, quantity: entry[1] };
-  }), final.meat, priceText);
-  value.lines.forEach(function (line) { kolmafia.print(line, "gray"); });
-  kolmafia.print("");
+  // Best-effort report after lifetime results have already been saved.
   try {
-    kolmafia.appendBufferToFile(JSON.stringify(Object.assign({}, runInterface, {
-      completed_combs: completedCombs,
-      status: interrupted ? "interrupted" : "completed",
-      ended_at: new Date(reportEndedAtMs).toISOString(),
-      elapsed_ms: reportEndedAtMs - invocationStartMs,
-      value: { estimated_total_known_meat: value.estimated_total_known_meat,
-        unpriced_item_types: value.unpriced, local_cache_valid: value.file_valid }
-    })) + "\n", "don_combo_run_reports.jsonl");
+    var reportEndedAtMs = Date.now();
+    var observationLines = renderRunObservation(runInterface, completedCombs, reportEndedAtMs);
+    observationLines.forEach(function (line) { kolmafia.print(line, "gray"); });
+    var priceText = "";
+    try { priceText = String(kolmafia.fileToBuffer("mallprices.txt") || ""); }
+    catch (_priceError) { /* absent local cache */ }
+    var value = renderRunValue(Array.from(final.items).map(function (entry) {
+      return { id: entry[0].id, name: entry[0].name, quantity: entry[1] };
+    }), final.meat, priceText);
+    value.lines.forEach(function (line) { kolmafia.print(line, "gray"); });
+    kolmafia.print("");
+    try {
+      kolmafia.appendBufferToFile(JSON.stringify(Object.assign({}, runInterface, {
+        completed_combs: completedCombs,
+        status: interrupted ? "interrupted" : "completed",
+        ended_at: new Date(reportEndedAtMs).toISOString(),
+        elapsed_ms: reportEndedAtMs - invocationStartMs,
+        value: { estimated_total_known_meat: value.estimated_total_known_meat,
+          unpriced_item_types: value.unpriced, local_cache_valid: value.file_valid }
+      })) + "\n", "don_combo_run_reports.jsonl");
+    } catch (error) {
+      kolmafia.print("don_combo: CLI report archive unavailable: " + String(error), "gray");
+    }
   } catch (error) {
-    kolmafia.print("don_combo: CLI report archive unavailable: " + String(error), "gray");
+    kolmafia.print("don_combo: optional report unavailable after results saved: " + String(error), "gray");
   }
   kolmafia.print("don_combo: results saved; script finished.", "gray");
 }

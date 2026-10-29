@@ -8616,6 +8616,7 @@ function main(args) {
   // We do this by first tracking what the session results are right now
   // Later, we will subtract these items and meat from our final results
   if (get("don_combo_running", false)) kolmafia.abort("Another Combo run is already active.");
+  kolmafia.print("+ Runtime timer started: " + new Date(invocationStartMs).toISOString(), "gray");
   var rawArg = typeof args === "string" ? args.trim() : args;
   var shadow11 = rawArg === "shadow11";
   var wsFree = rawArg === "watersheep-free";
@@ -8705,11 +8706,11 @@ function main(args) {
   var completedCombs = 0;
   var interrupted = false;
   var cleanFinish = false;
-  kolmafia.print("+ Runtime timer started: " + runInterface.started_at, "gray");
   kolmafia.print(runProgress(0, combs), "gray");
   try {
     var _activeLiveRareShare;
     while (completedCombs < combs) {
+      var progressBefore = completedCombs;
       // A relay interrupt is cooperative: never cut through an in-flight comb.
       // If the request arrives between combs, stop before starting another one.
       if (consumeInterruptRequest()) {
@@ -8739,7 +8740,7 @@ function main(args) {
         if (comb()) completedCombs++;
       }
 
-      kolmafia.print(runProgress(completedCombs, combs), "gray");
+      if (completedCombs > progressBefore) kolmafia.print(runProgress(completedCombs, combs), "gray");
       // If the request arrived during the comb, the observation/loot trace has
       // already been finalized. Stop here before beginning the next target.
       if (consumeInterruptRequest()) {

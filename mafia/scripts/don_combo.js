@@ -121,9 +121,23 @@ function runCombo(args) {
     return false;
   }
   // Execute the collision-proof listener directly. Never cliExecute("combo ...").
+  // Inspect a fresh run receipt, not just cliExecute's Boolean success:
+  // a wrapper returning normally is not proof that the game run completed.
+  var gameplay = /^(?:[1-9][0-9]*|watersheep-free|watersheep-[1-9][0-9]*|shadow11)$/.test(payload);
+  var previousRunStart = gameplay ? km.getProperty("don_combo_last_run_started_at") : "";
   var invoke = LISTENER_ROUTE + (payload ? " " + payload : "");
   if (!km.cliExecute(invoke)) {
     km.print("Don Combo: listener invocation failed.", "red");
+    return false;
+  }
+  if (gameplay && (
+    km.getProperty("don_combo_last_run_started_at") === previousRunStart ||
+    km.getProperty("don_combo_last_run_status") !== "completed"
+  )) {
+    km.print(
+      "Don Combo: incomplete or stale run receipt; downstream post-run stages must not advance.",
+      "red"
+    );
     return false;
   }
   return true;

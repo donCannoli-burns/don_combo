@@ -125,6 +125,7 @@ function addFalseRare(tile: BeachTile) {
 let activeShadowRun: ShadowRunContext | null = null;
 let activeRunInterface: ReturnType<typeof startRunInterface> | null = null;
 let autoTraceWaterSheepRun = false;
+let activeRouteSnapshot: ShadowRouteSnapshot | null = null;
 // Per-run memory only. Never populated from saved ML events or session history.
 let activeLiveRareShare: LiveRareShareRow[] | null = null;
 
@@ -156,6 +157,30 @@ function captureTargetPrediction(
 ): Record<string, unknown> | null {
   if (!mlTraceEnabled() && !autoTraceWaterSheepRun) return null;
   try {
+    if (autoTraceWaterSheepRun) {
+      // Paid/free routed execution already has a frozen scored snapshot.
+      // Reuse its *unaltered* model mass for passive cohort pairing; do not
+      // send another HTTP request per comb (and do not call it a fresh score).
+      const candidate = activeRouteSnapshot?.candidates.find(
+        (entry) =>
+          entry.minute === minute &&
+          entry.representative.row === row &&
+          entry.representative.column === column,
+      );
+      if (!candidate?.watersheep?.score_mass)
+        throw new Error("Frozen target score absent; no new WaterSheep call attempted.");
+      return {
+        schema: "don-combo-target-prediction/v0.1",
+        generated_at: new Date().toISOString(),
+        minute,
+        score_mass: candidate.watersheep.score_mass,
+        policy_utility: candidate.utility,
+        score_provenance: "frozen-route-pre-score-not-a-fresh-prediction",
+        snapshot_generated_at: activeRouteSnapshot?.generated_at,
+        calibration: "UNVALIDATED_FOR_KOL_BEACH",
+        authority: "none",
+      };
+    }
     return traceTargetPrediction(minute, row, column);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -194,6 +219,8 @@ function _comb(tile: BeachTile): void {
   // The optional localhost model request must finish BEFORE opening the
   // live Beach Comb choice; never interleave it with a native comb action.
   const preActionPrediction = captureTargetPrediction(minute, row, column);
+  if (autoTraceWaterSheepRun && preActionPrediction?.error)
+    throw new Error("Frozen WaterSheep target score unavailable; no beach action sent.");
   if (!cliExecute(`beach wander ${minute};`))
     throw new Error(`Could not visit beach minute ${minute}; route stopped.`);
   const layoutString = property.getString("_beachLayout");
@@ -708,6 +735,9 @@ export function main(args?: string | number): void {
   // Routed WaterSheep gets a pre-action prediction per target automatically;
   // vanilla Combo keeps the existing opt-in don_combo_ml_trace property.
   autoTraceWaterSheepRun = shadow11 || wsFree || wsPaid;
+  activeRouteSnapshot = frozenRoute
+    ? (JSON.parse(String(fileToBuffer("don_combo_matrix_runtime.json") || "")) as ShadowRouteSnapshot)
+    : null;
   let completedCombs = 0;
   let interrupted = false;
   let cleanFinish = false;
@@ -850,6 +880,7 @@ export function main(args?: string | number): void {
       );
     } finally {
       autoTraceWaterSheepRun = false;
+      activeRouteSnapshot = null;
       activeShadowRun = null;
     }
   }

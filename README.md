@@ -68,6 +68,18 @@ the *alias can remain active* while the shared upstream executable
 `scripts/combo/combo.js` is overwritten. The Don Combo listener now executes
 the unique `don_combo/doncombo.js` entrypoint instead, avoiding that collision.
 
+The installed hook is now:
+```text
+alias combo => call don_combo.js run %%
+```
+This is intentional: an inline `ashq cli_execute("don_combo status --r")`
+cannot test whether the printed status equals `ACTIVE`. The `run`
+controller uses the same Boolean inspection/restore logic and checks
+before each command. It aborts before the listener if verification fails,
+and it never re-invokes the `combo` alias (so no recursion). This
+does not automatically intercept a `combo` alias overwritten entirely
+by another project: run `don_combo status --r` to reclaim it.
+
 From KoLmafia gCLI:
 
 ```text
@@ -80,7 +92,7 @@ don_combo -restore
 - `don_combo status` **only reads** the exact `combo` alias and calls two
   read-only identity probes (listener v2 and unique Don Combo `info`).
 - `don_combo status --r` displays status, and if inactive, **automatically
-  restores the `combo` alias**; it then rechecks status. It never combs.
+  restores the **guarded `combo` alias**; it then rechecks status. It never combs.
 - `don_combo -restore` manually checks dependencies and reinstalls the alias
   if it is absent or different (idempotent when already correct).
 - Restore is **blocked** if the release listener or unique executable is
@@ -93,9 +105,8 @@ don_combo -restore
   `call don_combo.js status` or `call don_combo.js status --r`.
 
 Status/restore do not initiate beach walks, spend adventures, refresh model
-scores, send Kmail, or execute the main Combo route. After a green `ACTIVE`
-status, the usual `combo watersheep-30` command is routed through the
-collision-proof Don Combo binary. **Do not use `combo 1` as a diagnostic**:
+scores, send Kmail, or execute the main Combo route. After a green `ACTIVE` status, `combo watersheep-30` goes through the
+self-checking guard, then the collision-proof Don Combo listener and binary. **Do not use `combo 1` as a diagnostic**:
 that command really consumes a beach comb.
 
 ## Optional live rare-tile sharing via Kmail
@@ -198,7 +209,7 @@ Then normal use remains:
 combo 10
 ```
 
-The installed `combo` alias routes through `don_combo_listener.ash`, executes the deterministic Combo script, refreshes Goblin Docs context, runs one advisory matrix reassessment, and returns. For a no-KoL-mutation compatibility smoke:
+The installed `combo` alias routes through the guarded `don_combo.js run` controller, which checks the hook and executable before calling `don_combo_listener.ash` directly. The listener executes the deterministic Combo script, refreshes Goblin Docs context, runs one advisory matrix reassessment, and returns. This extra check does not comb the beach. For a no-KoL-mutation compatibility smoke:
 
 ```text
 agentcall.combo-smoke

@@ -18,15 +18,6 @@ export function beachChoiceReady(
   );
 }
 
-// The gCLI output is not the raw response: cli_execute_output captures
-// RequestLogger, which logs "Combing square X,Y" for an ATTEMPT. The
-// server response's "You comb" text is consumed inside BeachManager,
-// which marks the targeted _beachLayout square as 'c'. Therefore CLI
-// strings (including either phrase) are NOT success receipts.
-export function nativeBeachCombReceipt(output: string): boolean {
-  return /\bYou comb\b/i.test(output);
-}
-
 type NativeCombEvidence = {
   beforeLayout: string;
   afterLayout: string;

@@ -153,3 +153,32 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MESSAGE: "Build: ({sha}) {msg}"
           SKIP_EMPTY_COMMITS: true
+
+  # Temporary PR-only style repair; remove after the formatter commit.
+  format_receipt_audit_files:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == 'donCannoli-burns/don_combo' &&
+      github.event.pull_request.head.ref == 'fix/beach-choice-transaction-20261029'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - run: corepack enable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.node-version }}
+      - run: yarn install --immutable
+      - name: Format the two receipt-audit files only
+        run: yarn prettier --write src/runtime/beach-action-guard.ts tests/beach-choice-guard.mjs
+      - name: Commit the formatter's two-file changes to this PR
+        run: |
+          git add -- src/runtime/beach-action-guard.ts tests/beach-choice-guard.mjs
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "style(combo): format verified beach receipt code"
+          git push origin HEAD:fix/beach-choice-transaction-20261029

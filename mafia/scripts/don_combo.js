@@ -32,7 +32,10 @@ function aliasDefinition() {
   var lines = output.split(/\r?\n/);
   for (var i = 0; i < lines.length; i++) {
     // KoLmafia alias listings may arrive as HTML: <b> combo </b> => ...
-    var listing = lines[i].replace(/<\/?b>/gi, "").replace(/&gt;/gi, ">").replace(/&amp;/gi, "&");
+    var listing = lines[i]
+      .replace(/<\/?b>/gi, "")
+      .replace(/&gt;/gi, ">")
+      .replace(/&amp;/gi, "&");
     var match = listing.match(/^\s*(?:>\s*)?combo(?:\s+%%)?\s*=>\s*(.*?)\s*$/i);
     if (match) return { value: trim(match[1]), error: null };
   }
@@ -54,20 +57,27 @@ function inspect() {
     aliasOk: alias.value === HOOK,
     listenerOk: listener,
     executableOk: executable,
-    active: alias.value === HOOK && listener && executable
+    active: alias.value === HOOK && listener && executable,
   };
 }
 function report(result) {
-  km.print("Don Combo hook: " + (result.active ? "ACTIVE" : "INACTIVE"),
-    result.active ? "green" : "red");
-  km.print("  combo alias: " +
-    (result.aliasOk ? "correct" : result.alias.value === null ? "missing/unreadable" : "different"));
+  km.print(
+    "Don Combo hook: " + (result.active ? "ACTIVE" : "INACTIVE"),
+    result.active ? "green" : "red",
+  );
+  km.print(
+    "  combo alias: " +
+      (result.aliasOk
+        ? "correct"
+        : result.alias.value === null
+          ? "missing/unreadable"
+          : "different"),
+  );
   if (result.alias.value !== null && !result.aliasOk)
     km.print("  current combo alias: " + result.alias.value, "gray");
   km.print("  listener identity: " + (result.listenerOk ? "ready (v2)" : "missing/old"), "gray");
   km.print("  unique executable: " + (result.executableOk ? "ready" : "missing/old"), "gray");
-  if (!result.active)
-    km.print("  Repair: don_combo status --r (or don_combo -restore).", "gray");
+  if (!result.active) km.print("  Repair: don_combo status --r (or don_combo -restore).", "gray");
 }
 function restore() {
   // A different or missing listener cannot be repaired by re-aliasing.
@@ -78,8 +88,7 @@ function restore() {
     km.print("  don_combo status --r");
     return false;
   }
-  if (before.alias.value !== null && !before.aliasOk &&
-      !km.getProperty(SAVED_ALIAS_PREF)) {
+  if (before.alias.value !== null && !before.aliasOk && !km.getProperty(SAVED_ALIAS_PREF)) {
     km.setProperty(SAVED_ALIAS_PREF, before.alias.value);
     km.print("Don Combo: previous combo alias saved to " + SAVED_ALIAS_PREF + ".", "gray");
   }
@@ -103,7 +112,12 @@ function runCombo(args) {
   // The script invocation itself is the guard: no recursive combo alias call.
   // Accept one known CLI argument, not multi-command gCLI syntax.
   var payload = trim(args);
-  if (payload && !/^(?:[0-9]+|watersheep-free|watersheep-[1-9][0-9]*|shadow11|info|help|lifetime|watersheep-preview)$/.test(payload)) {
+  if (
+    payload &&
+    !/^(?:[0-9]+|watersheep-free|watersheep-[1-9][0-9]*|shadow11|info|help|lifetime|watersheep-preview)$/.test(
+      payload,
+    )
+  ) {
     km.print("Don Combo: invalid combo argument; refusing to dispatch: " + payload, "red");
     return false;
   }
@@ -121,9 +135,24 @@ function runCombo(args) {
     return false;
   }
   // Execute the collision-proof listener directly. Never cliExecute("combo ...").
+  // Inspect a fresh run receipt, not just cliExecute's Boolean success:
+  // a wrapper returning normally is not proof that the game run completed.
+  var gameplay = /^(?:[1-9][0-9]*|watersheep-free|watersheep-[1-9][0-9]*|shadow11)$/.test(payload);
+  var previousRunStart = gameplay ? km.getProperty("don_combo_last_run_started_at") : "";
   var invoke = LISTENER_ROUTE + (payload ? " " + payload : "");
   if (!km.cliExecute(invoke)) {
     km.print("Don Combo: listener invocation failed.", "red");
+    return false;
+  }
+  if (
+    gameplay &&
+    (km.getProperty("don_combo_last_run_started_at") === previousRunStart ||
+      km.getProperty("don_combo_last_run_status") !== "completed")
+  ) {
+    km.print(
+      "Don Combo: incomplete or stale run receipt; downstream post-run stages must not advance.",
+      "red",
+    );
     return false;
   }
   return true;
@@ -131,7 +160,11 @@ function runCombo(args) {
 function main() {
   var args = joinArgs(arguments);
   if (args === "run" || args.indexOf("run ") === 0) {
-    runCombo(args === "run" ? "" : args.substring(4));
+    if (!runCombo(args === "run" ? "" : args.substring(4))) {
+      // The ASH/JS caller must observe a real execution failure, not merely
+      // a red log line followed by an apparently successful void return.
+      km.abort("Don Combo run did not complete successfully; post-run stage must not advance.");
+    }
   } else if (args === "status") {
     report(inspect());
   } else if (args === "-restore") {

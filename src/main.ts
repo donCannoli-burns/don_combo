@@ -12,6 +12,7 @@ import {
   handlingChoice,
   historicalPrice,
   inMultiFight,
+  lastChoice,
   isDarkMode,
   Item,
   myAdventures,
@@ -23,6 +24,7 @@ import {
 import { $items, get, Kmail, property, Session, set, sinceKolmafiaRevision } from "libram";
 
 import { prepareWaterSheepRoute, traceTargetPrediction } from "./don_combo_runtime";
+import { beachChoiceReady, verifyBeachCombTransition } from "./runtime/beach-action-guard";
 import {
   LIVE_RARE_SHARE_PREF,
   LIVE_RARE_SHARE_RECIPIENT,
@@ -40,11 +42,14 @@ import {
   prescoreWaitPhrase,
   prescoreProgressNotice,
 } from "./runtime/prescore-progress";
-import { firstVisibleSandCastle } from "./runtime/sandcastle-observer";
 import {
-  observeRunAction, startRunInterface, runProgress,
-  renderRunObservation, renderRunValue,
+  observeRunAction,
+  startRunInterface,
+  runProgress,
+  renderRunObservation,
+  renderRunValue,
 } from "./runtime/run-interface";
+import { firstVisibleSandCastle } from "./runtime/sandcastle-observer";
 import { summarizeShadowRun, type ShadowRunContext } from "./runtime/shadow-learning";
 import {
   compileShadowTop11,
@@ -124,6 +129,15 @@ function addFalseRare(tile: BeachTile) {
 let activeShadowRun: ShadowRunContext | null = null;
 let activeRunInterface: ReturnType<typeof startRunInterface> | null = null;
 let autoTraceWaterSheepRun = false;
+let activeRouteSnapshot: ShadowRouteSnapshot | null = null;
+let preparedRouteSnapshot: ShadowRouteSnapshot | null = null;
+// Set for one routed action at a time. Required before treating a native
+// "You comb" message as a verified completed comb.
+let activeSpendCheckpoint: {
+  freeBefore: number;
+  adventuresBefore: number;
+  freeOnly: boolean;
+} | null = null;
 // Per-run memory only. Never populated from saved ML events or session history.
 let activeLiveRareShare: LiveRareShareRow[] | null = null;
 
@@ -154,11 +168,49 @@ function captureTargetPrediction(
   column: number,
 ): Record<string, unknown> | null {
   if (!mlTraceEnabled() && !autoTraceWaterSheepRun) return null;
+  // Optional vanilla tracing must not make a localhost HTTP request while
+  // KoLmafia is handling an active game choice from a previous action.
+  if (!autoTraceWaterSheepRun && handlingChoice()) {
+    return {
+      schema: "don-combo-target-prediction/v0.1",
+      generated_at: new Date().toISOString(),
+      minute,
+      error: "Optional model trace skipped while a game choice is active.",
+      authority: "none",
+    };
+  }
   try {
+    if (autoTraceWaterSheepRun) {
+      // Paid/free routed execution already has a frozen scored snapshot.
+      // Reuse its *unaltered* model mass for passive cohort pairing; do not
+      // send another HTTP request per comb (and do not call it a fresh score).
+      const candidate = activeRouteSnapshot?.candidates.find(
+        (entry) =>
+          entry.minute === minute &&
+          entry.representative.row === row &&
+          entry.representative.column === column,
+      );
+      if (!candidate?.watersheep?.score_mass)
+        throw new Error("Frozen target score absent; no new WaterSheep call attempted.");
+      return {
+        schema: "don-combo-target-prediction/v0.1",
+        generated_at: new Date().toISOString(),
+        minute,
+        score_mass: candidate.watersheep.score_mass,
+        policy_utility: candidate.utility,
+        score_provenance: "frozen-route-pre-score-not-a-fresh-prediction",
+        snapshot_generated_at: activeRouteSnapshot?.generated_at,
+        calibration: "UNVALIDATED_FOR_KOL_BEACH",
+        authority: "none",
+      };
+    }
     return traceTargetPrediction(minute, row, column);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    print(`don_combo ML trace unavailable: ${message} · Combo continues normally.`, "gray");
+    print(
+      `don_combo ML trace unavailable: ${message} · No action authorized; native state still required.`,
+      "gray",
+    );
     return {
       schema: "don-combo-target-prediction/v0.1",
       generated_at: new Date().toISOString(),
@@ -190,6 +242,11 @@ function _comb(tile: BeachTile): void {
   // It's going to be really tedious to write tile.minute and tile.row all the time
   // So this is nice looking
   const { minute, row, column } = tile;
+  // The optional localhost model request must finish BEFORE opening the
+  // live Beach Comb choice; never interleave it with a native comb action.
+  const preActionPrediction = captureTargetPrediction(minute, row, column);
+  if (autoTraceWaterSheepRun && preActionPrediction?.error)
+    throw new Error("Frozen WaterSheep target score unavailable; no beach action sent.");
   if (!cliExecute(`beach wander ${minute};`))
     throw new Error(`Could not visit beach minute ${minute}; route stopped.`);
   const layoutString = property.getString("_beachLayout");
@@ -210,7 +267,83 @@ function _comb(tile: BeachTile): void {
       .map((rowLayout) => [parseInt(rowLayout[0]), rowLayout[1].split("")] as [number, string[]]),
   );
 
-  const preActionPrediction = captureTargetPrediction(minute, row, column);
+  // Reopen the choice at most once BEFORE a comb request. Never retry
+  // after an attempted comb whose native result is uncertain.
+  let choiceRecoveryAttempted = false;
+  const ensureBeachChoice = (): void => {
+    const beachActive = get("_beachCombing", false);
+    const beachMinute = get("_beachMinutes", 0);
+    if (!beachChoiceReady(handlingChoice(), beachActive, beachMinute, minute, lastChoice())) {
+      if (choiceRecoveryAttempted)
+        throw new Error("Beach choice recovery already attempted; no comb sent.");
+      if (!beachActive || beachMinute !== minute || handlingChoice())
+        throw new Error("Beach choice state changed; no comb sent.");
+      print("don_combo: Beach Comb choice inactive; reopening once before action.", "gray");
+      choiceRecoveryAttempted = true;
+      if (!cliExecute("beach visit"))
+        throw new Error("Beach Comb visit recovery failed; no comb sent.");
+    }
+    if (
+      !beachChoiceReady(
+        handlingChoice(),
+        get("_beachCombing", false),
+        get("_beachMinutes", 0),
+        minute,
+        lastChoice(),
+      ) ||
+      property.getString("_beachLayout") !== layoutString
+    )
+      throw new Error("Beach choice/layout mismatch after visit; no comb sent.");
+  };
+
+  const performVerifiedComb = (actualRow: number, actualColumn: number): string => {
+    ensureBeachChoice();
+    const coords = `${minute},${actualRow},${actualColumn}`;
+    // Persist pending before sending an irreversible action. No automatic retry.
+    setProperty("don_combo_last_run_unverified_action", coords);
+    ensureBeachChoice(); // Preference listeners must not invalidate the choice.
+    // The CLI logs an attempted square before the HTTP response; it is not
+    // a receipt. KoLmafia's BeachManager changes the targeted layout tile
+    // to 'c' only after receiving the server's successful "You comb" text.
+    // Capture resource state immediately around this ONE native command for
+    // both ordinary Combo and routed Combo (including already-combed tiles).
+    const beforeLayout = property.getString("_beachLayout");
+    const beforeMinute = get("_beachMinutes", 0);
+    const freeBefore = get("_freeBeachWalksUsed", 0);
+    const adventuresBefore = myAdventures();
+    const output = cliExecuteOutput(`beach comb ${actualRow} ${actualColumn}`);
+    const receipt = verifyBeachCombTransition({
+      beforeLayout,
+      afterLayout: property.getString("_beachLayout"),
+      beforeMinute,
+      afterMinute: get("_beachMinutes", 0),
+      expectedMinute: minute,
+      row: actualRow,
+      column: actualColumn,
+      freeBefore,
+      freeAfter: get("_freeBeachWalksUsed", 0),
+      adventuresBefore,
+      adventuresAfter: myAdventures(),
+      freeOnly: activeSpendCheckpoint?.freeOnly ?? false,
+    });
+    if (!receipt.verified)
+      throw new Error(`Beach comb ${coords} not verified (${receipt.reason}); no retry.`);
+    // The original paid/free counters were captured before beach wander.
+    // They cover the complete single attempt rather than only the final
+    // square click. Keep the pending record if spend cannot be verified.
+    if (activeSpendCheckpoint) {
+      const { freeBefore, adventuresBefore, freeOnly } = activeSpendCheckpoint;
+      const freeSpent = get("_freeBeachWalksUsed", 0) === freeBefore + 1;
+      const paidSpent = myAdventures() < adventuresBefore;
+      if (freeOnly && (!freeSpent || paidSpent))
+        throw new Error(`Free-only comb ${coords} lacked verified free spend; no retry.`);
+      if (!freeOnly && !freeSpent && !paidSpent)
+        throw new Error(`Paid-route comb ${coords} lacked verified spend; no retry.`);
+    }
+    setProperty("don_combo_last_run_unverified_action", "");
+    return output;
+  };
+  ensureBeachChoice();
   const finishObservation = (
     outcome: BeachOutcome,
     actualRow: number,
@@ -232,14 +365,18 @@ function _comb(tile: BeachTile): void {
     // Passive per-comb report: one observation, never a game action.
     if (activeRunInterface) {
       const seen = observeRunAction(activeRunInterface, {
-        minute, layout: layoutString, outcome,
-        planned_row: row, planned_col: column,
-        actual_row: actualRow, actual_col: actualColumn,
-        items: delta.items, output: actionOutput,
+        minute,
+        layout: layoutString,
+        outcome,
+        planned_row: row,
+        planned_col: column,
+        actual_row: actualRow,
+        actual_col: actualColumn,
+        items: delta.items,
+        output: actionOutput,
       });
       print(
-        "+ event_observed=" + (seen.observed ? "T" : "F") +
-          " event_name=" + (seen.names.join(",") || "none"),
+        `+ event_observed=${seen.observed ? "T" : "F"} event_name=${seen.names.join(",") || "none"}`,
         "gray",
       );
     }
@@ -269,7 +406,7 @@ function _comb(tile: BeachTile): void {
     const whaleColumn = whaleRow[1].findIndex((x) => x === "W");
     print("We found a whale. To hey deze's heart, we'll stab at it.", "red");
     const before = Session.current();
-    const output = cliExecuteOutput(`beach comb ${whaleRow[0]} ${whaleColumn}`);
+    const output = performVerifiedComb(whaleRow[0], whaleColumn);
     finishObservation("whale", whaleRow[0], whaleColumn, before, output);
     // By returning partway through, we avoid needing to use "else"
     // With the exception of try...finally shenanigans, using the return keyword will just immediately terminate the function
@@ -296,7 +433,7 @@ function _comb(tile: BeachTile): void {
       print("Our rare tile is uncombed, so let's go ahead and change that.", "red");
       // Grab the output of our comb and lowercase the resulting text
       const before = Session.current();
-      const actionOutput = cliExecuteOutput(`beach comb ${row} ${column}`);
+      const actionOutput = performVerifiedComb(row, column);
       const output = actionOutput.toLowerCase();
 
       // We exclude grain of sand as it means we didn't comb a twinkle as expected
@@ -335,7 +472,7 @@ function _comb(tile: BeachTile): void {
   if (castle) {
     print("Our rare tile is combed, but a sand castle is visible. Demolishing it.", HIGHLIGHT);
     const before = Session.current();
-    const output = cliExecuteOutput(`beach comb ${castle.row} ${castle.column}`);
+    const output = performVerifiedComb(castle.row, castle.column);
     finishObservation("sand_castle_fallback", castle.row, castle.column, before, output);
     return;
   }
@@ -347,7 +484,7 @@ function _comb(tile: BeachTile): void {
     print("Our rare tile is combed, but we found a twinkle!", HIGHLIGHT);
     const twinkleColumn = firstTwinkleRow[1].findIndex((x) => x === "t");
     const before = Session.current();
-    const output = cliExecuteOutput(`beach comb ${firstTwinkleRow[0]} ${twinkleColumn}`);
+    const output = performVerifiedComb(firstTwinkleRow[0], twinkleColumn);
     finishObservation("twinkle_fallback", firstTwinkleRow[0], twinkleColumn, before, output);
     return;
   }
@@ -362,14 +499,14 @@ function _comb(tile: BeachTile): void {
     );
     const roughcolumn = firstRoughRow[1].findIndex((x) => x === "r");
     const before = Session.current();
-    const output = cliExecuteOutput(`beach comb ${firstRoughRow[0]} ${roughcolumn}`);
+    const output = performVerifiedComb(firstRoughRow[0], roughcolumn);
     finishObservation("rough_fallback", firstRoughRow[0], roughcolumn, before, output);
     return;
   }
 
   print("We've exhausted all other options, so we're combing an already-combed tile.", HIGHLIGHT);
   const before = Session.current();
-  const output = cliExecuteOutput(`beach comb ${row} ${column}`);
+  const output = performVerifiedComb(row, column);
   finishObservation("exhausted_fallback", row, column, before, output);
 }
 
@@ -436,6 +573,7 @@ function comb(): boolean {
 // A relay confirmation selects a pre-scored local same-player/day snapshot.
 // No model inference runs during execution, and the model cannot supply coordinates.
 function loadShadowTop11Route(requestedCombs?: number, freeOnly = true): BeachTile[] {
+  preparedRouteSnapshot = null;
   const raw = String(fileToBuffer("don_combo_matrix_runtime.json") || "");
   if (!raw) abort("No frozen Shadow Route Lab snapshot; refresh first.");
   const snapshot = JSON.parse(raw) as ShadowRouteSnapshot;
@@ -451,9 +589,14 @@ function loadShadowTop11Route(requestedCombs?: number, freeOnly = true): BeachTi
     get("_freeBeachWalksUsed", 0),
     Date.now() / 1000,
   ] as const;
-  return requestedCombs === undefined
-    ? compileShadowTop11(...parameters)
-    : compileWaterSheepRoute(...parameters, requestedCombs, freeOnly);
+  const route =
+    requestedCombs === undefined
+      ? compileShadowTop11(...parameters)
+      : compileWaterSheepRoute(...parameters, requestedCombs, freeOnly);
+  // Bind the verified route and the scores to the SAME parsed snapshot.
+  // Never re-read a possibly replaced runtime file after compilation.
+  preparedRouteSnapshot = snapshot;
+  return route;
 }
 
 function printSession(session: Session) {
@@ -532,7 +675,15 @@ export function main(args?: string | number): void {
   // We do this by first tracking what the session results are right now
   // Later, we will subtract these items and meat from our final results
   if (get("don_combo_running", false)) abort("Another Combo run is already active.");
-  print("+ Runtime timer started: " + new Date(invocationStartMs).toISOString(), "gray");
+  // A previous native action with indeterminate outcome cannot be replayed.
+  // Clearing this preference requires human reconciliation of game/session
+  // receipts; never silently wipe it while starting a new run.
+  const unresolvedAction = getProperty("don_combo_last_run_unverified_action");
+  if (unresolvedAction)
+    abort(
+      `Unresolved prior Beach Comb action (${unresolvedAction}); manual reconciliation required. No new combs started.`,
+    );
+  print(`+ Runtime timer started: ${new Date(invocationStartMs).toISOString()}`, "gray");
   const rawArg = typeof args === "string" ? args.trim() : args;
   const shadow11 = rawArg === "shadow11";
   const wsFree = rawArg === "watersheep-free";
@@ -593,6 +744,10 @@ export function main(args?: string | number): void {
     : wsFree || wsPaid
       ? loadShadowTop11Route(wsCount, wsFree)
       : null;
+  // Load the validated route's pre-scored evidence BEFORE marking a run active.
+  const frozenScoredSnapshot = frozenRoute ? preparedRouteSnapshot : null;
+  if (frozenRoute && !frozenScoredSnapshot)
+    abort("Frozen WaterSheep route lacks its validated source snapshot.");
   const routeMode = wsPaid
     ? "watersheep-paid"
     : wsFree || shadow11
@@ -671,6 +826,7 @@ export function main(args?: string | number): void {
   // Routed WaterSheep gets a pre-action prediction per target automatically;
   // vanilla Combo keeps the existing opt-in don_combo_ml_trace property.
   autoTraceWaterSheepRun = shadow11 || wsFree || wsPaid;
+  activeRouteSnapshot = frozenScoredSnapshot;
   let completedCombs = 0;
   let interrupted = false;
   let cleanFinish = false;
@@ -697,7 +853,16 @@ export function main(args?: string | number): void {
         const target = frozenRoute[completedCombs];
         if (!target || gamedayToInt() !== frozenGameday || Number(myId()) !== frozenPlayer)
           throw new Error("Shadow route day/player changed during execution.");
-        _comb(target);
+        activeSpendCheckpoint = {
+          freeBefore: before,
+          adventuresBefore: beforeAdventures,
+          freeOnly,
+        };
+        try {
+          _comb(target);
+        } finally {
+          activeSpendCheckpoint = null;
+        }
         const after = get("_freeBeachWalksUsed", 0);
         const afterAdventures = myAdventures();
         const freeSpent = after === before + 1;
@@ -766,6 +931,7 @@ export function main(args?: string | number): void {
     }
   } finally {
     activeLiveRareShare = null; // discard, never persist for replay
+    activeSpendCheckpoint = null;
     activeRunInterface = null; // no global report state between invocations
     set("logPreferenceChangeFilter", oldFilter);
     set("don_combo_running", false);
@@ -813,6 +979,8 @@ export function main(args?: string | number): void {
       );
     } finally {
       autoTraceWaterSheepRun = false;
+      activeRouteSnapshot = null;
+      preparedRouteSnapshot = null;
       activeShadowRun = null;
     }
   }
@@ -835,7 +1003,11 @@ export function main(args?: string | number): void {
     const observationLines = renderRunObservation(runInterface, completedCombs, reportEndedAtMs);
     for (const line of observationLines) print(line, "gray");
     let priceText = "";
-    try { priceText = String(fileToBuffer("mallprices.txt") || ""); } catch { /* absent cache */ }
+    try {
+      priceText = String(fileToBuffer("mallprices.txt") || "");
+    } catch {
+      /* absent cache */
+    }
     const value = renderRunValue(
       [...final.items].map(([item, quantity]) => ({ id: item.id, name: item.name, quantity })),
       final.meat,
@@ -851,16 +1023,19 @@ export function main(args?: string | number): void {
           status: interrupted ? "interrupted" : "completed",
           ended_at: new Date(reportEndedAtMs).toISOString(),
           elapsed_ms: reportEndedAtMs - invocationStartMs,
-          value: { estimated_total_known_meat: value.estimated_total_known_meat,
-            unpriced_item_types: value.unpriced, local_cache_valid: value.file_valid },
-        }) + "\n",
+          value: {
+            estimated_total_known_meat: value.estimated_total_known_meat,
+            unpriced_item_types: value.unpriced,
+            local_cache_valid: value.file_valid,
+          },
+        }).concat("\n"),
         "don_combo_run_reports.jsonl",
       );
     } catch (error) {
-      print("don_combo: CLI report archive unavailable: " + String(error), "gray");
+      print(`don_combo: CLI report archive unavailable: ${String(error)}`, "gray");
     }
   } catch (error) {
-    print("don_combo: optional report unavailable after results saved: " + String(error), "gray");
+    print(`don_combo: optional report unavailable after results saved: ${String(error)}`, "gray");
   }
   print("don_combo: results saved; script finished.", "gray");
 }

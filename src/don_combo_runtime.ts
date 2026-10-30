@@ -80,7 +80,10 @@ const WEIGHTS: Record<(typeof LABELS)[number], number> = {
   regular: 0.1,
   scratched: 0,
 };
-const ENDPOINT = "http://127.0.0.1:8766/v1/kolmafia";
+// Local loopback adapter accepts an encoded request= form POST and forwards
+// JSON POST to the native WaterSheep inference service on port 8766.
+// This separates the very large model evidence from the HTTP request URL.
+const ENDPOINT = "http://127.0.0.1:8768/v1/kolmafia";
 const DESIGN_REFERENCE = {
   repository: "es-3581100/math-by-design",
   commit: "4f3cfebc0bc8f2f243080d9c758290323eeaf595",
@@ -635,7 +638,10 @@ function askWaterSheep(candidate: Candidate): { scores: Record<string, number>; 
   const payload = waterSheepPayload(candidate);
   const started = Date.now();
   const url = `${ENDPOINT}?request=${urlEncode(JSON.stringify(payload))}`;
-  const raw = String(visitUrl(url, false) || "");
+  // KoLmafia's visit_url(..., true, true) moves the already-encoded
+  // request= field into the POST form body. encoded=true prevents the
+  // percent-encoding from being applied twice. No GET or fallback retry.
+  const raw = String(visitUrl(url, true, true) || "");
   const parsed = JSON.parse(raw) as WaterSheepResponse;
   if (parsed.error) throw new Error(parsed.error);
   const probabilities = parsed.answers?.tile_class?.probabilities || {};

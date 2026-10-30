@@ -32,7 +32,10 @@ function aliasDefinition() {
   var lines = output.split(/\r?\n/);
   for (var i = 0; i < lines.length; i++) {
     // KoLmafia alias listings may arrive as HTML: <b> combo </b> => ...
-    var listing = lines[i].replace(/<\/?b>/gi, "").replace(/&gt;/gi, ">").replace(/&amp;/gi, "&");
+    var listing = lines[i]
+      .replace(/<\/?b>/gi, "")
+      .replace(/&gt;/gi, ">")
+      .replace(/&amp;/gi, "&");
     var match = listing.match(/^\s*(?:>\s*)?combo(?:\s+%%)?\s*=>\s*(.*?)\s*$/i);
     if (match) return { value: trim(match[1]), error: null };
   }
@@ -54,20 +57,27 @@ function inspect() {
     aliasOk: alias.value === HOOK,
     listenerOk: listener,
     executableOk: executable,
-    active: alias.value === HOOK && listener && executable
+    active: alias.value === HOOK && listener && executable,
   };
 }
 function report(result) {
-  km.print("Don Combo hook: " + (result.active ? "ACTIVE" : "INACTIVE"),
-    result.active ? "green" : "red");
-  km.print("  combo alias: " +
-    (result.aliasOk ? "correct" : result.alias.value === null ? "missing/unreadable" : "different"));
+  km.print(
+    "Don Combo hook: " + (result.active ? "ACTIVE" : "INACTIVE"),
+    result.active ? "green" : "red",
+  );
+  km.print(
+    "  combo alias: " +
+      (result.aliasOk
+        ? "correct"
+        : result.alias.value === null
+          ? "missing/unreadable"
+          : "different"),
+  );
   if (result.alias.value !== null && !result.aliasOk)
     km.print("  current combo alias: " + result.alias.value, "gray");
   km.print("  listener identity: " + (result.listenerOk ? "ready (v2)" : "missing/old"), "gray");
   km.print("  unique executable: " + (result.executableOk ? "ready" : "missing/old"), "gray");
-  if (!result.active)
-    km.print("  Repair: don_combo status --r (or don_combo -restore).", "gray");
+  if (!result.active) km.print("  Repair: don_combo status --r (or don_combo -restore).", "gray");
 }
 function restore() {
   // A different or missing listener cannot be repaired by re-aliasing.
@@ -78,8 +88,7 @@ function restore() {
     km.print("  don_combo status --r");
     return false;
   }
-  if (before.alias.value !== null && !before.aliasOk &&
-      !km.getProperty(SAVED_ALIAS_PREF)) {
+  if (before.alias.value !== null && !before.aliasOk && !km.getProperty(SAVED_ALIAS_PREF)) {
     km.setProperty(SAVED_ALIAS_PREF, before.alias.value);
     km.print("Don Combo: previous combo alias saved to " + SAVED_ALIAS_PREF + ".", "gray");
   }
@@ -103,7 +112,12 @@ function runCombo(args) {
   // The script invocation itself is the guard: no recursive combo alias call.
   // Accept one known CLI argument, not multi-command gCLI syntax.
   var payload = trim(args);
-  if (payload && !/^(?:[0-9]+|watersheep-free|watersheep-[1-9][0-9]*|shadow11|info|help|lifetime|watersheep-preview)$/.test(payload)) {
+  if (
+    payload &&
+    !/^(?:[0-9]+|watersheep-free|watersheep-[1-9][0-9]*|shadow11|info|help|lifetime|watersheep-preview)$/.test(
+      payload,
+    )
+  ) {
     km.print("Don Combo: invalid combo argument; refusing to dispatch: " + payload, "red");
     return false;
   }
@@ -130,13 +144,14 @@ function runCombo(args) {
     km.print("Don Combo: listener invocation failed.", "red");
     return false;
   }
-  if (gameplay && (
-    km.getProperty("don_combo_last_run_started_at") === previousRunStart ||
-    km.getProperty("don_combo_last_run_status") !== "completed"
-  )) {
+  if (
+    gameplay &&
+    (km.getProperty("don_combo_last_run_started_at") === previousRunStart ||
+      km.getProperty("don_combo_last_run_status") !== "completed")
+  ) {
     km.print(
       "Don Combo: incomplete or stale run receipt; downstream post-run stages must not advance.",
-      "red"
+      "red",
     );
     return false;
   }

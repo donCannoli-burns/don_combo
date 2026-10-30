@@ -64,14 +64,16 @@ logs, or personal Combo preferences as a collision workaround.
 
 The regular `combo` alias is installed by the optional `kolmafia-skills`
 bootstrap, but it can become stale or be replaced during a sync. More subtly,
-the *alias can remain active* while the shared upstream executable
+the _alias can remain active_ while the shared upstream executable
 `scripts/combo/combo.js` is overwritten. The Don Combo listener now executes
 the unique `don_combo/doncombo.js` entrypoint instead, avoiding that collision.
 
 The installed hook is now:
+
 ```text
 alias combo => call don_combo.js run %%
 ```
+
 This is intentional: an inline `ashq cli_execute("don_combo status --r")`
 cannot test whether the printed status equals `ACTIVE`. The `run`
 controller uses the same Boolean inspection/restore logic and checks
@@ -136,7 +138,7 @@ After the regular `=== RESULTS ===`, the CLI prints
   fragments, rainbow pearls, and the native bottle/whale encounters.
   `uncommon_rare_tiles` is cursed gear, bottles and whale encounters.
   `ultra_rare_tiles` is meteorite fragments and rainbow pearls.
-  A rare *target*, twinkle, or incidental castle drop alone is never
+  A rare _target_, twinkle, or incidental castle drop alone is never
   counted as a confirmed rare find.
 - The WaterSheep-only `revisited_tiles` counter means the planned rare
   coordinate was **already marked combed** on the observed beach front.

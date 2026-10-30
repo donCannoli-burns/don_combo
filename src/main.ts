@@ -42,11 +42,14 @@ import {
   prescoreWaitPhrase,
   prescoreProgressNotice,
 } from "./runtime/prescore-progress";
-import { firstVisibleSandCastle } from "./runtime/sandcastle-observer";
 import {
-  observeRunAction, startRunInterface, runProgress,
-  renderRunObservation, renderRunValue,
+  observeRunAction,
+  startRunInterface,
+  runProgress,
+  renderRunObservation,
+  renderRunValue,
 } from "./runtime/run-interface";
+import { firstVisibleSandCastle } from "./runtime/sandcastle-observer";
 import { summarizeShadowRun, type ShadowRunContext } from "./runtime/shadow-learning";
 import {
   compileShadowTop11,
@@ -204,7 +207,10 @@ function captureTargetPrediction(
     return traceTargetPrediction(minute, row, column);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    print(`don_combo ML trace unavailable: ${message} · No action authorized; native state still required.`, "gray");
+    print(
+      `don_combo ML trace unavailable: ${message} · No action authorized; native state still required.`,
+      "gray",
+    );
     return {
       schema: "don-combo-target-prediction/v0.1",
       generated_at: new Date().toISOString(),
@@ -279,7 +285,11 @@ function _comb(tile: BeachTile): void {
     }
     if (
       !beachChoiceReady(
-        handlingChoice(), get("_beachCombing", false), get("_beachMinutes", 0), minute, lastChoice(),
+        handlingChoice(),
+        get("_beachCombing", false),
+        get("_beachMinutes", 0),
+        minute,
+        lastChoice(),
       ) ||
       property.getString("_beachLayout") !== layoutString
     )
@@ -332,10 +342,15 @@ function _comb(tile: BeachTile): void {
     // Passive per-comb report: one observation, never a game action.
     if (activeRunInterface) {
       const seen = observeRunAction(activeRunInterface, {
-        minute, layout: layoutString, outcome,
-        planned_row: row, planned_col: column,
-        actual_row: actualRow, actual_col: actualColumn,
-        items: delta.items, output: actionOutput,
+        minute,
+        layout: layoutString,
+        outcome,
+        planned_row: row,
+        planned_col: column,
+        actual_row: actualRow,
+        actual_col: actualColumn,
+        items: delta.items,
+        output: actionOutput,
       });
       print(
         `+ event_observed=${seen.observed ? "T" : "F"} event_name=${seen.names.join(",") || "none"}`,
@@ -551,9 +566,10 @@ function loadShadowTop11Route(requestedCombs?: number, freeOnly = true): BeachTi
     get("_freeBeachWalksUsed", 0),
     Date.now() / 1000,
   ] as const;
-  const route = requestedCombs === undefined
-    ? compileShadowTop11(...parameters)
-    : compileWaterSheepRoute(...parameters, requestedCombs, freeOnly);
+  const route =
+    requestedCombs === undefined
+      ? compileShadowTop11(...parameters)
+      : compileWaterSheepRoute(...parameters, requestedCombs, freeOnly);
   // Bind the verified route and the scores to the SAME parsed snapshot.
   // Never re-read a possibly replaced runtime file after compilation.
   preparedRouteSnapshot = snapshot;
@@ -641,7 +657,9 @@ export function main(args?: string | number): void {
   // receipts; never silently wipe it while starting a new run.
   const unresolvedAction = getProperty("don_combo_last_run_unverified_action");
   if (unresolvedAction)
-    abort(`Unresolved prior Beach Comb action (${unresolvedAction}); manual reconciliation required. No new combs started.`);
+    abort(
+      `Unresolved prior Beach Comb action (${unresolvedAction}); manual reconciliation required. No new combs started.`,
+    );
   print(`+ Runtime timer started: ${new Date(invocationStartMs).toISOString()}`, "gray");
   const rawArg = typeof args === "string" ? args.trim() : args;
   const shadow11 = rawArg === "shadow11";
@@ -962,7 +980,11 @@ export function main(args?: string | number): void {
     const observationLines = renderRunObservation(runInterface, completedCombs, reportEndedAtMs);
     for (const line of observationLines) print(line, "gray");
     let priceText = "";
-    try { priceText = String(fileToBuffer("mallprices.txt") || ""); } catch { /* absent cache */ }
+    try {
+      priceText = String(fileToBuffer("mallprices.txt") || "");
+    } catch {
+      /* absent cache */
+    }
     const value = renderRunValue(
       [...final.items].map(([item, quantity]) => ({ id: item.id, name: item.name, quantity })),
       final.meat,
@@ -978,8 +1000,11 @@ export function main(args?: string | number): void {
           status: interrupted ? "interrupted" : "completed",
           ended_at: new Date(reportEndedAtMs).toISOString(),
           elapsed_ms: reportEndedAtMs - invocationStartMs,
-          value: { estimated_total_known_meat: value.estimated_total_known_meat,
-            unpriced_item_types: value.unpriced, local_cache_valid: value.file_valid },
+          value: {
+            estimated_total_known_meat: value.estimated_total_known_meat,
+            unpriced_item_types: value.unpriced,
+            local_cache_valid: value.file_valid,
+          },
         }).concat("\n"),
         "don_combo_run_reports.jsonl",
       );

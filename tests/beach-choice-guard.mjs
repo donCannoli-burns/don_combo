@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+
 import { beachChoiceReady, nativeBeachCombReceipt } from "../src/runtime/beach-action-guard.ts";
 
 assert.equal(beachChoiceReady(true, true, 504, 504, 1388), true);
@@ -25,11 +26,15 @@ const traceEnd = source.indexOf("function sessionDelta(", traceStart);
 const trace = source.slice(traceStart, traceEnd);
 assert.ok(trace.includes("activeRouteSnapshot?.candidates.find("));
 assert.ok(trace.includes('score_provenance: "frozen-route-pre-score-not-a-fresh-prediction"'));
-assert.ok(trace.indexOf("if (autoTraceWaterSheepRun)") < trace.indexOf("return traceTargetPrediction("));
+assert.ok(
+  trace.indexOf("if (autoTraceWaterSheepRun)") < trace.indexOf("return traceTargetPrediction("),
+);
 assert.ok(comb.includes("if (autoTraceWaterSheepRun && preActionPrediction?.error)"));
 assert.ok(source.includes("activeRouteSnapshot = null;"));
 assert.ok(source.includes("preparedRouteSnapshot = snapshot;"));
-assert.ok(source.includes("const frozenScoredSnapshot = frozenRoute ? preparedRouteSnapshot : null;"));
+assert.ok(
+  source.includes("const frozenScoredSnapshot = frozenRoute ? preparedRouteSnapshot : null;"),
+);
 assert.equal(
   (source.match(/fileToBuffer\("don_combo_matrix_runtime.json"\)/g) || []).length >= 2,
   true,

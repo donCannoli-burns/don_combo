@@ -107,22 +107,10 @@ const main = readFileSync(new URL("../src/main.ts", import.meta.url), "utf8");
 const obs = readFileSync(new URL("../src/runtime/observations.ts", import.meta.url), "utf8");
 const runtime = readFileSync(new URL("../src/don_combo_runtime.ts", import.meta.url), "utf8");
 const html = readFileSync(new URL("../mafia/relay/don_combo_matrix.html", import.meta.url), "utf8");
-assert.match(
-  main,
-  /const actionOutput = performVerifiedComb\(row, column\)/,
-);
-assert.match(
-  main,
-  /const output = performVerifiedComb\(whaleRow\[0\], whaleColumn\)/,
-);
-assert.match(
-  main,
-  /const output = performVerifiedComb\(firstTwinkleRow\[0\], twinkleColumn\)/,
-);
-assert.match(
-  main,
-  /const output = performVerifiedComb\(firstRoughRow\[0\], roughcolumn\)/,
-);
+assert.match(main, /const actionOutput = performVerifiedComb\(row, column\)/);
+assert.match(main, /const output = performVerifiedComb\(whaleRow\[0\], whaleColumn\)/);
+assert.match(main, /const output = performVerifiedComb\(firstTwinkleRow\[0\], twinkleColumn\)/);
+assert.match(main, /const output = performVerifiedComb\(firstRoughRow\[0\], roughcolumn\)/);
 assert.match(main, /finishObservation\("exhausted_fallback", row, column, before, output\)/);
 assert.match(main, /action_output: actionOutput/);
 assert.match(main, /autoTraceWaterSheepRun = shadow11 \|\| wsFree \|\| wsPaid/);

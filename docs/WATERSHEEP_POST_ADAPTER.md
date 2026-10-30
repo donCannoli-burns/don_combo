@@ -1,74 +1,93 @@
-# DonCombo WaterSheep transport: local POST adapter
+# DonCombo WaterSheep POST transport
 
-The TypeScript Combo scorer sends large evidence payloads. The old
-`GET http://127.0.0.1:8766/v1/kolmafia?request=...` request can exceed URL
-limits and is not the standard WaterSheep API. The standard WaterSheep API expects **JSON POST /v1/systemone**. On the user's current machine, a process called `watersheep-open` is listening on **8767**; its support for this endpoint has **not yet been confirmed**.
+DonCombo's old GET request puts a large percent-encoded JSON payload in a
+`/v1/kolmafia?request=...` URL. The request is much larger than ordinary
+HTTP GETs. The new bridge moves that value into an encoded POST form body,
+then forwards the JSON object to the native WaterSheep service.
 
-## Connection diagram
+## Three independent local services
 
 ```text
-KoLmafia visitUrl(url, true, true)
-  POST request=<percent-encoded JSON> (form body, not query URL)
-      -> 127.0.0.1:8766/v1/kolmafia
-         local watersheep_post_adapter.py
+KoLmafia / DonCombo
+  POST form request=<encoded JSON>
+      -> 127.0.0.1:8768/v1/kolmafia
+         DonCombo POST adapter (Python)
   POST application/json
-      -> 127.0.0.1:8767/v1/systemone
-         WaterSheep
+      -> 127.0.0.1:8766/v1/systemone
+         Native WaterSheep (CPU model)
+
+OpenCode
+  OpenAI-compatible requests
+      -> 127.0.0.1:8767/v1/chat/completions
+         watersheep-open OpenCode adapter
+  Native scoring requests
+      -> 127.0.0.1:8766/v1/decisions
+         SAME native WaterSheep backend
 ```
 
-The adapter never calls KoL, does not mutate game state, refuses requests
-outside the shadow-only tile-class contract, does not log payloads, and binds
-only to the loopback interface. **No automatic inference retries.**
+**Do not point the DonCombo adapter at 8767.** That service is the OpenCode
+compatibility adapter, not the native WaterSheep inference API. Since it
+forwards to 8766, a 8766 -> 8767 adapter could produce a routing loop.
+Do not stop or replace OpenCode's existing listener.
 
-## Linux setup
+## Start/inspect native WaterSheep
 
-In a terminal, first check both loopback ports:
+Check listeners without any game or model request:
 
 ```sh
-ss -ltnp '( sport = :8766 or sport = :8767 )'
+ss -ltnp '( sport = :8766 or sport = :8767 or sport = :8768 )'
 ```
 
-Keep the existing listener on port **8767**. First verify that it supports
-`POST /v1/systemone` and returns `answers.tile_class.probabilities` before
-running the adapter. **Do not start a second model service or kill this one.**
+If port 8766 is unused, start native WaterSheep in its own terminal with
+the locally installed CLI, for example:
 
-In a **second** terminal, run the local form-to-JSON adapter from the
-KoLmafia installation after the new release has been deployed:
+```sh
+~/anaconda3/bin/watersheep --model samratduttaofficial/WaterSheep --device cpu --serve 8766
+```
+
+The expected startup text names `http://127.0.0.1:8766/v1/decisions`.
+Both `POST /v1/decisions` and `POST /v1/systemone` belong to the
+native server. Verify one tiny structured shadow-only request before
+using the route scorer; do not substitute a GET /health result.
+
+After PR deployment, start the KoLmafia adapter in another terminal:
 
 ```sh
 python3 "$HOME/.kolmafia/scripts/don_combo/watersheep_post_adapter.py"
 ```
 
-In a **third** terminal, verify listener status. This makes **no model
-request and no game actions**:
+Its defaults are listen port **8768** and upstream WaterSheep port **8766**.
+The adapter only binds to `127.0.0.1`. A status GET doesn't run inference:
 
 ```sh
-curl --max-time 3 -fsS http://127.0.0.1:8766/health
+curl --max-time 3 -fsS http://127.0.0.1:8768/health
 ```
 
-Expected `adapter=ready` and `watersheep_tcp=listening`.
-The TCP check only proves that something is listening on port 8767;
-it does **not** prove the upstream implements the correct API. Test with
-a small one-question JSON POST separately before any paid game run.
+Expect `adapter=ready`, `watersheep_tcp=listening`, and
+`game_actions=false`. TCP readiness alone does not prove WaterSheep
+responds correctly to a structured question.
 
-`don_combo` will fail closed before executing any beach action if it
-cannot complete a valid frozen ranked route. Use read-only diagnostics
-before authorizing paid gameplay. This adapter is not a license to retry
-unresolved past comb attempts.
+## Scope and guards
 
-## Regression tests
+- The adapter rejects requests outside the `shadow-only; no action authorized`
+  mode with one `tile_class` choice question using classes A–F.
+- The adapter makes no KoL requests and logs no prediction payloads.
+- No automatic HTTP retries, no conversion of arbitrary OpenAI text to
+  probability mass, no game action permissions.
+- Combo refuses to start an incompletely scored WaterSheep route.
+- A native Beach Comb attempt with uncertain outcome must never be
+  silently replayed.
+
+## Offline regressions
 
 ```sh
 python3 tests/watersheep-post-adapter.py
 node tests/watersheep-transport.mjs
 ```
 
-These spawn an offline fake upstream on random loopback ports and verify
-the translation contract. No WaterSheep model or KoL actions are used.
+The Python tests use a fake backend on random loopback ports and never
+contact the model or Kingdom of Loathing.
 
-## Deployment
-
-This file is staged in `mafia/scripts/don_combo`; the repository build
-copies it into `release/scripts/don_combo` only after the main-branch
-CI/deploy pipeline succeeds. PR #15 is a draft until the transport is
-reviewed and the existing baseline lint failures are resolved.
+PR #15 remains a draft until CI, local inference compatibility, and the
+existing baseline lint blockers are addressed. It has not changed the
+installed KoLmafia release.

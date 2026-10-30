@@ -217,7 +217,7 @@ function _toPrimitive(t, r) {
     if ("object" != typeof i) return i;
     throw new TypeError("@@toPrimitive must return a primitive value.");
   }
-  return (String )(t);
+  return ("string" === r ? String : Number)(t);
 }
 function _toPropertyKey(t) {
   var i = _toPrimitive(t, "string");
@@ -6571,7 +6571,10 @@ var WEIGHTS = {
   regular: 0.1,
   scratched: 0
 };
-var ENDPOINT = "http://127.0.0.1:8766/v1/kolmafia";
+// Local loopback adapter accepts an encoded request= form POST and forwards
+// JSON POST to the native WaterSheep inference service on port 8766.
+// This separates the very large model evidence from the HTTP request URL.
+var ENDPOINT = "http://127.0.0.1:8768/v1/kolmafia";
 var DESIGN_REFERENCE = {
   repository: "es-3581100/math-by-design",
   commit: "4f3cfebc0bc8f2f243080d9c758290323eeaf595",
@@ -7047,7 +7050,10 @@ function askWaterSheep(candidate) {
   var payload = waterSheepPayload(candidate);
   var started = Date.now();
   var url = "".concat(ENDPOINT, "?request=").concat(kolmafia.urlEncode(JSON.stringify(payload)));
-  var raw = String(kolmafia.visitUrl(url, false) || "");
+  // KoLmafia's visit_url(..., true, true) moves the already-encoded
+  // request= field into the POST form body. encoded=true prevents the
+  // percent-encoding from being applied twice. No GET or fallback retry.
+  var raw = String(kolmafia.visitUrl(url, true, true) || "");
   var parsed = JSON.parse(raw);
   if (parsed.error) throw new Error(parsed.error);
   var probabilities = ((_parsed$answers = parsed.answers) === null || _parsed$answers === void 0 || (_parsed$answers = _parsed$answers.tile_class) === null || _parsed$answers === void 0 ? void 0 : _parsed$answers.probabilities) || {};
@@ -7684,6 +7690,54 @@ function writeRuntime(result) {
   kolmafia.setProperty("don_combo_matrix_refresh_run_status", String(((_result$run_control = result.run_control) === null || _result$run_control === void 0 ? void 0 : _result$run_control.status) ?? ""));
 }
 
+// Pure guards for the Beach Comb choice/action boundary.
+// Tested offline; no KoL I/O or model inference lives in this module.
+function beachChoiceReady(handlingChoice, beachCombing, currentMinute, expectedMinute, activeChoice) {
+  return handlingChoice && activeChoice === 1388 && beachCombing && Number.isInteger(expectedMinute) && expectedMinute >= 1 && expectedMinute <= 10000 && currentMinute === expectedMinute;
+}
+// KoLmafia BeachManager.parseCombUsage updates a non-combed tile to 'c'
+// only on a successful COMB server response. Already-combed tiles cannot
+// flip again, so a single verifiable resource debit is also required.
+// This accepts no positive evidence from untrusted console/model text.
+function verifyBeachCombTransition(e) {
+  var failed = reason => ({
+    verified: false,
+    reason,
+    spend: null,
+    tileFlipped: false
+  });
+  if (!Number.isInteger(e.row) || e.row < 1 || e.row > 10 || !Number.isInteger(e.column) || e.column < 0 || e.column > 9 || !Number.isInteger(e.expectedMinute) || e.expectedMinute < 1 || e.expectedMinute > 10000 || e.beforeMinute !== e.expectedMinute || e.afterMinute !== e.expectedMinute) return failed("coordinate-or-minute-mismatch");
+  if (!Number.isInteger(e.freeBefore) || !Number.isInteger(e.freeAfter) || e.freeBefore < 0 || e.freeAfter < 0 || e.freeBefore > 11 || e.freeAfter > 11 || !Number.isInteger(e.adventuresBefore) || !Number.isInteger(e.adventuresAfter) || e.adventuresBefore < 0 || e.adventuresAfter < 0) return failed("invalid-resource-counters");
+  var freeSpent = e.freeAfter === e.freeBefore + 1 && e.adventuresAfter === e.adventuresBefore;
+  var paidSpent = e.freeAfter === e.freeBefore && e.adventuresAfter === e.adventuresBefore - 1;
+  if (e.freeOnly ? !freeSpent : !freeSpent && !paidSpent) return failed("no-exactly-one-verified-spend");
+  var tileAt = layout => {
+    var _iterator = _createForOfIteratorHelper(layout.split(",")),
+      _step;
+    try {
+      for (_iterator.s(); !(_step = _iterator.n()).done;) {
+        var part = _step.value;
+        var match = /^(\d+):([A-Za-z?]{10})$/.exec(part);
+        if (match && Number(match[1]) === e.row) return match[2].charAt(e.column);
+      }
+    } catch (err) {
+      _iterator.e(err);
+    } finally {
+      _iterator.f();
+    }
+    return null;
+  };
+  var before = tileAt(e.beforeLayout);
+  var after = tileAt(e.afterLayout);
+  if (before === null || after !== "c") return failed("no-target-tile-confirmation");
+  return {
+    verified: true,
+    reason: before === "c" ? "single-spend-already-combed" : "single-spend-tile-flipped",
+    spend: freeSpent ? "free" : "paid",
+    tileFlipped: before !== "c"
+  };
+}
+
 // Deliberately independent of the exploratory pool classifier: expanding
 // model labels must never silently expand this opt-in data-sharing policy.
 // The exact native bottle match mirrors bottle-observer.ts.
@@ -7799,6 +7853,260 @@ function prescoreProgressNotice(completed, total, lastPrintedRoundedSeconds) {
   return {
     rounded_remaining_seconds: rounded,
     message: "WaterSheep: pre-scoring ".concat(completed, "/").concat(total, " targets \xB7 please wait ").concat(prescoreWaitPhrase(left), " remaining...")
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- This helper must remain executable as raw ES2018 JavaScript by the offline KoLmafia observation harness.
+// @ts-nocheck
+// Passive Don Combo CLI observation report. No KoL actions and no network calls.
+// Kept in ES2018 syntax so the release bundle can embed the same pure helpers.
+function startRunInterface(requested, startedAt, routeMode) {
+  return {
+    schema: "don-combo-cli-run/v0.1",
+    started_at: new Date(startedAt).toISOString(),
+    requested_combs: requested,
+    route_mode: routeMode,
+    observations: [],
+    counts: {
+      event_tiles: 0,
+      scratched_fronts: 0,
+      any_rare_tiles: 0,
+      uncommon_rare_tiles: 0,
+      ultra_rare_tiles: 0,
+      revisited_tiles: 0,
+      high_scratch: 0,
+      very_high_scratch: 0,
+      sand_castles: 0,
+      twinkles: 0,
+      whales: 0,
+      message_bottles: 0,
+      driftwood: 0,
+      cursed_gear: 0,
+      meteorite: 0,
+      rainbow_pearl: 0,
+      route_target_matches: 0
+    }
+  };
+}
+function layoutHas(layout, symbol) {
+  return String(layout || "").split(",").some(row => {
+    var p = row.split(":");
+    return p.length === 2 && p[1].indexOf(symbol) >= 0;
+  });
+}
+function plannedCombed(layout, row, col) {
+  return String(layout || "").split(",").some(part => {
+    var p = part.split(":");
+    return p.length === 2 && Number(p[0]) === row && p[1].charAt(col) === "c";
+  });
+}
+function scratchSize(layout) {
+  var total = 0;
+  var seen = {};
+  var parts = String(layout || "").split(",");
+  for (var i = 0; i < parts.length; i++) {
+    var match = /^(\d+):([A-Za-z?]{10})$/.exec(parts[i]);
+    if (!match || seen[match[1]]) continue;
+    seen[match[1]] = true;
+    total += (match[2].match(/[cC]/g) || []).length;
+  }
+  return total;
+}
+function observeRunAction(report, action) {
+  if (!report) return {
+    observed: false,
+    names: []
+  };
+  var labels = [];
+  var add = name => {
+    if (labels.indexOf(name) < 0) labels.push(name);
+  };
+  var count = report.counts;
+  var size = scratchSize(action.layout);
+  if (size > 0) {
+    count.scratched_fronts++;
+    add("scratch_observed");
+  }
+  if (size >= 6) {
+    count.high_scratch++;
+    add("high_scratch");
+  }
+  if (size >= 11) {
+    count.very_high_scratch++;
+    add("very_high_scratch");
+  }
+  if (layoutHas(action.layout, "C") || String(action.outcome).indexOf("sand_castle") === 0) {
+    count.sand_castles++;
+    add("sand_castle");
+  }
+  if (layoutHas(action.layout, "t") || action.outcome === "twinkle_fallback") {
+    count.twinkles++;
+    add("twinkle");
+  }
+  if (layoutHas(action.layout, "W") || action.outcome === "whale") {
+    count.whales++;
+    add("beached_whale");
+  }
+  var bottle = String(action.output || "").split(/\r?\n/).some(line => {
+    return /^\s*(?:>\s*)?You found a message in a bottle!\s*$/i.test(line.trim());
+  });
+  if (bottle) {
+    count.message_bottles++;
+    add("message_in_a_bottle");
+  }
+  var rare = false,
+    uncommon = bottle || action.outcome === "whale",
+    ultra = false;
+  var items = action.items || {};
+  Object.keys(items).forEach(name => {
+    if (!(items[name] > 0)) return;
+    var n = name.toLowerCase().replace(/\s+/g, " ").trim();
+    if (n === "piece of driftwood") {
+      count.driftwood++;
+      rare = true;
+      add("piece_of_driftwood");
+    } else if (/^cursed(?: pirate)? (?:tricorn hat|tricorn|swash buckle|swashbuckle|cutlass)$/.test(n)) {
+      count.cursed_gear++;
+      rare = true;
+      uncommon = true;
+      add("cursed_pirate_gear");
+    } else if (n === "meteorite fragment") {
+      count.meteorite++;
+      rare = true;
+      ultra = true;
+      add("meteorite_fragment");
+    } else if (n === "rainbow pearl") {
+      count.rainbow_pearl++;
+      rare = true;
+      ultra = true;
+      add("rainbow_pearl");
+    }
+  });
+  // Encounter-only bottle/whale are admitted to the inclusive scarce ladder.
+  if (uncommon) rare = true;
+  if (rare) count.any_rare_tiles++;
+  if (uncommon) count.uncommon_rare_tiles++;
+  if (ultra) count.ultra_rare_tiles++;
+  var watersheep = report.route_mode.indexOf("watersheep-") === 0;
+  var revisit = watersheep && plannedCombed(action.layout, action.planned_row, action.planned_col);
+  if (revisit) {
+    count.revisited_tiles++;
+    add("planned_rare_revisit");
+  }
+  if (watersheep && action.planned_row === action.actual_row && action.planned_col === action.actual_col) count.route_target_matches++;
+  if (labels.length > 0) count.event_tiles++;
+  report.observations.push({
+    minute: action.minute,
+    row: action.actual_row,
+    column: action.actual_col,
+    outcome: action.outcome,
+    labels: labels,
+    planned_revisit: revisit,
+    scratch_count: size
+  });
+  return {
+    observed: labels.length > 0,
+    names: labels
+  };
+}
+function runProgress(spent, requested) {
+  return "+ (".concat(String(spent).padStart(4, "0"), "/").concat(String(requested).padStart(4, "0"), ") -- turns(spent/requested)");
+}
+function runRate(value, total) {
+  return "".concat(value, "/").concat(total, " (").concat(total ? (100 * value / total).toFixed(2) : "0.00", "%)");
+}
+function renderRunObservation(report, completed, finishedAt) {
+  var c = report.counts;
+  var elapsed = Math.max(0, finishedAt - Date.parse(report.started_at));
+  var mins = Math.floor(elapsed / 60000);
+  var secs = Math.floor(elapsed / 1000) % 60;
+  var millis = Math.floor(elapsed % 1000);
+  var duration = "".concat(mins, "m ").concat(String(secs).padStart(2, "0"), "s ").concat(String(millis).padStart(3, "0"), "ms");
+  var rows = ["+ === OBSERVATION ===", "+ timestamp: ".concat(new Date(finishedAt).toISOString()), "+ event_tiles: ".concat(runRate(c.event_tiles, completed)), "+ scratches_any: ".concat(runRate(c.scratched_fronts, completed)), "+ high_scratch: ".concat(runRate(c.high_scratch, completed)), "+ very_high_scratch: ".concat(runRate(c.very_high_scratch, completed)), "+ sand_castles: ".concat(runRate(c.sand_castles, completed)), "+ twinkles: ".concat(runRate(c.twinkles, completed)), "+ beached_whale: ".concat(runRate(c.whales, completed)), "+ message_in_a_bottle: ".concat(runRate(c.message_bottles, completed)), "+ any_rare_tiles: ".concat(runRate(c.any_rare_tiles, completed)), "+ uncommon_rare_tiles: ".concat(runRate(c.uncommon_rare_tiles, completed)), "+ ultra_rare_tiles: ".concat(runRate(c.ultra_rare_tiles, completed)), "+ piece_of_driftwood: ".concat(runRate(c.driftwood, completed)), "+ cursed_pirate_gear: ".concat(runRate(c.cursed_gear, completed)), "+ meteorite_fragment: ".concat(runRate(c.meteorite, completed)), "+ rainbow_pearl: ".concat(runRate(c.rainbow_pearl, completed))];
+  if (report.route_mode.indexOf("watersheep-") === 0) {
+    rows.push("+ revisited_tiles (planned already-combed): ".concat(runRate(c.revisited_tiles, completed)));
+    rows.push("+ correctly_predicted_tiles: N/A (WaterSheep scores uncalibrated; no verified prediction label)");
+    rows.push("+ planned_target_actually_combed: ".concat(runRate(c.route_target_matches, completed)));
+  } else {
+    rows.push("+ revisited_tiles: N/A (only classified for WaterSheep routes)");
+    rows.push("+ correctly_predicted_tiles: N/A (no WaterSheep prediction)");
+  }
+  rows.push("+ total IRL time: ".concat(duration));
+  rows.push("+ average time per completed comb: ".concat(completed ? "".concat((elapsed / completed / 1000).toFixed(3), "s") : "N/A (0 combs)"));
+  rows.push("+ note: event categories overlap; only item deltas/native bottle/whale actions count as rare finds.");
+  return rows;
+}
+function priceCacheFromText(text) {
+  var cache = {};
+  var lines = String(text || "").split(/\r?\n/);
+  // KoLmafia mallprices.txt version 0xF00D5, rows: item_id TAB timestamp TAB price.
+  if (!lines.length || Number(lines[0].trim()) !== 983253) return {
+    prices: cache,
+    valid: false
+  };
+  for (var i = 1; i < lines.length; i++) {
+    var fields = lines[i].trim().split(/\s+/);
+    if (fields.length < 3) continue;
+    var id = Number(fields[0]),
+      ts = Number(fields[1]),
+      price = Number(fields[2]);
+    if (!Number.isInteger(id) || id < 1 || !Number.isFinite(ts) || ts <= 0 || !Number.isInteger(price) || price <= 0 || price > 999999999) continue;
+    if (!cache[id] || cache[id].timestamp < ts) cache[id] = {
+      timestamp: ts,
+      price: price
+    };
+  }
+  return {
+    prices: cache,
+    valid: true
+  };
+}
+// KoLmafia's Rhino Number.toLocaleString does not accept "en-US"; in some
+// revisions it treats that argument as a radix, causing "illegal radix 0".
+function formatMeatNumber(value) {
+  var pieces = String(value).split(".");
+  pieces[0] = pieces[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return pieces.join(".");
+}
+function renderRunValue(items, rawMeat, cachedText) {
+  var cache = priceCacheFromText(cachedText);
+  var rows = ["+ === VALUE ===", "+ source: local KoLmafia data/mallprices.txt (historical cache only; no Mall requests)"];
+  var priced = 0,
+    unknown = 0,
+    total = rawMeat;
+  var details = items.map(e => {
+    var id = Number(e.id),
+      quantity = Number(e.quantity);
+    var hit = cache.prices[id];
+    var price = hit ? hit.price : null;
+    if (price === null) unknown++;else {
+      priced++;
+      total += quantity * price;
+    }
+    return {
+      name: e.name,
+      quantity: quantity,
+      price: price,
+      subtotal: price === null ? null : quantity * price,
+      price_timestamp: hit ? hit.timestamp : null
+    };
+  });
+  details.sort((a, b) => {
+    return (b.subtotal || 0) - (a.subtotal || 0);
+  });
+  details.forEach(d => {
+    rows.push("+ ".concat(d.name, " | ").concat(d.quantity, " x ").concat(d.price === null ? "N/A" : formatMeatNumber(d.price), " = ").concat(d.subtotal === null ? "unknown" : formatMeatNumber(d.subtotal), " meat"));
+  });
+  rows.push("+ raw meat: ".concat(formatMeatNumber(rawMeat)));
+  rows.push("+ est final total: ".concat(formatMeatNumber(total), " meat").concat(unknown ? " (known-price subtotal; ".concat(unknown, " unpriced item types)") : ""));
+  if (!cache.valid) rows.push("+ cached price file missing or incompatible; unknown items not valued.");
+  return {
+    lines: rows,
+    priced: priced,
+    unpriced: unknown,
+    estimated_total_known_meat: total,
+    file_valid: cache.valid,
+    items: details
   };
 }
 
@@ -8079,6 +8387,11 @@ function addFalseRare(tile) {
 var activeShadowRun = null;
 var activeRunInterface = null;
 var autoTraceWaterSheepRun = false;
+var activeRouteSnapshot = null;
+var preparedRouteSnapshot = null;
+// Set for one routed action at a time. Required before treating a native
+// "You comb" message as a verified completed comb.
+var activeSpendCheckpoint = null;
 // Per-run memory only. Never populated from saved ML events or session history.
 var activeLiveRareShare = null;
 function shareDataEnabled() {
@@ -8093,11 +8406,41 @@ function mlTraceEnabled() {
 }
 function captureTargetPrediction(minute, row, column) {
   if (!mlTraceEnabled() && !autoTraceWaterSheepRun) return null;
+  // Optional vanilla tracing must not make a localhost HTTP request while
+  // KoLmafia is handling an active game choice from a previous action.
+  if (!autoTraceWaterSheepRun && kolmafia.handlingChoice()) {
+    return {
+      schema: "don-combo-target-prediction/v0.1",
+      generated_at: new Date().toISOString(),
+      minute,
+      error: "Optional model trace skipped while a game choice is active.",
+      authority: "none"
+    };
+  }
   try {
+    if (autoTraceWaterSheepRun) {
+      var _activeRouteSnapshot, _candidate$watersheep, _activeRouteSnapshot2;
+      // Paid/free routed execution already has a frozen scored snapshot.
+      // Reuse its *unaltered* model mass for passive cohort pairing; do not
+      // send another HTTP request per comb (and do not call it a fresh score).
+      var candidate = (_activeRouteSnapshot = activeRouteSnapshot) === null || _activeRouteSnapshot === void 0 ? void 0 : _activeRouteSnapshot.candidates.find(entry => entry.minute === minute && entry.representative.row === row && entry.representative.column === column);
+      if (!(candidate !== null && candidate !== void 0 && (_candidate$watersheep = candidate.watersheep) !== null && _candidate$watersheep !== void 0 && _candidate$watersheep.score_mass)) throw new Error("Frozen target score absent; no new WaterSheep call attempted.");
+      return {
+        schema: "don-combo-target-prediction/v0.1",
+        generated_at: new Date().toISOString(),
+        minute,
+        score_mass: candidate.watersheep.score_mass,
+        policy_utility: candidate.utility,
+        score_provenance: "frozen-route-pre-score-not-a-fresh-prediction",
+        snapshot_generated_at: (_activeRouteSnapshot2 = activeRouteSnapshot) === null || _activeRouteSnapshot2 === void 0 ? void 0 : _activeRouteSnapshot2.generated_at,
+        calibration: "UNVALIDATED_FOR_KOL_BEACH",
+        authority: "none"
+      };
+    }
     return traceTargetPrediction(minute, row, column);
   } catch (error) {
     var message = error instanceof Error ? error.message : String(error);
-    kolmafia.print("don_combo ML trace unavailable: ".concat(message, " \xB7 Combo continues normally."), "gray");
+    kolmafia.print("don_combo ML trace unavailable: ".concat(message, " \xB7 No action authorized; native state still required."), "gray");
     return {
       schema: "don-combo-target-prediction/v0.1",
       generated_at: new Date().toISOString(),
@@ -8142,6 +8485,10 @@ function _comb(tile) {
   var minute = tile.minute,
     row = tile.row,
     column = tile.column;
+  // The optional localhost model request must finish BEFORE opening the
+  // live Beach Comb choice; never interleave it with a native comb action.
+  var preActionPrediction = captureTargetPrediction(minute, row, column);
+  if (autoTraceWaterSheepRun && preActionPrediction !== null && preActionPrediction !== void 0 && preActionPrediction.error) throw new Error("Frozen WaterSheep target score unavailable; no beach action sent.");
   if (!kolmafia.cliExecute("beach wander ".concat(minute, ";"))) throw new Error("Could not visit beach minute ".concat(minute, "; route stopped."));
   var layoutString = getString("_beachLayout");
   var preActionObservedAt = new Date().toISOString();
@@ -8156,7 +8503,71 @@ function _comb(tile) {
   // TypeScript doesn't know that! the "as" called a "Type Assertion", which is exactly what it sounds like
   // This way, our compiler and our IDE don't start shouting at us for things that we, the reader, know are fine.
   .map(rowLayout => [parseInt(rowLayout[0]), rowLayout[1].split("")]));
-  var preActionPrediction = captureTargetPrediction(minute, row, column);
+
+  // Reopen the choice at most once BEFORE a comb request. Never retry
+  // after an attempted comb whose native result is uncertain.
+  var choiceRecoveryAttempted = false;
+  var ensureBeachChoice = () => {
+    var beachActive = get("_beachCombing", false);
+    var beachMinute = get("_beachMinutes", 0);
+    if (!beachChoiceReady(kolmafia.handlingChoice(), beachActive, beachMinute, minute, kolmafia.lastChoice())) {
+      if (choiceRecoveryAttempted) throw new Error("Beach choice recovery already attempted; no comb sent.");
+      if (!beachActive || beachMinute !== minute || kolmafia.handlingChoice()) throw new Error("Beach choice state changed; no comb sent.");
+      kolmafia.print("don_combo: Beach Comb choice inactive; reopening once before action.", "gray");
+      choiceRecoveryAttempted = true;
+      if (!kolmafia.cliExecute("beach visit")) throw new Error("Beach Comb visit recovery failed; no comb sent.");
+    }
+    if (!beachChoiceReady(kolmafia.handlingChoice(), get("_beachCombing", false), get("_beachMinutes", 0), minute, kolmafia.lastChoice()) || getString("_beachLayout") !== layoutString) throw new Error("Beach choice/layout mismatch after visit; no comb sent.");
+  };
+  var performVerifiedComb = (actualRow, actualColumn) => {
+    var _activeSpendCheckpoin;
+    ensureBeachChoice();
+    var coords = "".concat(minute, ",").concat(actualRow, ",").concat(actualColumn);
+    // Persist pending before sending an irreversible action. No automatic retry.
+    kolmafia.setProperty("don_combo_last_run_unverified_action", coords);
+    ensureBeachChoice(); // Preference listeners must not invalidate the choice.
+    // The CLI logs an attempted square before the HTTP response; it is not
+    // a receipt. KoLmafia's BeachManager changes the targeted layout tile
+    // to 'c' only after receiving the server's successful "You comb" text.
+    // Capture resource state immediately around this ONE native command for
+    // both ordinary Combo and routed Combo (including already-combed tiles).
+    var beforeLayout = getString("_beachLayout");
+    var beforeMinute = get("_beachMinutes", 0);
+    var freeBefore = get("_freeBeachWalksUsed", 0);
+    var adventuresBefore = kolmafia.myAdventures();
+    var output = kolmafia.cliExecuteOutput("beach comb ".concat(actualRow, " ").concat(actualColumn));
+    var receipt = verifyBeachCombTransition({
+      beforeLayout,
+      afterLayout: getString("_beachLayout"),
+      beforeMinute,
+      afterMinute: get("_beachMinutes", 0),
+      expectedMinute: minute,
+      row: actualRow,
+      column: actualColumn,
+      freeBefore,
+      freeAfter: get("_freeBeachWalksUsed", 0),
+      adventuresBefore,
+      adventuresAfter: kolmafia.myAdventures(),
+      freeOnly: ((_activeSpendCheckpoin = activeSpendCheckpoint) === null || _activeSpendCheckpoin === void 0 ? void 0 : _activeSpendCheckpoin.freeOnly) ?? false
+    });
+    if (!receipt.verified) throw new Error("Beach comb ".concat(coords, " not verified (").concat(receipt.reason, "); no retry."));
+    // The original paid/free counters were captured before beach wander.
+    // They cover the complete single attempt rather than only the final
+    // square click. Keep the pending record if spend cannot be verified.
+    if (activeSpendCheckpoint) {
+      var _activeSpendCheckpoin2 = activeSpendCheckpoint,
+        _freeBefore = _activeSpendCheckpoin2.freeBefore,
+        _adventuresBefore = _activeSpendCheckpoin2.adventuresBefore,
+        freeOnly = _activeSpendCheckpoin2.freeOnly;
+      var freeSpent = get("_freeBeachWalksUsed", 0) === _freeBefore + 1;
+      var paidSpent = kolmafia.myAdventures() < _adventuresBefore;
+      if (freeOnly && (!freeSpent || paidSpent)) throw new Error("Free-only comb ".concat(coords, " lacked verified free spend; no retry."));
+      if (!freeOnly && !freeSpent && !paidSpent) throw new Error("Paid-route comb ".concat(coords, " lacked verified spend; no retry."));
+    }
+    kolmafia.setProperty("don_combo_last_run_unverified_action", "");
+    return output;
+  };
+  ensureBeachChoice();
   var finishObservation = (outcome, actualRow, actualColumn, before, actionOutput) => {
     var delta = sessionDelta(before);
     recordBeachObservation(minute, layoutString, outcome, {
@@ -8177,15 +8588,20 @@ function _comb(tile) {
       pre_action_observed_at: preActionObservedAt,
       run_context: activeShadowRun
     });
+    // Passive per-comb report: one observation, never a game action.
     if (activeRunInterface) {
       var seen = observeRunAction(activeRunInterface, {
-        minute: minute, layout: layoutString, outcome: outcome,
-        planned_row: row, planned_col: column,
-        actual_row: actualRow, actual_col: actualColumn,
-        items: delta.items, output: actionOutput
+        minute,
+        layout: layoutString,
+        outcome,
+        planned_row: row,
+        planned_col: column,
+        actual_row: actualRow,
+        actual_col: actualColumn,
+        items: delta.items,
+        output: actionOutput
       });
-      kolmafia.print("+ event_observed=" + (seen.observed ? "T" : "F") +
-        " event_name=" + (seen.names.join(",") || "none"), "gray");
+      kolmafia.print("+ event_observed=".concat(seen.observed ? "T" : "F", " event_name=").concat(seen.names.join(",") || "none"), "gray");
     }
     // Only this just-completed native comb's delta can enter a sharing run.
     if (activeLiveRareShare !== null && shareDataEnabled()) {
@@ -8213,7 +8629,7 @@ function _comb(tile) {
     var whaleColumn = whaleRow[1].findIndex(x => x === "W");
     kolmafia.print("We found a whale. To hey deze's heart, we'll stab at it.", "red");
     var _before = Session.current();
-    var _output = kolmafia.cliExecuteOutput("beach comb ".concat(whaleRow[0], " ").concat(whaleColumn));
+    var _output = performVerifiedComb(whaleRow[0], whaleColumn);
     finishObservation("whale", whaleRow[0], whaleColumn, _before, _output);
     // By returning partway through, we avoid needing to use "else"
     // With the exception of try...finally shenanigans, using the return keyword will just immediately terminate the function
@@ -8236,7 +8652,7 @@ function _comb(tile) {
       kolmafia.print("Our rare tile is uncombed, so let's go ahead and change that.", "red");
       // Grab the output of our comb and lowercase the resulting text
       var _before2 = Session.current();
-      var actionOutput = kolmafia.cliExecuteOutput("beach comb ".concat(row, " ").concat(column));
+      var actionOutput = performVerifiedComb(row, column);
       var _output2 = actionOutput.toLowerCase();
 
       // We exclude grain of sand as it means we didn't comb a twinkle as expected
@@ -8260,7 +8676,7 @@ function _comb(tile) {
   if (castle) {
     kolmafia.print("Our rare tile is combed, but a sand castle is visible. Demolishing it.", HIGHLIGHT);
     var _before3 = Session.current();
-    var _output3 = kolmafia.cliExecuteOutput("beach comb ".concat(castle.row, " ").concat(castle.column));
+    var _output3 = performVerifiedComb(castle.row, castle.column);
     finishObservation("sand_castle_fallback", castle.row, castle.column, _before3, _output3);
     return;
   }
@@ -8269,7 +8685,7 @@ function _comb(tile) {
     kolmafia.print("Our rare tile is combed, but we found a twinkle!", HIGHLIGHT);
     var twinkleColumn = firstTwinkleRow[1].findIndex(x => x === "t");
     var _before4 = Session.current();
-    var _output4 = kolmafia.cliExecuteOutput("beach comb ".concat(firstTwinkleRow[0], " ").concat(twinkleColumn));
+    var _output4 = performVerifiedComb(firstTwinkleRow[0], twinkleColumn);
     finishObservation("twinkle_fallback", firstTwinkleRow[0], twinkleColumn, _before4, _output4);
     return;
   }
@@ -8278,13 +8694,13 @@ function _comb(tile) {
     kolmafia.print("Our rare tile is combed, but we found some rough sand. So I guess there's that.", HIGHLIGHT);
     var roughcolumn = firstRoughRow[1].findIndex(x => x === "r");
     var _before5 = Session.current();
-    var _output5 = kolmafia.cliExecuteOutput("beach comb ".concat(firstRoughRow[0], " ").concat(roughcolumn));
+    var _output5 = performVerifiedComb(firstRoughRow[0], roughcolumn);
     finishObservation("rough_fallback", firstRoughRow[0], roughcolumn, _before5, _output5);
     return;
   }
   kolmafia.print("We've exhausted all other options, so we're combing an already-combed tile.", HIGHLIGHT);
   var before = Session.current();
-  var output = kolmafia.cliExecuteOutput("beach comb ".concat(row, " ").concat(column));
+  var output = performVerifiedComb(row, column);
   finishObservation("exhausted_fallback", row, column, before, output);
 }
 
@@ -8349,12 +8765,17 @@ function comb() {
 // No model inference runs during execution, and the model cannot supply coordinates.
 function loadShadowTop11Route(requestedCombs) {
   var freeOnly = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : true;
+  preparedRouteSnapshot = null;
   var raw = String(kolmafia.fileToBuffer("don_combo_matrix_runtime.json") || "");
   if (!raw) kolmafia.abort("No frozen Shadow Route Lab snapshot; refresh first.");
   var snapshot = JSON.parse(raw);
   var invalid = new Set(getFalseRares().map(tile => "".concat(tile.minute, ",").concat(tile.row, ",").concat(tile.column)));
   var parameters = [snapshot, rareTiles, invalid, Number(kolmafia.myId()), kolmafia.gamedayToInt(), get("_freeBeachWalksUsed", 0), Date.now() / 1000];
-  return requestedCombs === undefined ? compileShadowTop11.apply(void 0, parameters) : compileWaterSheepRoute.apply(void 0, parameters.concat([requestedCombs, freeOnly]));
+  var route = requestedCombs === undefined ? compileShadowTop11.apply(void 0, parameters) : compileWaterSheepRoute.apply(void 0, parameters.concat([requestedCombs, freeOnly]));
+  // Bind the verified route and the scores to the SAME parsed snapshot.
+  // Never re-read a possibly replaced runtime file after compilation.
+  preparedRouteSnapshot = snapshot;
+  return route;
 }
 function printSession(session) {
   var items = _toConsumableArray(session.items);
@@ -8389,196 +8810,6 @@ function printSession(session) {
 // When called from the CLI, this will only ever have string inputs
 // We use string | number so that people can call this directly from other scripts, should they so desire
 // Realistically, everyone will do the CLI option. But it costs us nothing!
-// Passive Don Combo CLI observation report. No KoL actions and no network calls.
-// Kept in ES2018 syntax so the release bundle can embed the same pure helpers.
-function startRunInterface(requested, startedAt, routeMode) {
-  return {
-    schema: "don-combo-cli-run/v0.1",
-    started_at: new Date(startedAt).toISOString(),
-    requested_combs: requested,
-    route_mode: routeMode,
-    observations: [],
-    counts: { event_tiles: 0, scratched_fronts: 0, any_rare_tiles: 0, uncommon_rare_tiles: 0,
-      ultra_rare_tiles: 0, revisited_tiles: 0, high_scratch: 0,
-      very_high_scratch: 0, sand_castles: 0, twinkles: 0, whales: 0,
-      message_bottles: 0, driftwood: 0, cursed_gear: 0,
-      meteorite: 0, rainbow_pearl: 0, route_target_matches: 0 },
-  };
-}
-function layoutHas(layout, symbol) {
-  return String(layout || "").split(",").some(function (row) {
-    var p = row.split(":");
-    return p.length === 2 && p[1].indexOf(symbol) >= 0;
-  });
-}
-function plannedCombed(layout, row, col) {
-  return String(layout || "").split(",").some(function (part) {
-    var p = part.split(":");
-    return p.length === 2 && Number(p[0]) === row && p[1].charAt(col) === "c";
-  });
-}
-function scratchSize(layout) {
-  var total = 0;
-  var seen = {};
-  var parts = String(layout || "").split(",");
-  for (var i = 0; i < parts.length; i++) {
-    var match = /^(\d+):([A-Za-z?]{10})$/.exec(parts[i]);
-    if (!match || seen[match[1]]) continue;
-    seen[match[1]] = true;
-    total += (match[2].match(/[cC]/g) || []).length;
-  }
-  return total;
-}
-function observeRunAction(report, action) {
-  if (!report) return { observed: false, names: [] };
-  var labels = [];
-  var add = function (name) { if (labels.indexOf(name) < 0) labels.push(name); };
-  var count = report.counts;
-  var size = scratchSize(action.layout);
-  if (size > 0) { count.scratched_fronts++; add("scratch_observed"); }
-  if (size >= 6) { count.high_scratch++; add("high_scratch"); }
-  if (size >= 11) { count.very_high_scratch++; add("very_high_scratch"); }
-  if (layoutHas(action.layout, "C") || String(action.outcome).indexOf("sand_castle") === 0) {
-    count.sand_castles++; add("sand_castle");
-  }
-  if (layoutHas(action.layout, "t") || action.outcome === "twinkle_fallback") {
-    count.twinkles++; add("twinkle");
-  }
-  if (layoutHas(action.layout, "W") || action.outcome === "whale") {
-    count.whales++; add("beached_whale");
-  }
-  var bottle = String(action.output || "").split(/\r?\n/).some(function (line) {
-    return /^\s*(?:>\s*)?You found a message in a bottle!\s*$/i.test(line.trim());
-  });
-  if (bottle) { count.message_bottles++; add("message_in_a_bottle"); }
-  var rare = false, uncommon = bottle || action.outcome === "whale", ultra = false;
-  var items = action.items || {};
-  Object.keys(items).forEach(function (name) {
-    if (!(items[name] > 0)) return;
-    var n = name.toLowerCase().replace(/\s+/g, " ").trim();
-    if (n === "piece of driftwood") {
-      count.driftwood++; rare = true; add("piece_of_driftwood");
-    } else if (/^cursed(?: pirate)? (?:tricorn hat|tricorn|swash buckle|swashbuckle|cutlass)$/.test(n)) {
-      count.cursed_gear++; rare = true; uncommon = true; add("cursed_pirate_gear");
-    } else if (n === "meteorite fragment") {
-      count.meteorite++; rare = true; ultra = true; add("meteorite_fragment");
-    } else if (n === "rainbow pearl") {
-      count.rainbow_pearl++; rare = true; ultra = true; add("rainbow_pearl");
-    }
-  });
-  // Encounter-only bottle/whale are admitted to the inclusive scarce ladder.
-  if (uncommon) rare = true;
-  if (rare) count.any_rare_tiles++;
-  if (uncommon) count.uncommon_rare_tiles++;
-  if (ultra) count.ultra_rare_tiles++;
-  var watersheep = report.route_mode.indexOf("watersheep-") === 0;
-  var revisit = watersheep && plannedCombed(action.layout, action.planned_row, action.planned_col);
-  if (revisit) { count.revisited_tiles++; add("planned_rare_revisit"); }
-  if (watersheep && action.planned_row === action.actual_row &&
-      action.planned_col === action.actual_col) count.route_target_matches++;
-  if (labels.length > 0) count.event_tiles++;
-  report.observations.push({ minute: action.minute, row: action.actual_row,
-    column: action.actual_col, outcome: action.outcome, labels: labels,
-    planned_revisit: revisit, scratch_count: size });
-  return { observed: labels.length > 0, names: labels };
-}
-function runProgress(spent, requested) {
-  return "+ (" + String(spent).padStart(4, "0") + "/" +
-    String(requested).padStart(4, "0") + ") -- turns(spent/requested)";
-}
-function runRate(value, total) {
-  return value + "/" + total + " (" + (total ? (100 * value / total).toFixed(2) : "0.00") + "%)";
-}
-function renderRunObservation(report, completed, finishedAt) {
-  var c = report.counts;
-  var elapsed = Math.max(0, finishedAt - Date.parse(report.started_at));
-  var mins = Math.floor(elapsed / 60000);
-  var secs = Math.floor(elapsed / 1000) % 60;
-  var millis = Math.floor(elapsed % 1000);
-  var duration = mins + "m " + String(secs).padStart(2, "0") + "s " +
-    String(millis).padStart(3, "0") + "ms";
-  var rows = ["+ === OBSERVATION ===",
-    "+ timestamp: " + new Date(finishedAt).toISOString(),
-    "+ event_tiles: " + runRate(c.event_tiles, completed),
-    "+ scratches_any: " + runRate(c.scratched_fronts, completed),
-    "+ high_scratch: " + runRate(c.high_scratch, completed),
-    "+ very_high_scratch: " + runRate(c.very_high_scratch, completed),
-    "+ sand_castles: " + runRate(c.sand_castles, completed),
-    "+ twinkles: " + runRate(c.twinkles, completed),
-    "+ beached_whale: " + runRate(c.whales, completed),
-    "+ message_in_a_bottle: " + runRate(c.message_bottles, completed),
-    "+ any_rare_tiles: " + runRate(c.any_rare_tiles, completed),
-    "+ uncommon_rare_tiles: " + runRate(c.uncommon_rare_tiles, completed),
-    "+ ultra_rare_tiles: " + runRate(c.ultra_rare_tiles, completed),
-    "+ piece_of_driftwood: " + runRate(c.driftwood, completed),
-    "+ cursed_pirate_gear: " + runRate(c.cursed_gear, completed),
-    "+ meteorite_fragment: " + runRate(c.meteorite, completed),
-    "+ rainbow_pearl: " + runRate(c.rainbow_pearl, completed)];
-  if (report.route_mode.indexOf("watersheep-") === 0) {
-    rows.push("+ revisited_tiles (planned already-combed): " + runRate(c.revisited_tiles, completed));
-    rows.push("+ correctly_predicted_tiles: N/A (WaterSheep scores uncalibrated; no verified prediction label)");
-    rows.push("+ planned_target_actually_combed: " + runRate(c.route_target_matches, completed));
-  } else {
-    rows.push("+ revisited_tiles: N/A (only classified for WaterSheep routes)");
-    rows.push("+ correctly_predicted_tiles: N/A (no WaterSheep prediction)");
-  }
-  rows.push("+ total IRL time: " + duration);
-  rows.push("+ average time per completed comb: " +
-    (completed ? (elapsed / completed / 1000).toFixed(3) + "s" : "N/A (0 combs)"));
-  rows.push("+ note: event categories overlap; only item deltas/native bottle/whale actions count as rare finds.");
-  return rows;
-}
-function priceCacheFromText(text) {
-  var cache = {};
-  var lines = String(text || "").split(/\r?\n/);
-  // KoLmafia mallprices.txt version 0xF00D5, rows: item_id TAB timestamp TAB price.
-  if (!lines.length || Number(lines[0].trim()) !== 983253) return { prices: cache, valid: false };
-  for (var i = 1; i < lines.length; i++) {
-    var fields = lines[i].trim().split(/\s+/);
-    if (fields.length < 3) continue;
-    var id = Number(fields[0]), ts = Number(fields[1]), price = Number(fields[2]);
-    if (!Number.isInteger(id) || id < 1 || !Number.isFinite(ts) || ts <= 0 ||
-      !Number.isInteger(price) || price <= 0 || price > 999999999) continue;
-    if (!cache[id] || cache[id].timestamp < ts) cache[id] = { timestamp: ts, price: price };
-  }
-  return { prices: cache, valid: true };
-}
-// KoLmafia's Rhino Number.toLocaleString does not accept "en-US"; in some
-// revisions it treats that argument as a radix, causing "illegal radix 0".
-function formatMeatNumber(value) {
-  var pieces = String(value).split(".");
-  pieces[0] = pieces[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return pieces.join(".");
-}
-function renderRunValue(items, rawMeat, cachedText) {
-  var cache = priceCacheFromText(cachedText);
-  var rows = ["+ === VALUE ===",
-    "+ source: local KoLmafia data/mallprices.txt (historical cache only; no Mall requests)"];
-  var priced = 0, unknown = 0, total = rawMeat;
-  var details = items.map(function (e) {
-    var id = Number(e.id), quantity = Number(e.quantity);
-    var hit = cache.prices[id];
-    var price = hit ? hit.price : null;
-    if (price === null) unknown++;
-    else { priced++; total += quantity * price; }
-    return { name: e.name, quantity: quantity, price: price,
-      subtotal: price === null ? null : quantity * price, price_timestamp: hit ? hit.timestamp : null };
-  });
-  details.sort(function (a,b) { return (b.subtotal || 0) - (a.subtotal || 0); });
-  details.forEach(function (d) {
-    rows.push("+ " + d.name + " | " + d.quantity + " x " +
-      (d.price === null ? "N/A" : formatMeatNumber(d.price)) + " = " +
-      (d.subtotal === null ? "unknown" : formatMeatNumber(d.subtotal)) + " meat");
-  });
-  rows.push("+ raw meat: " + formatMeatNumber(rawMeat));
-  rows.push("+ est final total: " + formatMeatNumber(total) +
-    " meat" + (unknown ? " (known-price subtotal; " + unknown + " unpriced item types)" : ""));
-  if (!cache.valid) rows.push("+ cached price file missing or incompatible; unknown items not valued.");
-  return { lines: rows, priced: priced, unpriced: unknown,
-    estimated_total_known_meat: total, file_valid: cache.valid, items: details };
-}
-
-
 function main(args) {
   // Sometimes people try to run things with insanely old mafia versions and run into problems
   // Think of this as babyproofing
@@ -8625,7 +8856,12 @@ function main(args) {
   // We do this by first tracking what the session results are right now
   // Later, we will subtract these items and meat from our final results
   if (get("don_combo_running", false)) kolmafia.abort("Another Combo run is already active.");
-  kolmafia.print("+ Runtime timer started: " + new Date(invocationStartMs).toISOString(), "gray");
+  // A previous native action with indeterminate outcome cannot be replayed.
+  // Clearing this preference requires human reconciliation of game/session
+  // receipts; never silently wipe it while starting a new run.
+  var unresolvedAction = kolmafia.getProperty("don_combo_last_run_unverified_action");
+  if (unresolvedAction) kolmafia.abort("Unresolved prior Beach Comb action (".concat(unresolvedAction, "); manual reconciliation required. No new combs started."));
+  kolmafia.print("+ Runtime timer started: ".concat(new Date(invocationStartMs).toISOString()), "gray");
   var rawArg = typeof args === "string" ? args.trim() : args;
   var shadow11 = rawArg === "shadow11";
   var wsFree = rawArg === "watersheep-free";
@@ -8670,6 +8906,9 @@ function main(args) {
     kolmafia.print("WaterSheep: pre-scoring complete; ranked snapshot saved.", HIGHLIGHT);
   }
   var frozenRoute = shadow11 ? loadShadowTop11Route() : wsFree || wsPaid ? loadShadowTop11Route(wsCount, wsFree) : null;
+  // Load the validated route's pre-scored evidence BEFORE marking a run active.
+  var frozenScoredSnapshot = frozenRoute ? preparedRouteSnapshot : null;
+  if (frozenRoute && !frozenScoredSnapshot) kolmafia.abort("Frozen WaterSheep route lacks its validated source snapshot.");
   var routeMode = wsPaid ? "watersheep-paid" : wsFree || shadow11 ? "watersheep-free" : "combo-default";
   var freeOnly = wsFree || shadow11;
   var baseline = Session.current();
@@ -8712,6 +8951,7 @@ function main(args) {
   // Routed WaterSheep gets a pre-action prediction per target automatically;
   // vanilla Combo keeps the existing opt-in don_combo_ml_trace property.
   autoTraceWaterSheepRun = shadow11 || wsFree || wsPaid;
+  activeRouteSnapshot = frozenScoredSnapshot;
   var completedCombs = 0;
   var interrupted = false;
   var cleanFinish = false;
@@ -8735,7 +8975,16 @@ function main(args) {
         if (!freeOnly && before >= 11 && beforeAdventures < 1) throw new Error("No adventures remain for a paid beach comb.");
         var target = frozenRoute[completedCombs];
         if (!target || kolmafia.gamedayToInt() !== frozenGameday || Number(kolmafia.myId()) !== frozenPlayer) throw new Error("Shadow route day/player changed during execution.");
-        _comb(target);
+        activeSpendCheckpoint = {
+          freeBefore: before,
+          adventuresBefore: beforeAdventures,
+          freeOnly
+        };
+        try {
+          _comb(target);
+        } finally {
+          activeSpendCheckpoint = null;
+        }
         var after = get("_freeBeachWalksUsed", 0);
         var afterAdventures = kolmafia.myAdventures();
         var freeSpent = after === before + 1;
@@ -8748,7 +8997,6 @@ function main(args) {
         // Preserve normal Combo's deterministic shuffled rare route.
         if (comb()) completedCombs++;
       }
-
       if (completedCombs > progressBefore) kolmafia.print(runProgress(completedCombs, combs), "gray");
       // If the request arrived during the comb, the observation/loot trace has
       // already been finalized. Stop here before beginning the next target.
@@ -8801,7 +9049,8 @@ function main(args) {
     }
   } finally {
     activeLiveRareShare = null; // discard, never persist for replay
-    activeRunInterface = null; // clear transient report between runs
+    activeSpendCheckpoint = null;
+    activeRunInterface = null; // no global report state between invocations
     _set("logPreferenceChangeFilter", oldFilter);
     _set("don_combo_running", false);
     _set("don_combo_interrupt", false);
@@ -8823,6 +9072,8 @@ function main(args) {
       kolmafia.print("don_combo: daily shadow learning summary unavailable: ".concat(error instanceof Error ? error.message : String(error)), "gray");
     } finally {
       autoTraceWaterSheepRun = false;
+      activeRouteSnapshot = null;
+      preparedRouteSnapshot = null;
       activeShadowRun = null;
     }
   }
@@ -8835,33 +9086,71 @@ function main(args) {
   printSession(final);
   var lifetime = Session.add(final, Session.fromFile("combo_results.json"));
   lifetime.toFile("combo_results.json");
-  // Best-effort report after lifetime results have already been saved.
+
+  // Reporting is best-effort: completed gameplay and lifetime results are already saved.
   try {
+    // Final human-readable report and passive machine-readable receipt.
+    // Read only the local mallprices.txt cache; never invoke mallPrice().
     var reportEndedAtMs = Date.now();
     var observationLines = renderRunObservation(runInterface, completedCombs, reportEndedAtMs);
-    observationLines.forEach(function (line) { kolmafia.print(line, "gray"); });
+    var _iterator4 = _createForOfIteratorHelper(observationLines),
+      _step4;
+    try {
+      for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+        var line = _step4.value;
+        kolmafia.print(line, "gray");
+      }
+    } catch (err) {
+      _iterator4.e(err);
+    } finally {
+      _iterator4.f();
+    }
     var priceText = "";
-    try { priceText = String(kolmafia.fileToBuffer("mallprices.txt") || ""); }
-    catch (_priceError) { /* absent local cache */ }
-    var value = renderRunValue(Array.from(final.items).map(function (entry) {
-      return { id: entry[0].id, name: entry[0].name, quantity: entry[1] };
+    try {
+      priceText = String(kolmafia.fileToBuffer("mallprices.txt") || "");
+    } catch (_unused2) {
+      /* absent cache */
+    }
+    var value = renderRunValue(_toConsumableArray(final.items).map(_ref5 => {
+      var _ref6 = _slicedToArray(_ref5, 2),
+        item = _ref6[0],
+        quantity = _ref6[1];
+      return {
+        id: item.id,
+        name: item.name,
+        quantity
+      };
     }), final.meat, priceText);
-    value.lines.forEach(function (line) { kolmafia.print(line, "gray"); });
+    var _iterator5 = _createForOfIteratorHelper(value.lines),
+      _step5;
+    try {
+      for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
+        var _line = _step5.value;
+        kolmafia.print(_line, "gray");
+      }
+    } catch (err) {
+      _iterator5.e(err);
+    } finally {
+      _iterator5.f();
+    }
     kolmafia.print("");
     try {
-      kolmafia.appendBufferToFile(JSON.stringify(Object.assign({}, runInterface, {
+      kolmafia.appendBufferToFile(JSON.stringify(_objectSpread2(_objectSpread2({}, runInterface), {}, {
         completed_combs: completedCombs,
         status: interrupted ? "interrupted" : "completed",
         ended_at: new Date(reportEndedAtMs).toISOString(),
         elapsed_ms: reportEndedAtMs - invocationStartMs,
-        value: { estimated_total_known_meat: value.estimated_total_known_meat,
-          unpriced_item_types: value.unpriced, local_cache_valid: value.file_valid }
-      })) + "\n", "don_combo_run_reports.jsonl");
+        value: {
+          estimated_total_known_meat: value.estimated_total_known_meat,
+          unpriced_item_types: value.unpriced,
+          local_cache_valid: value.file_valid
+        }
+      })).concat("\n"), "don_combo_run_reports.jsonl");
     } catch (error) {
-      kolmafia.print("don_combo: CLI report archive unavailable: " + String(error), "gray");
+      kolmafia.print("don_combo: CLI report archive unavailable: ".concat(String(error)), "gray");
     }
   } catch (error) {
-    kolmafia.print("don_combo: optional report unavailable after results saved: " + String(error), "gray");
+    kolmafia.print("don_combo: optional report unavailable after results saved: ".concat(String(error)), "gray");
   }
   kolmafia.print("don_combo: results saved; script finished.", "gray");
 }

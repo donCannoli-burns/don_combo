@@ -338,8 +338,7 @@ function _comb(tile: BeachTile): void {
         items: delta.items, output: actionOutput,
       });
       print(
-        "+ event_observed=" + (seen.observed ? "T" : "F") +
-          " event_name=" + (seen.names.join(",") || "none"),
+        `+ event_observed=${seen.observed ? "T" : "F"} event_name=${seen.names.join(",") || "none"}`,
         "gray",
       );
     }
@@ -643,7 +642,7 @@ export function main(args?: string | number): void {
   const unresolvedAction = getProperty("don_combo_last_run_unverified_action");
   if (unresolvedAction)
     abort(`Unresolved prior Beach Comb action (${unresolvedAction}); manual reconciliation required. No new combs started.`);
-  print("+ Runtime timer started: " + new Date(invocationStartMs).toISOString(), "gray");
+  print(`+ Runtime timer started: ${new Date(invocationStartMs).toISOString()}`, "gray");
   const rawArg = typeof args === "string" ? args.trim() : args;
   const shadow11 = rawArg === "shadow11";
   const wsFree = rawArg === "watersheep-free";
@@ -981,14 +980,14 @@ export function main(args?: string | number): void {
           elapsed_ms: reportEndedAtMs - invocationStartMs,
           value: { estimated_total_known_meat: value.estimated_total_known_meat,
             unpriced_item_types: value.unpriced, local_cache_valid: value.file_valid },
-        }) + "\n",
+        }) + `\n`,
         "don_combo_run_reports.jsonl",
       );
     } catch (error) {
-      print("don_combo: CLI report archive unavailable: " + String(error), "gray");
+      print(`don_combo: CLI report archive unavailable: ${String(error)}`, "gray");
     }
   } catch (error) {
-    print("don_combo: optional report unavailable after results saved: " + String(error), "gray");
+    print(`don_combo: optional report unavailable after results saved: ${String(error)}`, "gray");
   }
   print("don_combo: results saved; script finished.", "gray");
 }

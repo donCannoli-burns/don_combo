@@ -980,7 +980,7 @@ export function main(args?: string | number): void {
           elapsed_ms: reportEndedAtMs - invocationStartMs,
           value: { estimated_total_known_meat: value.estimated_total_known_meat,
             unpriced_item_types: value.unpriced, local_cache_valid: value.file_valid },
-        }) + `\n`,
+        }).concat("\n"),
         "don_combo_run_reports.jsonl",
       );
     } catch (error) {

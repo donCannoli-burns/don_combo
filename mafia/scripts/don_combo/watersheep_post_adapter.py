@@ -125,8 +125,8 @@ def make_handler(watersheep_port: int):
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--listen-port", type=int, default=8767)
-    parser.add_argument("--watersheep-port", type=int, default=8766)
+    parser.add_argument("--listen-port", type=int, default=8766)
+    parser.add_argument("--watersheep-port", type=int, default=8767)
     args = parser.parse_args()
     if not (1024 <= args.listen_port <= 65535 and 1024 <= args.watersheep_port <= 65535):
         parser.error("ports must be between 1024 and 65535")

@@ -6,7 +6,7 @@ const adapter = readFileSync(
   new URL("../mafia/scripts/don_combo/watersheep_post_adapter.py", import.meta.url), "utf8",
 );
 for (const token of [
-  "http://127.0.0.1:8767/v1/kolmafia",
+  "http://127.0.0.1:8766/v1/kolmafia",
   "visitUrl(url, true, true)",
   "urlEncode(JSON.stringify(payload))",
 ]) assert.ok(source.includes(token), "Missing client transport " + token);

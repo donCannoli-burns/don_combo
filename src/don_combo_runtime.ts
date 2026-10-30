@@ -81,9 +81,9 @@ const WEIGHTS: Record<(typeof LABELS)[number], number> = {
   scratched: 0,
 };
 // Local loopback adapter accepts an encoded request= form POST and forwards
-// JSON POST to the locally observed WaterSheep service on port 8767.
+// JSON POST to the native WaterSheep inference service on port 8766.
 // This separates the very large model evidence from the HTTP request URL.
-const ENDPOINT = "http://127.0.0.1:8766/v1/kolmafia";
+const ENDPOINT = "http://127.0.0.1:8768/v1/kolmafia";
 const DESIGN_REFERENCE = {
   repository: "es-3581100/math-by-design",
   commit: "4f3cfebc0bc8f2f243080d9c758290323eeaf595",

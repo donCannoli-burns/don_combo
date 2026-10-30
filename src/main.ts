@@ -24,7 +24,7 @@ import {
 import { $items, get, Kmail, property, Session, set, sinceKolmafiaRevision } from "libram";
 
 import { prepareWaterSheepRoute, traceTargetPrediction } from "./don_combo_runtime";
-import { beachChoiceReady, nativeBeachCombReceipt } from "./runtime/beach-action-guard";
+import { beachChoiceReady, verifyBeachCombTransition } from "./runtime/beach-action-guard";
 import {
   LIVE_RARE_SHARE_PREF,
   LIVE_RARE_SHARE_RECIPIENT,
@@ -302,9 +302,32 @@ function _comb(tile: BeachTile): void {
     // Persist pending before sending an irreversible action. No automatic retry.
     setProperty("don_combo_last_run_unverified_action", coords);
     ensureBeachChoice(); // Preference listeners must not invalidate the choice.
+    // The CLI logs an attempted square before the HTTP response; it is not
+    // a receipt. KoLmafia's BeachManager changes the targeted layout tile
+    // to 'c' only after receiving the server's successful "You comb" text.
+    // Capture resource state immediately around this ONE native command for
+    // both ordinary Combo and routed Combo (including already-combed tiles).
+    const beforeLayout = property.getString("_beachLayout");
+    const beforeMinute = get("_beachMinutes", 0);
+    const freeBefore = get("_freeBeachWalksUsed", 0);
+    const adventuresBefore = myAdventures();
     const output = cliExecuteOutput(`beach comb ${actualRow} ${actualColumn}`);
-    if (!nativeBeachCombReceipt(output))
-      throw new Error(`Beach comb ${coords} returned no native success receipt; no retry.`);
+    const receipt = verifyBeachCombTransition({
+      beforeLayout,
+      afterLayout: property.getString("_beachLayout"),
+      beforeMinute,
+      afterMinute: get("_beachMinutes", 0),
+      expectedMinute: minute,
+      row: actualRow,
+      column: actualColumn,
+      freeBefore,
+      freeAfter: get("_freeBeachWalksUsed", 0),
+      adventuresBefore,
+      adventuresAfter: myAdventures(),
+      freeOnly: activeSpendCheckpoint?.freeOnly ?? false,
+    });
+    if (!receipt.verified)
+      throw new Error(`Beach comb ${coords} not verified (${receipt.reason}); no retry.`);
     // The original paid/free counters were captured before beach wander.
     // They cover the complete single attempt rather than only the final
     // square click. Keep the pending record if spend cannot be verified.

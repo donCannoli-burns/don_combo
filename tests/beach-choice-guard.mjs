@@ -137,10 +137,15 @@ assert.equal(
 assert.equal((comb.match(/performVerifiedComb\(/g) || []).length, 6);
 assert.ok(comb.indexOf("performVerifiedComb(") < comb.indexOf("finishObservation("));
 assert.ok(!comb.includes("nativeBeachCombReceipt"));
-assert.ok(comb.includes('beforeLayout: property.getString("_beachLayout")') || comb.includes('const beforeLayout = property.getString("_beachLayout")'));
+assert.ok(
+  comb.includes('beforeLayout: property.getString("_beachLayout")') ||
+    comb.includes('const beforeLayout = property.getString("_beachLayout")'),
+);
 assert.ok(comb.includes('afterLayout: property.getString("_beachLayout")'));
 assert.ok(comb.includes('const freeBefore = get("_freeBeachWalksUsed", 0)'));
-assert.ok(comb.includes('const adventuresBefore = myAdventures()'));
-assert.ok(comb.includes('freeOnly: activeSpendCheckpoint?.freeOnly ?? false'));
+assert.ok(comb.includes("const adventuresBefore = myAdventures()"));
+assert.ok(comb.includes("freeOnly: activeSpendCheckpoint?.freeOnly ?? false"));
 
-console.log("Beach choice recovery, verified state/resource receipt, and no-retry boundaries: PASS");
+console.log(
+  "Beach choice recovery, verified state/resource receipt, and no-retry boundaries: PASS",
+);

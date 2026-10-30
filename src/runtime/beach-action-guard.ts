@@ -79,10 +79,8 @@ export function verifyBeachCombTransition(e: NativeCombEvidence): VerifiedCombTr
   )
     return failed("invalid-resource-counters");
 
-  const freeSpent =
-    e.freeAfter === e.freeBefore + 1 && e.adventuresAfter === e.adventuresBefore;
-  const paidSpent =
-    e.freeAfter === e.freeBefore && e.adventuresAfter === e.adventuresBefore - 1;
+  const freeSpent = e.freeAfter === e.freeBefore + 1 && e.adventuresAfter === e.adventuresBefore;
+  const paidSpent = e.freeAfter === e.freeBefore && e.adventuresAfter === e.adventuresBefore - 1;
   if (e.freeOnly ? !freeSpent : !freeSpent && !paidSpent)
     return failed("no-exactly-one-verified-spend");
 

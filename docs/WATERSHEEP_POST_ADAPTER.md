@@ -2,18 +2,17 @@
 
 The TypeScript Combo scorer sends large evidence payloads. The old
 `GET http://127.0.0.1:8766/v1/kolmafia?request=...` request can exceed URL
-limits and is not the standard WaterSheep API. The normal WaterSheep service
-expects **JSON POST /v1/systemone** on port 8766.
+limits and is not the standard WaterSheep API. The standard WaterSheep API expects **JSON POST /v1/systemone**. On the user\'s current machine, a process called `watersheep-open` is listening on **8767**; its support for this endpoint has **not yet been confirmed**.
 
 ## Connection diagram
 
 ```text
 KoLmafia visitUrl(url, true, true)
   POST request=<percent-encoded JSON> (form body, not query URL)
-      -> 127.0.0.1:8767/v1/kolmafia
+      -> 127.0.0.1:8766/v1/kolmafia
          local watersheep_post_adapter.py
   POST application/json
-      -> 127.0.0.1:8766/v1/systemone
+      -> 127.0.0.1:8767/v1/systemone
          WaterSheep
 ```
 
@@ -23,20 +22,13 @@ only to the loopback interface. **No automatic inference retries.**
 
 ## Linux setup
 
-In a terminal, first check the process using port 8766:
+In a terminal, first check the process using port 8767:
 
 ```sh
 ss -ltnp '( sport = :8766 )'
 ```
 
-Ensure that your usual WaterSheep service is running on port 8766 and
-supports `POST /v1/systemone`. With standard WaterSheep that may be:
-
-```sh
-watersheep --model samratduttaofficial/WaterSheep --serve
-```
-
-In a **second** terminal, run the local form-to-JSON adapter from the
+Keep the existing listener on port **8767**. First verify that it supports\n`POST /v1/systemone` and returns `answers.tile_class.probabilities` before\nrunning the adapter. **Do not start a second model service or kill this one.**\n\nIn a **second** terminal, run the local form-to-JSON adapter from the
 KoLmafia installation after the new release has been deployed:
 
 ```sh
@@ -47,11 +39,11 @@ In a **third** terminal, verify listener status. This makes **no model
 request and no game actions**:
 
 ```sh
-curl --max-time 3 -fsS http://127.0.0.1:8767/health
+curl --max-time 3 -fsS http://127.0.0.1:8766/health
 ```
 
 Expected `adapter=ready` and `watersheep_tcp=listening`.
-The TCP check only proves that something is listening on port 8766;
+The TCP check only proves that something is listening on port 8767;
 it does **not** prove the upstream implements the correct API. Test with
 a small one-question JSON POST separately before any paid game run.
 

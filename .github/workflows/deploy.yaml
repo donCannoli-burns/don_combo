@@ -58,6 +58,9 @@ jobs:
       - name: Beach choice recovery, native receipt and no-retry guards
         run: node --experimental-strip-types tests/beach-choice-guard.mjs
 
+      - name: Offline WaterSheep POST adapter transport regressions
+        run: python3 tests/watersheep-post-adapter.py
+
       - name: Offline daily shadow cohort invariants
         run: node --experimental-strip-types tests/shadow-learning.mjs
 

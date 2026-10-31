@@ -24,7 +24,11 @@ import {
 import { $items, get, Kmail, property, Session, set, sinceKolmafiaRevision } from "libram";
 
 import { prepareWaterSheepRoute, traceTargetPrediction } from "./don_combo_runtime";
-import { beachChoiceReady, verifyBeachCombTransition } from "./runtime/beach-action-guard";
+import {
+  beachChoiceReady,
+  parseBeachMinuteProperty,
+  verifyBeachCombTransition,
+} from "./runtime/beach-action-guard";
 import {
   LIVE_RARE_SHARE_PREF,
   LIVE_RARE_SHARE_RECIPIENT,
@@ -281,7 +285,7 @@ function _comb(tile: BeachTile): void {
   const ensureBeachChoice = (): void => {
     logBeachChoiceState("guard_entry");
     const beachActive = get("_beachCombing", false);
-    const beachMinute = get("_beachMinutes", 0);
+    const beachMinute = parseBeachMinuteProperty(getProperty("_beachMinutes"));
     if (!beachChoiceReady(handlingChoice(), beachActive, beachMinute, minute, lastChoice())) {
       logBeachChoiceState("guard_not_ready");
       if (choiceRecoveryAttempted)
@@ -298,7 +302,7 @@ function _comb(tile: BeachTile): void {
       !beachChoiceReady(
         handlingChoice(),
         get("_beachCombing", false),
-        get("_beachMinutes", 0),
+        parseBeachMinuteProperty(getProperty("_beachMinutes")),
         minute,
         lastChoice(),
       ) ||
@@ -319,7 +323,7 @@ function _comb(tile: BeachTile): void {
     // Capture resource state immediately around this ONE native command for
     // both ordinary Combo and routed Combo (including already-combed tiles).
     const beforeLayout = property.getString("_beachLayout");
-    const beforeMinute = get("_beachMinutes", 0);
+    const beforeMinute = parseBeachMinuteProperty(getProperty("_beachMinutes"));
     const freeBefore = get("_freeBeachWalksUsed", 0);
     const adventuresBefore = myAdventures();
     const output = cliExecuteOutput(`beach comb ${actualRow} ${actualColumn}`);
@@ -327,7 +331,7 @@ function _comb(tile: BeachTile): void {
       beforeLayout,
       afterLayout: property.getString("_beachLayout"),
       beforeMinute,
-      afterMinute: get("_beachMinutes", 0),
+      afterMinute: parseBeachMinuteProperty(getProperty("_beachMinutes")),
       expectedMinute: minute,
       row: actualRow,
       column: actualColumn,

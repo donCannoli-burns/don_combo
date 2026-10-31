@@ -1,5 +1,13 @@
 // Pure guards for the Beach Comb choice/action boundary.
 // Tested offline; no KoL I/O or model inference lives in this module.
+// Libram classifies _beachMinutes as a string property. Parse it strictly
+// before any strict numeric comparison; malformed values must fail closed.
+export function parseBeachMinuteProperty(raw: string): number {
+  if (!/^[1-9]\d{0,4}$/.test(raw)) return Number.NaN;
+  const minute = Number(raw);
+  return minute <= 10000 ? minute : Number.NaN;
+}
+
 export function beachChoiceReady(
   handlingChoice: boolean,
   beachCombing: boolean,

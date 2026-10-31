@@ -1,9 +1,21 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { beachChoiceReady, verifyBeachCombTransition } from "../src/runtime/beach-action-guard.ts";
+import {
+  beachChoiceReady,
+  parseBeachMinuteProperty,
+  verifyBeachCombTransition,
+} from "../src/runtime/beach-action-guard.ts";
 
 assert.equal(beachChoiceReady(true, true, 504, 504, 1388), true);
+assert.equal(beachChoiceReady(true, true, "2342", 2342, 1388), false);
+assert.equal(parseBeachMinuteProperty("2342"), 2342);
+assert.equal(beachChoiceReady(true, true, parseBeachMinuteProperty("2342"), 2342, 1388), true);
+for (const raw of ["", "0", "0001", "2342 ", "2.342e3", "1.5", "-1", "10001", "abc"]) {
+  assert.equal(Number.isNaN(parseBeachMinuteProperty(raw)), true, raw);
+}
+assert.equal(parseBeachMinuteProperty("1"), 1);
+assert.equal(parseBeachMinuteProperty("10000"), 10000);
 assert.equal(beachChoiceReady(false, true, 504, 504, 1388), false); // observed failure
 assert.equal(beachChoiceReady(true, true, 504, 504, 1234), false); // unrelated choice
 assert.equal(beachChoiceReady(true, false, 504, 504, 1388), false);
@@ -145,6 +157,14 @@ assert.ok(comb.includes('afterLayout: property.getString("_beachLayout")'));
 assert.ok(comb.includes('const freeBefore = get("_freeBeachWalksUsed", 0)'));
 assert.ok(comb.includes("const adventuresBefore = myAdventures()"));
 assert.ok(comb.includes("freeOnly: activeSpendCheckpoint?.freeOnly ?? false"));
+assert.ok(
+  comb.includes('const beachMinute = parseBeachMinuteProperty(getProperty("_beachMinutes"))'),
+);
+assert.equal(
+  (comb.match(/parseBeachMinuteProperty\(getProperty\("_beachMinutes"\)\)/g) || []).length,
+  4,
+);
+assert.equal((comb.match(/get\("_beachMinutes", 0\)/g) || []).length, 1); // diagnostic only
 
 console.log(
   "Beach choice recovery, verified state/resource receipt, and no-retry boundaries: PASS",

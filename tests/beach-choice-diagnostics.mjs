@@ -17,10 +17,17 @@ assert.ok(comb.includes("choice=${lastChoice()}"));
 assert.ok(comb.includes('combing=${get("_beachCombing", false)}'));
 assert.ok(comb.includes('minute=${get("_beachMinutes", 0)}'));
 assert.ok(comb.includes('throw new Error("Beach choice state changed; no comb sent.")'));
-assert.ok(comb.includes('throw new Error("Beach choice/layout mismatch after visit; no comb sent.")'));
+assert.ok(
+  comb.includes('throw new Error("Beach choice/layout mismatch after visit; no comb sent.")'),
+);
 assert.equal((comb.match(/cliExecute\(`beach wander/g) || []).length, 1);
 assert.equal((comb.match(/cliExecuteOutput\(`beach comb/g) || []).length, 1);
 assert.equal((comb.match(/cliExecute\("beach visit"\)/g) || []).length, 1);
-assert.ok(comb.indexOf('logBeachChoiceState("after_wander")') > comb.indexOf('cliExecute(`beach wander'));
-assert.ok(comb.indexOf('logBeachChoiceState("after_wander")') < comb.indexOf('ensureBeachChoice();'));
+assert.ok(
+  comb.indexOf('logBeachChoiceState("after_wander")') >
+    comb.indexOf("cliExecute(`beach wander"),
+);
+assert.ok(
+  comb.indexOf('logBeachChoiceState("after_wander")') < comb.indexOf("ensureBeachChoice();"),
+);
 console.log("Beach choice passive diagnostics and fail-closed action boundary: PASS");

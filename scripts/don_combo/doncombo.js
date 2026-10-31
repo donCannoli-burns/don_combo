@@ -6552,6 +6552,26 @@ function compactPoolTimeScales(index) {
   };
 }
 
+/** Restricted DonCombo model transport: no DNS, public IPs, or arbitrary paths. */
+var DEFAULT_WATERSHEEP_ENDPOINT = "http://127.0.0.1:8768/v1/kolmafia";
+var WATERSHEEP_ENDPOINT_PREF = "don_combo_watersheep_endpoint";
+function resolveWaterSheepEndpoint(value) {
+  if (value === "") return DEFAULT_WATERSHEEP_ENDPOINT;
+  var match = /^http:\/\/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):8768\/v1\/kolmafia$/.exec(value);
+  if (!match) throw new Error("Invalid WaterSheep endpoint: literal private IPv4, port 8768 and /v1/kolmafia required");
+  var parts = match[1].split(".");
+  var bytes = parts.map(Number);
+  if (parts.some((part, index) => String(bytes[index]) !== part || bytes[index] > 255)) throw new Error("Invalid WaterSheep endpoint IPv4 octets");
+  var _bytes = _slicedToArray(bytes, 4),
+    a = _bytes[0],
+    b = _bytes[1],
+    c = _bytes[2],
+    d = _bytes[3];
+  var permitted = a === 127 && b === 0 && c === 0 && d === 1 || a === 10 || a === 172 && b >= 16 && b <= 31 || a === 192 && b === 168;
+  if (!permitted) throw new Error("WaterSheep endpoint must be loopback or RFC1918 private IPv4");
+  return value;
+}
+
 var GRID = 1024;
 var REAL = 1_000_000;
 var LABELS = ["rare", "whale", "sandcastle", "twinkle", "regular", "scratched"];
@@ -6571,10 +6591,12 @@ var WEIGHTS = {
   regular: 0.1,
   scratched: 0
 };
-// Local loopback adapter accepts an encoded request= form POST and forwards
-// JSON POST to the native WaterSheep inference service on port 8766.
-// This separates the very large model evidence from the HTTP request URL.
-var ENDPOINT = "http://127.0.0.1:8768/v1/kolmafia";
+// The private adapter accepts form POST and forwards JSON to WaterSheep.
+// Resolve the configured private endpoint at each request boundary; invalid
+// settings fail closed before any model call or KoL gameplay action.
+function waterSheepEndpoint() {
+  return resolveWaterSheepEndpoint(kolmafia.getProperty(WATERSHEEP_ENDPOINT_PREF));
+}
 var DESIGN_REFERENCE = {
   repository: "es-3581100/math-by-design",
   commit: "4f3cfebc0bc8f2f243080d9c758290323eeaf595",
@@ -7049,7 +7071,7 @@ function askWaterSheep(candidate) {
   var _parsed$answers;
   var payload = waterSheepPayload(candidate);
   var started = Date.now();
-  var url = "".concat(ENDPOINT, "?request=").concat(kolmafia.urlEncode(JSON.stringify(payload)));
+  var url = "".concat(waterSheepEndpoint(), "?request=").concat(kolmafia.urlEncode(JSON.stringify(payload)));
   // KoLmafia's visit_url(..., true, true) moves the already-encoded
   // request= field into the POST form body. encoded=true prevents the
   // percent-encoding from being applied twice. No GET or fallback retry.
@@ -7638,7 +7660,7 @@ function buildRuntime() {
       rule: "Combo records beach observations directly into the local evidence ledger; KoLmafia session logs remain recovery evidence, not the hot-path trigger."
     },
     watersheep: {
-      endpoint: ENDPOINT,
+      endpoint: waterSheepEndpoint(),
       evidence_contract: WATERSHEEP_EVIDENCE_CONTRACT,
       status,
       error,

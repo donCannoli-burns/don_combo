@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Loopback-only bridge: KoLmafia POST form -> WaterSheep POST JSON.
+"""Private-interface bridge: KoLmafia POST form -> WaterSheep POST JSON.
 
 KoLmafia visit_url(..., true, true) sends encoded request= as form data.
 WaterSheep accepts JSON at POST /v1/systemone.
@@ -8,6 +8,9 @@ No KoL requests, game actions, or remote hosts are used.
 from __future__ import annotations
 
 import argparse
+import ipaddress
+import signal
+import threading
 import json
 import socket
 import urllib.error
@@ -17,6 +20,26 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 MAX_BODY = 262_144
 MAX_REPLY = 262_144
+PRIVATE_NETWORKS = tuple(ipaddress.IPv4Network(network) for network in (
+    "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+))
+
+
+def validate_listen_hosts(hosts: list[str]) -> list[str]:
+    """Accept only host loopback or explicit RFC1918 interface addresses."""
+    result = hosts or ["127.0.0.1"]
+    if len(set(result)) != len(result):
+        raise ValueError("duplicate adapter listen address")
+    for host in result:
+        try:
+            address = ipaddress.IPv4Address(host)
+        except ipaddress.AddressValueError as exc:
+            raise ValueError("listen address must be a literal IPv4 address") from exc
+        if host != str(address) or not (
+            host == "127.0.0.1" or any(address in net for net in PRIVATE_NETWORKS)
+        ):
+            raise ValueError("adapter must bind only to 127.0.0.1 or an RFC1918 interface")
+    return result
 
 
 def validate_payload(value: object) -> dict:
@@ -127,19 +150,48 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--listen-port", type=int, default=8768)
     parser.add_argument("--watersheep-port", type=int, default=8766)
+    parser.add_argument(
+        "--listen-host", action="append", default=[],
+        help="repeat for each private interface (default: 127.0.0.1 only)",
+    )
     args = parser.parse_args()
     if not (1024 <= args.listen_port <= 65535 and 1024 <= args.watersheep_port <= 65535):
         parser.error("ports must be between 1024 and 65535")
     if args.listen_port == args.watersheep_port:
         parser.error("listen and upstream ports must differ")
-    server = ThreadingHTTPServer(("127.0.0.1", args.listen_port), make_handler(args.watersheep_port))
-    print(f"don_combo WaterSheep adapter: 127.0.0.1:{args.listen_port} -> 127.0.0.1:{args.watersheep_port} (JSON POST)", flush=True)
     try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
+        hosts = validate_listen_hosts(args.listen_host)
+    except ValueError as exc:
+        parser.error(str(exc))
+
+    # All interfaces must bind before serving; a failed secondary bind cannot
+    # leave a half-started adapter behind. Never bind 0.0.0.0.
+    servers = []
+    background = []
+    try:
+        for host in hosts:
+            servers.append(ThreadingHTTPServer((host, args.listen_port), make_handler(args.watersheep_port)))
+        for server in servers[1:]:
+            worker = threading.Thread(target=server.serve_forever, daemon=True)
+            worker.start()
+            background.append((server, worker))
+        for host in hosts:
+            print(f"don_combo WaterSheep adapter: {host}:{args.listen_port} -> 127.0.0.1:{args.watersheep_port} (JSON POST)", flush=True)
+
+        # The host-side launcher may use SIGTERM for clean shutdown.
+        def terminate(_signum, _frame):
+            raise KeyboardInterrupt
+        signal.signal(signal.SIGTERM, terminate)
+        try:
+            servers[0].serve_forever()
+        except KeyboardInterrupt:
+            pass
     finally:
-        server.server_close()
+        for server, worker in background:
+            server.shutdown()
+            worker.join(timeout=3)
+        for server in servers:
+            server.server_close()
 
 
 if __name__ == "__main__":

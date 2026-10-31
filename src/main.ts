@@ -242,6 +242,13 @@ function _comb(tile: BeachTile): void {
   // It's going to be really tedious to write tile.minute and tile.row all the time
   // So this is nice looking
   const { minute, row, column } = tile;
+  // Read-only choice snapshot; never navigates or changes preferences.
+  const logBeachChoiceState = (phase: string): void => {
+    print(
+      `DON_COMBO_CHOICE_STATE phase=${phase} expected_minute=${minute} handling=${handlingChoice()} choice=${lastChoice()} combing=${get("_beachCombing", false)} minute=${get("_beachMinutes", 0)}`,
+      "gray",
+    );
+  };
   // The optional localhost model request must finish BEFORE opening the
   // live Beach Comb choice; never interleave it with a native comb action.
   const preActionPrediction = captureTargetPrediction(minute, row, column);
@@ -249,6 +256,7 @@ function _comb(tile: BeachTile): void {
     throw new Error("Frozen WaterSheep target score unavailable; no beach action sent.");
   if (!cliExecute(`beach wander ${minute};`))
     throw new Error(`Could not visit beach minute ${minute}; route stopped.`);
+  logBeachChoiceState("after_wander");
   const layoutString = property.getString("_beachLayout");
   const preActionObservedAt = new Date().toISOString();
   print(`DON_COMBO_OBSERVATION minute=${minute} layout=${layoutString}`, "gray");
@@ -271,9 +279,11 @@ function _comb(tile: BeachTile): void {
   // after an attempted comb whose native result is uncertain.
   let choiceRecoveryAttempted = false;
   const ensureBeachChoice = (): void => {
+    logBeachChoiceState("guard_entry");
     const beachActive = get("_beachCombing", false);
     const beachMinute = get("_beachMinutes", 0);
     if (!beachChoiceReady(handlingChoice(), beachActive, beachMinute, minute, lastChoice())) {
+      logBeachChoiceState("guard_not_ready");
       if (choiceRecoveryAttempted)
         throw new Error("Beach choice recovery already attempted; no comb sent.");
       if (!beachActive || beachMinute !== minute || handlingChoice())
@@ -282,6 +292,7 @@ function _comb(tile: BeachTile): void {
       choiceRecoveryAttempted = true;
       if (!cliExecute("beach visit"))
         throw new Error("Beach Comb visit recovery failed; no comb sent.");
+      logBeachChoiceState("after_reopen");
     }
     if (
       !beachChoiceReady(

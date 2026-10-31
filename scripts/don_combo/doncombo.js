@@ -8507,11 +8507,16 @@ function _comb(tile) {
   var minute = tile.minute,
     row = tile.row,
     column = tile.column;
+  // Read-only choice snapshot; never navigates or changes preferences.
+  var logBeachChoiceState = phase => {
+    kolmafia.print("DON_COMBO_CHOICE_STATE phase=".concat(phase, " expected_minute=").concat(minute, " handling=").concat(kolmafia.handlingChoice(), " choice=").concat(kolmafia.lastChoice(), " combing=").concat(get("_beachCombing", false), " minute=").concat(get("_beachMinutes", 0)), "gray");
+  };
   // The optional localhost model request must finish BEFORE opening the
   // live Beach Comb choice; never interleave it with a native comb action.
   var preActionPrediction = captureTargetPrediction(minute, row, column);
   if (autoTraceWaterSheepRun && preActionPrediction !== null && preActionPrediction !== void 0 && preActionPrediction.error) throw new Error("Frozen WaterSheep target score unavailable; no beach action sent.");
   if (!kolmafia.cliExecute("beach wander ".concat(minute, ";"))) throw new Error("Could not visit beach minute ".concat(minute, "; route stopped."));
+  logBeachChoiceState("after_wander");
   var layoutString = getString("_beachLayout");
   var preActionObservedAt = new Date().toISOString();
   kolmafia.print("DON_COMBO_OBSERVATION minute=".concat(minute, " layout=").concat(layoutString), "gray");
@@ -8530,14 +8535,17 @@ function _comb(tile) {
   // after an attempted comb whose native result is uncertain.
   var choiceRecoveryAttempted = false;
   var ensureBeachChoice = () => {
+    logBeachChoiceState("guard_entry");
     var beachActive = get("_beachCombing", false);
     var beachMinute = get("_beachMinutes", 0);
     if (!beachChoiceReady(kolmafia.handlingChoice(), beachActive, beachMinute, minute, kolmafia.lastChoice())) {
+      logBeachChoiceState("guard_not_ready");
       if (choiceRecoveryAttempted) throw new Error("Beach choice recovery already attempted; no comb sent.");
       if (!beachActive || beachMinute !== minute || kolmafia.handlingChoice()) throw new Error("Beach choice state changed; no comb sent.");
       kolmafia.print("don_combo: Beach Comb choice inactive; reopening once before action.", "gray");
       choiceRecoveryAttempted = true;
       if (!kolmafia.cliExecute("beach visit")) throw new Error("Beach Comb visit recovery failed; no comb sent.");
+      logBeachChoiceState("after_reopen");
     }
     if (!beachChoiceReady(kolmafia.handlingChoice(), get("_beachCombing", false), get("_beachMinutes", 0), minute, kolmafia.lastChoice()) || getString("_beachLayout") !== layoutString) throw new Error("Beach choice/layout mismatch after visit; no comb sent.");
   };

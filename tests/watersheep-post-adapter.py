@@ -60,6 +60,20 @@ class Tests(unittest.TestCase):
             server.shutdown()
             server.server_close()
 
+    def test_private_listen_hosts_validation(self):
+        self.assertEqual(module.validate_listen_hosts([]), ["127.0.0.1"])
+        self.assertEqual(
+            module.validate_listen_hosts(["127.0.0.1", "172.29.0.1"]),
+            ["127.0.0.1", "172.29.0.1"],
+        )
+        for invalid in (
+            ["0.0.0.0"], ["8.8.8.8"], ["169.254.1.1"],
+            ["127.0.0.2"], ["localhost"], ["::1"],
+            ["127.0.0.1", "127.0.0.1"],
+        ):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                module.validate_listen_hosts(invalid)
+
     def test_health_never_infers(self):
         Upstream.seen.clear()
         with urllib.request.urlopen(self.url + "/health") as response:

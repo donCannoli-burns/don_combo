@@ -7,14 +7,16 @@ const adapter = readFileSync(
   "utf8",
 );
 for (const token of [
-  "http://127.0.0.1:8768/v1/kolmafia",
+  "waterSheepEndpoint()",
+  "resolveWaterSheepEndpoint(getProperty(WATERSHEEP_ENDPOINT_PREF))",
   "visitUrl(url, true, true)",
   "urlEncode(JSON.stringify(payload))",
 ])
   assert.ok(source.includes(token), "Missing client transport " + token);
 assert.ok(!source.includes("visitUrl(url, false)"));
 for (const token of [
-  '("127.0.0.1", args.listen_port)',
+  "validate_listen_hosts(args.listen_host)",
+  "ThreadingHTTPServer((host, args.listen_port)",
   "/v1/systemone",
   'method="POST"',
   "default=8768",
@@ -23,4 +25,6 @@ for (const token of [
   "shadow-only; no action authorized",
 ])
   assert.ok(adapter.includes(token), "Missing adapter safety " + token);
-console.log("WaterSheep transport uses loopback form POST and standard JSON POST upstream: PASS");
+console.log(
+  "WaterSheep transport uses validated private form POST and local JSON POST upstream: PASS",
+);

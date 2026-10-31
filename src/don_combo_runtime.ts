@@ -60,6 +60,7 @@ import {
   type HistoricalRareCurve,
   type PoolIndex,
 } from "./runtime/two-pool-cooldown";
+import { resolveWaterSheepEndpoint, WATERSHEEP_ENDPOINT_PREF } from "./runtime/watersheep-endpoint";
 
 const GRID = 1024;
 const REAL = 1_000_000;
@@ -80,10 +81,12 @@ const WEIGHTS: Record<(typeof LABELS)[number], number> = {
   regular: 0.1,
   scratched: 0,
 };
-// Local loopback adapter accepts an encoded request= form POST and forwards
-// JSON POST to the native WaterSheep inference service on port 8766.
-// This separates the very large model evidence from the HTTP request URL.
-const ENDPOINT = "http://127.0.0.1:8768/v1/kolmafia";
+// The private adapter accepts form POST and forwards JSON to WaterSheep.
+// Resolve the configured private endpoint at each request boundary; invalid
+// settings fail closed before any model call or KoL gameplay action.
+function waterSheepEndpoint(): string {
+  return resolveWaterSheepEndpoint(getProperty(WATERSHEEP_ENDPOINT_PREF));
+}
 const DESIGN_REFERENCE = {
   repository: "es-3581100/math-by-design",
   commit: "4f3cfebc0bc8f2f243080d9c758290323eeaf595",
@@ -637,7 +640,7 @@ function waterSheepPayload(candidate: Candidate): WaterSheepRequest {
 function askWaterSheep(candidate: Candidate): { scores: Record<string, number>; ms: number } {
   const payload = waterSheepPayload(candidate);
   const started = Date.now();
-  const url = `${ENDPOINT}?request=${urlEncode(JSON.stringify(payload))}`;
+  const url = `${waterSheepEndpoint()}?request=${urlEncode(JSON.stringify(payload))}`;
   // KoLmafia's visit_url(..., true, true) moves the already-encoded
   // request= field into the POST form body. encoded=true prevents the
   // percent-encoding from being applied twice. No GET or fallback retry.
@@ -1310,7 +1313,7 @@ function buildRuntime(frontierSize = 16, onScored?: (completed: number, total: n
       rule: "Combo records beach observations directly into the local evidence ledger; KoLmafia session logs remain recovery evidence, not the hot-path trigger.",
     },
     watersheep: {
-      endpoint: ENDPOINT,
+      endpoint: waterSheepEndpoint(),
       evidence_contract: WATERSHEEP_EVIDENCE_CONTRACT,
       status,
       error,

@@ -253,6 +253,41 @@ Start the downstream KOL-WaterSheep server:
 watersheep --model samratduttaofficial/WaterSheep --serve
 ```
 
+### Private Docker/Xpra WaterSheep adapter
+
+The adapter runs on the **Linux host**, not in the Xpra container. The
+KoLmafia profile is bind-mounted, but the containers have independent loopback
+interfaces. To allow Xpra to reach the model without public exposure, launch
+**one** adapter with two explicit private listen hosts (substitute your actual
+Docker gateway from `docker inspect`):
+
+```bash
+python3 mafia/scripts/don_combo/watersheep_post_adapter.py \
+  --listen-host 127.0.0.1 --listen-host 172.29.0.1
+```
+
+Integrate this command into your existing managed launcher/stop sequence;
+**do not** run a second adapter alongside an existing port-8768 process.
+The adapter rejects wildcard/public binds, requires shadow-only request
+contracts, and forwards exclusively to host loopback port 8766. It does not
+invoke KoL game actions. The default with no `--listen-host` stays loopback-only.
+
+After deploying a rebuilt DonCombo runtime, set in the **Xpra gCLI**:
+
+```text
+set don_combo_watersheep_endpoint=http://172.29.0.1:8768/v1/kolmafia
+```
+
+The preference accepts only literal RFC1918 IPv4 or 127.0.0.1, exactly port
+8768 and path `/v1/kolmafia`; invalid values fail closed before any request.
+Avoid `0.0.0.0`, public bindings, and Docker host-network mode. Confirm both
+`curl http://127.0.0.1:8768/health` on the host and
+`docker exec kolmafia-xpra-kolmafia-1 curl http://172.29.0.1:8768/health`.
+Health checks verify TCP reachability, not model output validity.
+
+This networking fix is **independent** of `ensureBeachChoice` and does not
+permit any Beach Comb retry or change an unverified action receipt.
+
 Install/repair the callable aliases from `kolmafia-skills`:
 
 ```text

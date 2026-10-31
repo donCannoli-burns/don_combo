@@ -67,6 +67,9 @@ jobs:
       - name: Source-level WaterSheep transport boundary
         run: node tests/watersheep-transport.mjs
 
+      - name: Private WaterSheep endpoint allowlist regression
+        run: node tests/watersheep-endpoint.mjs
+
       - name: Offline daily shadow cohort invariants
         run: node --experimental-strip-types tests/shadow-learning.mjs
 

@@ -7714,6 +7714,13 @@ function writeRuntime(result) {
 
 // Pure guards for the Beach Comb choice/action boundary.
 // Tested offline; no KoL I/O or model inference lives in this module.
+// Libram classifies _beachMinutes as a string property. Parse it strictly
+// before any strict numeric comparison; malformed values must fail closed.
+function parseBeachMinuteProperty(raw) {
+  if (!/^[1-9]\d{0,4}$/.test(raw)) return Number.NaN;
+  var minute = Number(raw);
+  return minute <= 10000 ? minute : Number.NaN;
+}
 function beachChoiceReady(handlingChoice, beachCombing, currentMinute, expectedMinute, activeChoice) {
   return handlingChoice && activeChoice === 1388 && beachCombing && Number.isInteger(expectedMinute) && expectedMinute >= 1 && expectedMinute <= 10000 && currentMinute === expectedMinute;
 }
@@ -8537,7 +8544,7 @@ function _comb(tile) {
   var ensureBeachChoice = () => {
     logBeachChoiceState("guard_entry");
     var beachActive = get("_beachCombing", false);
-    var beachMinute = get("_beachMinutes", 0);
+    var beachMinute = parseBeachMinuteProperty(kolmafia.getProperty("_beachMinutes"));
     if (!beachChoiceReady(kolmafia.handlingChoice(), beachActive, beachMinute, minute, kolmafia.lastChoice())) {
       logBeachChoiceState("guard_not_ready");
       if (choiceRecoveryAttempted) throw new Error("Beach choice recovery already attempted; no comb sent.");
@@ -8547,7 +8554,7 @@ function _comb(tile) {
       if (!kolmafia.cliExecute("beach visit")) throw new Error("Beach Comb visit recovery failed; no comb sent.");
       logBeachChoiceState("after_reopen");
     }
-    if (!beachChoiceReady(kolmafia.handlingChoice(), get("_beachCombing", false), get("_beachMinutes", 0), minute, kolmafia.lastChoice()) || getString("_beachLayout") !== layoutString) throw new Error("Beach choice/layout mismatch after visit; no comb sent.");
+    if (!beachChoiceReady(kolmafia.handlingChoice(), get("_beachCombing", false), parseBeachMinuteProperty(kolmafia.getProperty("_beachMinutes")), minute, kolmafia.lastChoice()) || getString("_beachLayout") !== layoutString) throw new Error("Beach choice/layout mismatch after visit; no comb sent.");
   };
   var performVerifiedComb = (actualRow, actualColumn) => {
     var _activeSpendCheckpoin;
@@ -8562,7 +8569,7 @@ function _comb(tile) {
     // Capture resource state immediately around this ONE native command for
     // both ordinary Combo and routed Combo (including already-combed tiles).
     var beforeLayout = getString("_beachLayout");
-    var beforeMinute = get("_beachMinutes", 0);
+    var beforeMinute = parseBeachMinuteProperty(kolmafia.getProperty("_beachMinutes"));
     var freeBefore = get("_freeBeachWalksUsed", 0);
     var adventuresBefore = kolmafia.myAdventures();
     var output = kolmafia.cliExecuteOutput("beach comb ".concat(actualRow, " ").concat(actualColumn));
@@ -8570,7 +8577,7 @@ function _comb(tile) {
       beforeLayout,
       afterLayout: getString("_beachLayout"),
       beforeMinute,
-      afterMinute: get("_beachMinutes", 0),
+      afterMinute: parseBeachMinuteProperty(kolmafia.getProperty("_beachMinutes")),
       expectedMinute: minute,
       row: actualRow,
       column: actualColumn,

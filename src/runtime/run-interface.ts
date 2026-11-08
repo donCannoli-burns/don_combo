@@ -294,3 +294,80 @@ export function renderRunValue(items, rawMeat, cachedText) {
     items: details,
   };
 }
+
+// Colorized, fixed-width ASCII tables for KoLmafia's gCLI.
+// print_html(<table>) and inline SVG collapse into unseparated text in
+// some KoLmafia/Xpra consoles. These rows use ordinary print() instead.
+// Formatting only; no state changes, price lookups, or network requests.
+export function renderFinalCliSection(section, rawLines) {
+  if (["results", "observation", "value"].indexOf(section) < 0)
+    throw new Error("Unknown Don Combo final section");
+  const purple = "#A855F7";
+  const orange = "#FF8800";
+  const green = "#00CC66";
+  const leftWidth = 43;
+  const rightWidth = 53;
+  const border = "+" + "-".repeat(leftWidth + 2) + "+" + "-".repeat(rightWidth + 2) + "+";
+  const rows = [{ text: border, color: purple }];
+
+  const wrap = (input, width) => {
+    let remaining = String(input);
+    const chunks = [];
+    while (remaining.length > width) {
+      let split = remaining.lastIndexOf(" ", width + 1);
+      if (split <= 0) split = width;
+      chunks.push(remaining.slice(0, split));
+      remaining = remaining.slice(split).replace(/^\\s+/, "");
+    }
+    chunks.push(remaining);
+    return chunks;
+  };
+  const append = (label, detail, color) => {
+    const left = wrap(label, leftWidth);
+    const right = wrap(detail, rightWidth);
+    for (let i = 0; i < Math.max(left.length, right.length); i++) {
+      rows.push({
+        text:
+          "| " +
+          (left[i] || "").padEnd(leftWidth) +
+          " | " +
+          (right[i] || "").padEnd(rightWidth) +
+          " |",
+        color: color || null,
+      });
+    }
+  };
+
+  append("=== " + section.toUpperCase() + " ===", "", section === "observation" ? orange : purple);
+  for (const raw of rawLines) {
+    const line = String(raw).replace(/^\\+\\s*/, "");
+    if (line === "=== " + section.toUpperCase() + " ===") continue;
+    let label = line;
+    let detail = "";
+    if (section === "results") {
+      const found = /^-Found (-?\\d+) (.+)$/.exec(line);
+      if (found) {
+        label = found[2];
+        detail = found[1];
+      }
+    } else if (section === "value" && line.indexOf(" | ") >= 0) {
+      const divide = line.indexOf(" | ");
+      label = line.slice(0, divide);
+      detail = line.slice(divide + 3);
+    } else {
+      const divide = line.indexOf(": ");
+      if (divide >= 0) {
+        label = line.slice(0, divide);
+        detail = line.slice(divide + 2);
+      }
+    }
+    let color = null;
+    if (section === "observation" && /\\(\\d+(?:\\.\\d+)?%\\)/.test(detail)) {
+      color = /^0\\//.test(detail) ? orange : green;
+    }
+    if (section === "value" && label === "est final total") color = purple;
+    append(label, detail, color);
+  }
+  rows.push({ text: border, color: purple });
+  return rows;
+}

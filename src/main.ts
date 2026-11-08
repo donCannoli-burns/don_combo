@@ -340,9 +340,16 @@ function _comb(tile: BeachTile): void {
       adventuresBefore,
       adventuresAfter: myAdventures(),
       freeOnly: activeSpendCheckpoint?.freeOnly ?? false,
+      nativeOutput: output,
     });
-    if (!receipt.verified)
+    if (!receipt.verified) {
+      // Read-only diagnostics; do not retry an indeterminate command.
+      print(
+        `DON_COMBO_RECEIPT_FAILURE coords=${coords} reason=${receipt.reason} before_layout=${beforeLayout} after_layout=${property.getString("_beachLayout")}`,
+        "gray",
+      );
       throw new Error(`Beach comb ${coords} not verified (${receipt.reason}); no retry.`);
+    }
     // The original paid/free counters were captured before beach wander.
     // They cover the complete single attempt rather than only the final
     // square click. Keep the pending record if spend cannot be verified.

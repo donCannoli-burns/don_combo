@@ -69,6 +69,55 @@ assert.deepEqual(verifyBeachCombTransition(combed), {
   spend: "paid",
   tileFlipped: false,
 });
+// Regression from beach minute 5385: row 4, zero-based column 7 is 'C'.
+// The command returned native loot and a single spend, yet the cached
+// beach layout still showed 'C' rather than transitioning to 'c'.
+const castle = {
+  ...paid,
+  beforeMinute: 5385,
+  afterMinute: 5385,
+  expectedMinute: 5385,
+  row: 4,
+  column: 7,
+  beforeLayout: "4:rrrrrrrCrr,7:rrrrrrCrrr",
+  afterLayout: "4:rrrrrrrCrr,7:rrrrrrCrrr",
+  nativeOutput: [
+    "Combing square 4,8 (5385 minutes down the beach)",
+    "You acquire an item: cyan seashell",
+    "You acquire grain of sand (3)",
+  ].join("\n"),
+};
+assert.deepEqual(verifyBeachCombTransition(castle), {
+  verified: true,
+  reason: "single-spend-castle-native-result-with-stale-layout",
+  spend: "paid",
+  tileFlipped: false,
+});
+assert.equal(
+  verifyBeachCombTransition({
+    ...castle,
+    nativeOutput:
+      "You carefully demolish the sand castle and comb the area into a nice flat sand parking lot.",
+  }).verified,
+  true,
+);
+for (const nativeOutput of [
+  "Combing square 4,8 (5385 minutes down the beach)",
+  "",
+  "You acquire an effect: something unrelated",
+]) {
+  assert.equal(verifyBeachCombTransition({ ...castle, nativeOutput }).verified, false);
+}
+assert.equal(verifyBeachCombTransition({ ...castle, adventuresAfter: 100 }).verified, false);
+assert.equal(verifyBeachCombTransition({ ...castle, freeOnly: true }).verified, false);
+assert.equal(
+  verifyBeachCombTransition({ ...castle, afterLayout: "4:rrrrrrrrrr,7:rrrrrrCrrr" }).verified,
+  false,
+);
+assert.equal(
+  verifyBeachCombTransition({ ...castle, beforeLayout: "4:rrrrrrrrrr,7:rrrrrrCrrr" }).verified,
+  false,
+);
 const fail = (e, reason) => {
   const result = verifyBeachCombTransition(e);
   assert.equal(result.verified, false, reason);

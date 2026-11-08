@@ -52,6 +52,7 @@ import {
   runProgress,
   renderRunObservation,
   renderRunValue,
+  renderFinalCliSection,
 } from "./runtime/run-interface";
 import { firstVisibleSandCastle } from "./runtime/sandcastle-observer";
 import { summarizeShadowRun, type ShadowRunContext } from "./runtime/shadow-learning";
@@ -621,17 +622,28 @@ function loadShadowTop11Route(requestedCombs?: number, freeOnly = true): BeachTi
   return route;
 }
 
-function printSession(session: Session) {
+function sessionResultLines(session: Session): string[] {
   const items: [Item, number][] = [...session.items];
 
-  // Sorts the items to be printed from most profitable, to least
+  // Preserve the original historical-price order and the exact item deltas.
   items.sort(([item1, amount1], [item2, amount2]) => {
     return historicalPrice(item2) * amount2 - historicalPrice(item1) * amount1;
   });
 
-  print(`-Found ${session.meat} meat`);
-  for (const [item, quantity] of items) {
-    print(`-Found ${quantity} ${item}`);
+  return [
+    `-Found ${session.meat} meat`,
+    ...items.map(([item, quantity]) => `-Found ${quantity} ${item}`),
+  ];
+}
+
+function printSession(session: Session) {
+  for (const line of sessionResultLines(session)) print(line);
+}
+
+function printFinalSection(section: "results" | "observation" | "value", lines: string[]): void {
+  for (const row of renderFinalCliSection(section, lines)) {
+    if (row.color) print(row.text, row.color);
+    else print(row.text);
   }
 }
 
@@ -1011,8 +1023,7 @@ export function main(args?: string | number): void {
   // the resulting session will only have what we found during combo
   const final = Session.current().diff(baseline);
   if (interrupted) print("=== INTERRUPTED CLEANLY ===", HIGHLIGHT);
-  print("=== RESULTS ===");
-  printSession(final);
+  printFinalSection("results", sessionResultLines(final));
 
   const lifetime = Session.add(final, Session.fromFile("combo_results.json"));
   lifetime.toFile("combo_results.json");
@@ -1023,7 +1034,7 @@ export function main(args?: string | number): void {
     // Read only the local mallprices.txt cache; never invoke mallPrice().
     const reportEndedAtMs = Date.now();
     const observationLines = renderRunObservation(runInterface, completedCombs, reportEndedAtMs);
-    for (const line of observationLines) print(line, "gray");
+    printFinalSection("observation", observationLines);
     let priceText = "";
     try {
       priceText = String(fileToBuffer("mallprices.txt") || "");
@@ -1035,7 +1046,7 @@ export function main(args?: string | number): void {
       final.meat,
       priceText,
     );
-    for (const line of value.lines) print(line, "gray");
+    printFinalSection("value", value.lines);
     print("");
     try {
       appendBufferToFile(

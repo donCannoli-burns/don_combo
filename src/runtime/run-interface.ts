@@ -307,7 +307,7 @@ export function renderFinalCliSection(section, rawLines) {
   const green = "#00CC66";
   const leftWidth = 43;
   const rightWidth = 53;
-  const border = "+" + "-".repeat(leftWidth + 2) + "+" + "-".repeat(rightWidth + 2) + "+";
+  const border = `+${"-".repeat(leftWidth + 2)}+${"-".repeat(rightWidth + 2)}+`;
   const rows = [{ text: border, color: purple }];
 
   const wrap = (input, width) => {
@@ -327,21 +327,16 @@ export function renderFinalCliSection(section, rawLines) {
     const right = wrap(detail, rightWidth);
     for (let i = 0; i < Math.max(left.length, right.length); i++) {
       rows.push({
-        text:
-          "| " +
-          (left[i] || "").padEnd(leftWidth) +
-          " | " +
-          (right[i] || "").padEnd(rightWidth) +
-          " |",
+        text: `| ${(left[i] || "").padEnd(leftWidth)} | ${(right[i] || "").padEnd(rightWidth)} |`,
         color: color || null,
       });
     }
   };
 
-  append("=== " + section.toUpperCase() + " ===", "", section === "observation" ? orange : purple);
+  append(`=== ${section.toUpperCase()} ===`, "", section === "observation" ? orange : purple);
   for (const raw of rawLines) {
     const line = String(raw).replace(/^\+\s*/, "");
-    if (line === "=== " + section.toUpperCase() + " ===") continue;
+    if (line === `=== ${section.toUpperCase()} ===`) continue;
     let label = line;
     let detail = "";
     if (section === "results") {

@@ -7727,7 +7727,8 @@ function beachChoiceReady(handlingChoice, beachCombing, currentMinute, expectedM
 // KoLmafia BeachManager.parseCombUsage updates a non-combed tile to 'c'
 // only on a successful COMB server response. Already-combed tiles cannot
 // flip again, so a single verifiable resource debit is also required.
-// This accepts no positive evidence from untrusted console/model text.
+// Native command output alone is not a receipt. Castles additionally need
+// an exact one-action resource debit before stale-layout evidence is accepted.
 function verifyBeachCombTransition(e) {
   var failed = reason => ({
     verified: false,
@@ -7758,6 +7759,20 @@ function verifyBeachCombTransition(e) {
   };
   var before = tileAt(e.beforeLayout);
   var after = tileAt(e.afterLayout);
+  // A castle demolition can return native loot without KoLmafia flipping
+  // its cached 'C' to 'c'. This special case requires the exact spend checked
+  // above AND native response evidence from this single attempted command.
+  // A "Combing square" request-registration line is not sufficient.
+  var nativeOutput = e.nativeOutput || "";
+  var castleResult = /You carefully demolish the sand castle/i.test(nativeOutput) || /You acquire (?:an item:|grain of sand)/i.test(nativeOutput);
+  if (before === "C" && after === "C" && castleResult) {
+    return {
+      verified: true,
+      reason: "single-spend-castle-native-result-with-stale-layout",
+      spend: freeSpent ? "free" : "paid",
+      tileFlipped: false
+    };
+  }
   if (before === null || after !== "c") return failed("no-target-tile-confirmation");
   return {
     verified: true,
@@ -8585,9 +8600,14 @@ function _comb(tile) {
       freeAfter: get("_freeBeachWalksUsed", 0),
       adventuresBefore,
       adventuresAfter: kolmafia.myAdventures(),
-      freeOnly: ((_activeSpendCheckpoin = activeSpendCheckpoint) === null || _activeSpendCheckpoin === void 0 ? void 0 : _activeSpendCheckpoin.freeOnly) ?? false
+      freeOnly: ((_activeSpendCheckpoin = activeSpendCheckpoint) === null || _activeSpendCheckpoin === void 0 ? void 0 : _activeSpendCheckpoin.freeOnly) ?? false,
+      nativeOutput: output
     });
-    if (!receipt.verified) throw new Error("Beach comb ".concat(coords, " not verified (").concat(receipt.reason, "); no retry."));
+    if (!receipt.verified) {
+      // Read-only diagnostics; do not retry an indeterminate command.
+      kolmafia.print("DON_COMBO_RECEIPT_FAILURE coords=".concat(coords, " reason=").concat(receipt.reason, " before_layout=").concat(beforeLayout, " after_layout=").concat(getString("_beachLayout")), "gray");
+      throw new Error("Beach comb ".concat(coords, " not verified (").concat(receipt.reason, "); no retry."));
+    }
     // The original paid/free counters were captured before beach wander.
     // They cover the complete single attempt rather than only the final
     // square click. Keep the pending record if spend cannot be verified.

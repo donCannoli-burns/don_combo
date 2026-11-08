@@ -8154,6 +8154,90 @@ function renderRunValue(items, rawMeat, cachedText) {
   };
 }
 
+// Colorized, fixed-width ASCII tables for KoLmafia's gCLI.
+// print_html(<table>) and inline SVG collapse into unseparated text in
+// some KoLmafia/Xpra consoles. These rows use ordinary print() instead.
+// Formatting only; no state changes, price lookups, or network requests.
+function renderFinalCliSection(section, rawLines) {
+  if (["results", "observation", "value"].indexOf(section) < 0) throw new Error("Unknown Don Combo final section");
+  var purple = "#A855F7";
+  var orange = "#FF8800";
+  var green = "#00CC66";
+  var leftWidth = 43;
+  var rightWidth = 53;
+  var border = "+".concat("-".repeat(leftWidth + 2), "+").concat("-".repeat(rightWidth + 2), "+");
+  var rows = [{
+    text: border,
+    color: purple
+  }];
+  var wrap = (input, width) => {
+    var remaining = String(input);
+    var chunks = [];
+    while (remaining.length > width) {
+      var split = remaining.lastIndexOf(" ", width + 1);
+      if (split <= 0) split = width;
+      chunks.push(remaining.slice(0, split));
+      remaining = remaining.slice(split).replace(/^\s+/, "");
+    }
+    chunks.push(remaining);
+    return chunks;
+  };
+  var append = (label, detail, color) => {
+    var left = wrap(label, leftWidth);
+    var right = wrap(detail, rightWidth);
+    for (var i = 0; i < Math.max(left.length, right.length); i++) {
+      rows.push({
+        text: "| ".concat((left[i] || "").padEnd(leftWidth), " | ").concat((right[i] || "").padEnd(rightWidth), " |"),
+        color: color || null
+      });
+    }
+  };
+  append("=== ".concat(section.toUpperCase(), " ==="), "", section === "observation" ? orange : purple);
+  var _iterator = _createForOfIteratorHelper(rawLines),
+    _step;
+  try {
+    for (_iterator.s(); !(_step = _iterator.n()).done;) {
+      var raw = _step.value;
+      var line = String(raw).replace(/^\+\s*/, "");
+      if (line === "=== ".concat(section.toUpperCase(), " ===")) continue;
+      var label = line;
+      var detail = "";
+      if (section === "results") {
+        var found = /^-Found (-?\d+) (.+)$/.exec(line);
+        if (found) {
+          label = found[2];
+          detail = found[1];
+        }
+      } else if (section === "value" && line.indexOf(" | ") >= 0) {
+        var divide = line.indexOf(" | ");
+        label = line.slice(0, divide);
+        detail = line.slice(divide + 3);
+      } else {
+        var _divide = line.indexOf(": ");
+        if (_divide >= 0) {
+          label = line.slice(0, _divide);
+          detail = line.slice(_divide + 2);
+        }
+      }
+      var color = null;
+      if (section === "observation" && /\(\d+(?:\.\d+)?%\)/.test(detail)) {
+        color = /^0\//.test(detail) ? orange : green;
+      }
+      if (section === "value" && label === "est final total") color = purple;
+      append(label, detail, color);
+    }
+  } catch (err) {
+    _iterator.e(err);
+  } finally {
+    _iterator.f();
+  }
+  rows.push({
+    text: border,
+    color: purple
+  });
+  return rows;
+}
+
 // Run-cohort counting stays self-contained for direct Node regression tests.
 function scratchCount(layout) {
   var seen = new Set();
@@ -8834,10 +8918,10 @@ function loadShadowTop11Route(requestedCombs) {
   preparedRouteSnapshot = snapshot;
   return route;
 }
-function printSession(session) {
+function sessionResultLines(session) {
   var items = _toConsumableArray(session.items);
 
-  // Sorts the items to be printed from most profitable, to least
+  // Preserve the original historical-price order and the exact item deltas.
   items.sort((_ref, _ref2) => {
     var _ref3 = _slicedToArray(_ref, 2),
       item1 = _ref3[0],
@@ -8847,20 +8931,39 @@ function printSession(session) {
       amount2 = _ref4[1];
     return kolmafia.historicalPrice(item2) * amount2 - kolmafia.historicalPrice(item1) * amount1;
   });
-  kolmafia.print("-Found ".concat(session.meat, " meat"));
-  var _iterator2 = _createForOfIteratorHelper(items),
+  return ["-Found ".concat(session.meat, " meat")].concat(_toConsumableArray(items.map(_ref5 => {
+    var _ref6 = _slicedToArray(_ref5, 2),
+      item = _ref6[0],
+      quantity = _ref6[1];
+    return "-Found ".concat(quantity, " ").concat(item);
+  })));
+}
+function printSession(session) {
+  var _iterator2 = _createForOfIteratorHelper(sessionResultLines(session)),
     _step2;
   try {
     for (_iterator2.s(); !(_step2 = _iterator2.n()).done;) {
-      var _step2$value = _slicedToArray(_step2.value, 2),
-        item = _step2$value[0],
-        quantity = _step2$value[1];
-      kolmafia.print("-Found ".concat(quantity, " ").concat(item));
+      var line = _step2.value;
+      kolmafia.print(line);
     }
   } catch (err) {
     _iterator2.e(err);
   } finally {
     _iterator2.f();
+  }
+}
+function printFinalSection(section, lines) {
+  var _iterator3 = _createForOfIteratorHelper(renderFinalCliSection(section, lines)),
+    _step3;
+  try {
+    for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
+      var row = _step3.value;
+      if (row.color) kolmafia.print(row.text, row.color);else kolmafia.print(row.text);
+    }
+  } catch (err) {
+    _iterator3.e(err);
+  } finally {
+    _iterator3.f();
   }
 }
 
@@ -9078,11 +9181,11 @@ function main(args) {
       if (!safeToKmail()) {
         kolmafia.print("don_combo: sharing skipped (combat/choice state); no retry queued.", "red");
       } else {
-        var _iterator3 = _createForOfIteratorHelper(batches),
-          _step3;
+        var _iterator4 = _createForOfIteratorHelper(batches),
+          _step4;
         try {
-          for (_iterator3.s(); !(_step3 = _iterator3.n()).done;) {
-            var batch = _step3.value;
+          for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
+            var batch = _step4.value;
             if (!shareDataEnabled() || get("don_combo_interrupt", false) || !safeToKmail()) break;
             var delivered = false;
             try {
@@ -9097,9 +9200,9 @@ function main(args) {
             sent++;
           }
         } catch (err) {
-          _iterator3.e(err);
+          _iterator4.e(err);
         } finally {
-          _iterator3.f();
+          _iterator4.f();
         }
         if (sent) kolmafia.print("don_combo: sent ".concat(sent, " opt-in live rare-tile Kmail batch").concat(sent === 1 ? "" : "es", "."), "gray");
       }
@@ -9139,8 +9242,7 @@ function main(args) {
   // the resulting session will only have what we found during combo
   var final = Session.current().diff(baseline);
   if (interrupted) kolmafia.print("=== INTERRUPTED CLEANLY ===", HIGHLIGHT);
-  kolmafia.print("=== RESULTS ===");
-  printSession(final);
+  printFinalSection("results", sessionResultLines(final));
   var lifetime = Session.add(final, Session.fromFile("combo_results.json"));
   lifetime.toFile("combo_results.json");
 
@@ -9150,46 +9252,24 @@ function main(args) {
     // Read only the local mallprices.txt cache; never invoke mallPrice().
     var reportEndedAtMs = Date.now();
     var observationLines = renderRunObservation(runInterface, completedCombs, reportEndedAtMs);
-    var _iterator4 = _createForOfIteratorHelper(observationLines),
-      _step4;
-    try {
-      for (_iterator4.s(); !(_step4 = _iterator4.n()).done;) {
-        var line = _step4.value;
-        kolmafia.print(line, "gray");
-      }
-    } catch (err) {
-      _iterator4.e(err);
-    } finally {
-      _iterator4.f();
-    }
+    printFinalSection("observation", observationLines);
     var priceText = "";
     try {
       priceText = String(kolmafia.fileToBuffer("mallprices.txt") || "");
     } catch (_unused2) {
       /* absent cache */
     }
-    var value = renderRunValue(_toConsumableArray(final.items).map(_ref5 => {
-      var _ref6 = _slicedToArray(_ref5, 2),
-        item = _ref6[0],
-        quantity = _ref6[1];
+    var value = renderRunValue(_toConsumableArray(final.items).map(_ref7 => {
+      var _ref8 = _slicedToArray(_ref7, 2),
+        item = _ref8[0],
+        quantity = _ref8[1];
       return {
         id: item.id,
         name: item.name,
         quantity
       };
     }), final.meat, priceText);
-    var _iterator5 = _createForOfIteratorHelper(value.lines),
-      _step5;
-    try {
-      for (_iterator5.s(); !(_step5 = _iterator5.n()).done;) {
-        var _line = _step5.value;
-        kolmafia.print(_line, "gray");
-      }
-    } catch (err) {
-      _iterator5.e(err);
-    } finally {
-      _iterator5.f();
-    }
+    printFinalSection("value", value.lines);
     kolmafia.print("");
     try {
       kolmafia.appendBufferToFile(JSON.stringify(_objectSpread2(_objectSpread2({}, runInterface), {}, {

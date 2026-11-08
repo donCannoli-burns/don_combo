@@ -317,7 +317,7 @@ export function renderFinalCliSection(section, rawLines) {
       let split = remaining.lastIndexOf(" ", width + 1);
       if (split <= 0) split = width;
       chunks.push(remaining.slice(0, split));
-      remaining = remaining.slice(split).replace(/^\\s+/, "");
+      remaining = remaining.slice(split).replace(/^\s+/, "");
     }
     chunks.push(remaining);
     return chunks;
@@ -340,12 +340,12 @@ export function renderFinalCliSection(section, rawLines) {
 
   append("=== " + section.toUpperCase() + " ===", "", section === "observation" ? orange : purple);
   for (const raw of rawLines) {
-    const line = String(raw).replace(/^\\+\\s*/, "");
+    const line = String(raw).replace(/^\+\s*/, "");
     if (line === "=== " + section.toUpperCase() + " ===") continue;
     let label = line;
     let detail = "";
     if (section === "results") {
-      const found = /^-Found (-?\\d+) (.+)$/.exec(line);
+      const found = /^-Found (-?\d+) (.+)$/.exec(line);
       if (found) {
         label = found[2];
         detail = found[1];
@@ -362,8 +362,8 @@ export function renderFinalCliSection(section, rawLines) {
       }
     }
     let color = null;
-    if (section === "observation" && /\\(\\d+(?:\\.\\d+)?%\\)/.test(detail)) {
-      color = /^0\\//.test(detail) ? orange : green;
+    if (section === "observation" && /\(\d+(?:\.\d+)?%\)/.test(detail)) {
+      color = /^0\//.test(detail) ? orange : green;
     }
     if (section === "value" && label === "est final total") color = purple;
     append(label, detail, color);

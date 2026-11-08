@@ -39,6 +39,7 @@ type NativeCombEvidence = {
   adventuresBefore: number;
   adventuresAfter: number;
   freeOnly: boolean;
+  nativeOutput?: string;
 };
 
 export type VerifiedCombTransition = {
@@ -51,7 +52,8 @@ export type VerifiedCombTransition = {
 // KoLmafia BeachManager.parseCombUsage updates a non-combed tile to 'c'
 // only on a successful COMB server response. Already-combed tiles cannot
 // flip again, so a single verifiable resource debit is also required.
-// This accepts no positive evidence from untrusted console/model text.
+// Native command output alone is not a receipt. Castles additionally need
+// an exact one-action resource debit before stale-layout evidence is accepted.
 export function verifyBeachCombTransition(e: NativeCombEvidence): VerifiedCombTransition {
   const failed = (reason: string): VerifiedCombTransition => ({
     verified: false,
@@ -101,6 +103,22 @@ export function verifyBeachCombTransition(e: NativeCombEvidence): VerifiedCombTr
   };
   const before = tileAt(e.beforeLayout);
   const after = tileAt(e.afterLayout);
+  // A castle demolition can return native loot without KoLmafia flipping
+  // its cached 'C' to 'c'. This special case requires the exact spend checked
+  // above AND native response evidence from this single attempted command.
+  // A "Combing square" request-registration line is not sufficient.
+  const nativeOutput = e.nativeOutput || "";
+  const castleResult =
+    /You carefully demolish the sand castle/i.test(nativeOutput) ||
+    /You acquire (?:an item:|grain of sand)/i.test(nativeOutput);
+  if (before === "C" && after === "C" && castleResult) {
+    return {
+      verified: true,
+      reason: "single-spend-castle-native-result-with-stale-layout",
+      spend: freeSpent ? "free" : "paid",
+      tileFlipped: false,
+    };
+  }
   if (before === null || after !== "c") return failed("no-target-tile-confirmation");
   return {
     verified: true,
